@@ -280,7 +280,7 @@ object WotaSettings {
     private var defaultsApplied = false
 
     fun of(ctx: Context): SharedPreferences =
-        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        (ctx.applicationContext ?: ctx).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun motionMode(prefs: SharedPreferences): MotionMode =
         runCatching { MotionMode.valueOf(prefs.getString(KEY_MOTION, MotionMode.FLUENT.name)!!) }

@@ -14,10 +14,6 @@ import com.wotagei.cam.ui.WotaSettings
  */
 class WotaApp : Application() {
 
-    override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(WotaSettings.wrapContext(base))
-    }
-
     override fun onCreate() {
         super.onCreate()
         // StrictMode 主线程违规收集（2026-10-24 性能基线轮）：只在 debug 变体装，

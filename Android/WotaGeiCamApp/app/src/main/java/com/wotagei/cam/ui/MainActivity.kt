@@ -80,11 +80,13 @@ class MainActivity : ComponentActivity() {
 
     override fun applyOverrideConfiguration(overrideConfiguration: Configuration?) {
         if (overrideConfiguration != null) {
-            val prefs = WotaSettings.of(this)
-            val locale = WotaSettings.getLocale(WotaSettings.language(prefs))
-            if (locale != null) {
-                overrideConfiguration.setLocale(locale)
-                overrideConfiguration.setLocales(LocaleList(locale))
+            runCatching {
+                val prefs = WotaSettings.of(this)
+                val locale = WotaSettings.getLocale(WotaSettings.language(prefs))
+                if (locale != null) {
+                    overrideConfiguration.setLocale(locale)
+                    overrideConfiguration.setLocales(LocaleList(locale))
+                }
             }
         }
         super.applyOverrideConfiguration(overrideConfiguration)
