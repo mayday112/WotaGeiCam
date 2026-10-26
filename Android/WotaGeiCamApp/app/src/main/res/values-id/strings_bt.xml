@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bt_start_scan">Cari perangkat sekitar</string>
+    <string name="bt_stop_scan">Hentikan pencarian</string>
+
+    <!-- Output Saat Ini -->
+    <string name="bt_no_active">Belum terhubung ke speaker</string>
+    <string name="bt_active">Output saat ini: %1$s</string>
+    <string name="bt_battery">Baterai %1$d%%</string>
+    <string name="bt_battery_unknown">Baterai tidak diketahui</string>
+
+    <!-- Daftar Perangkat -->
+    <string name="bt_group_paired">Perangkat terpasang</string>
+    <string name="bt_group_nearby">Perangkat di sekitar</string>
+    <string name="bt_group_nearby_scanning">Perangkat di sekitar (Memindai…)</string>
+    <string name="bt_no_device">Belum ada perangkat Bluetooth yang tersedia</string>
+    <string name="bt_connect">Hubungkan</string>
+    <string name="bt_connected">Terhubung</string>
+    <string name="bt_disconnected">Terputus</string>
+    <string name="bt_tip_settings_only">Penyandingan dan koneksi dilakukan melalui Pengaturan Bluetooth sistem</string>
+
+    <!-- Volume & Kontrol Pemutaran -->
+    <string name="bt_volume">Volume media</string>
+    <string name="bt_volume_value">%1$d%%</string>
+    <string name="bt_play_pause">Putar / Jeda</string>
+    <string name="bt_prev">Sebelumnya</string>
+    <string name="bt_next">Berikutnya</string>
+
+    <!-- Petunjuk Status -->
+    <string name="bt_grant">Berikan izin</string>
+    <string name="bt_adapter_off">Bluetooth sistem nonaktif, silakan aktifkan di Pengaturan</string>
+    <string name="bt_location_off">Layanan lokasi sistem nonaktif: Perangkat ini (Android 10/11) memerlukan layanan lokasi tetap aktif saat mencari perangkat Bluetooth. WotaGeiCam tidak akan membaca lokasi Anda.</string>
+    <string name="bt_open_location">Buka pengaturan lokasi</string>
+</resources>

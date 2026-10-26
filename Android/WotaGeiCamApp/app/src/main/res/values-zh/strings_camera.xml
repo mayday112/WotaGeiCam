@@ -1,0 +1,257 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 录制页框架：顶栏 / 底栏 / 仪表列 / 就近胶囊 -->
+    <string name="cam_settings">设置</string>
+    <string name="cam_gallery_entry">回看</string>
+    <string name="cam_volume_meter">音量表</string>
+    <string name="cam_perm_title">权限未授予</string>
+    <string name="cam_lock_tip">录制中，先停止才能改这一项</string>
+    <string name="cam_no_camera_perm">需要相机权限才能取景</string>
+    <string name="cam_preview_failed">预览未就绪</string>
+    <string name="cam_wait_preview">预览还没出图，请稍候再录</string>
+    <string name="cam_state_prepare">准备中</string>
+    <string name="cam_state_stopping">停止中</string>
+    <string name="cam_state_high_fps">该帧率超出本机能力，已退到可用上限</string>
+    <string name="cam_direct_no_effect">不使用 GPU 时斑马纹与峰值对焦不生效</string>
+
+    <!-- 录制页分屏（用户第 3 项的前半：分屏控件 + 左侧压缩 + 右侧模式外壳） -->
+    <string name="cam_split">分屏</string>
+    <string name="cam_split_exit">退出分屏</string>
+    <string name="cam_split_lens">另镜头录制</string>
+    <string name="cam_split_compare">实时对比播放</string>
+    <!-- 第 3 项后半：右侧对比播放器；播放/暂停复用 player_play_pause，选片失败复用 compare_pick_failed -->
+    <string name="cam_split_pick">选择视频</string>
+    <!-- 双摄并发探测为空时挂在「另镜头录制」项下；可用态本次仍占位，点击只给下一批提示 -->
+    <string name="cam_split_lens_unsupported">本机不支持双摄并发</string>
+    <string name="cam_split_lens_soon">下一批实现</string>
+
+    <!-- 参数滑杆组件 -->
+    <string name="cam_switch_input_mode">切换档位与滑杆输入</string>
+
+    <!-- 参数项标签 -->
+    <string name="cam_p_shutter">快门速度</string>
+    <string name="cam_p_iso">感光度</string>
+    <string name="cam_p_ev">曝光补偿</string>
+    <string name="cam_p_ae">曝光模式</string>
+    <string name="cam_p_af">对焦模式</string>
+    <string name="cam_p_mf">手动对焦</string>
+    <string name="cam_p_wb">白平衡</string>
+    <string name="cam_p_kelvin">色温</string>
+    <string name="cam_p_tint">色调</string>
+    <string name="cam_p_lens">镜头</string>
+    <string name="cam_p_size">分辨率</string>
+    <string name="cam_p_fps">帧率</string>
+    <!-- 录制期转换（强制 24/25fps 无原生精确档设备，2026-10-03 定版） -->
+    <string name="cam_fps_convert_title">本机无原生档，录制时抽帧到所选帧率</string>
+    <string name="cam_fps_convert_mend">自动抽帧补弧</string>
+    <string name="cam_fps_convert_drop">仅抽帧</string>
+    <string name="cam_fps_convert_mend_note">被抽帧的画面并入前后帧，光弧连贯</string>
+    <string name="cam_fps_convert_drop_note">只丢帧不补，光弧在抽帧点会有断口</string>
+    <!-- 并入门槛（补弧差分死区 D，0..32，默认 12）：白话命名，不出现"死区/差分/luma"术语 -->
+    <string name="cam_fps_deadband">并入门槛</string>
+    <string name="cam_fps_deadband_note">亮度差不超过它的画面不并入。调大更保守、调小会把噪点也并进去</string>
+    <string name="cam_arc_switch_gpu">已切换 GPU 渲染：抽帧需要 GPU 编码通路，请再按一次录制</string>
+    <string name="cam_p_bitrate">码率</string>
+    <string name="cam_p_stab">防抖</string>
+    <string name="cam_p_flash">闪光灯</string>
+    <string name="cam_p_zoom">变焦</string>
+    <string name="cam_p_refline">参考线</string>
+    <string name="pill_dismiss">收起</string>
+    <string name="pill_focus">对焦</string>
+    <string name="cam_af_fixed_focus">这颗镜头为定焦，没有可调对焦距离</string>
+    <string name="cam_free_space_title">可录时长</string>
+    <string name="pill_minutes_unit">分钟</string>
+    <string name="pill_hours_unit">小时</string>
+    <string name="pill_record_minutes">按当前码率约可录 %2$s %1$s</string>
+    <string name="pill_storage_note">估算只算视频码率，未计分段开销，实际略少</string>
+    <string name="cam_p_curve">RGB 曲线</string>
+    <!-- 取景器那颗只剩两个字（用户 2026-09-29：左 Dock 太宽，「屏幕监看」改「监看」）；
+         设置页那一列仍用全名 cam_pill_monitor「屏幕监看」，那里不是横向约束 -->
+    <string name="cam_p_monitor">监看</string>
+
+    <!-- 取景器内的参数读数 -->
+    <string name="cam_hud_shutter">快门</string>
+    <string name="cam_hud_iso">感光度</string>
+    <string name="cam_hud_wb">白平衡</string>
+    <string name="cam_hud_zoom">变焦</string>
+    <string name="cam_hud_ev">EV</string>
+    <string name="cam_hud_fps">帧率</string>
+    <string name="cam_hud_bitrate">码率</string>
+    <string name="cam_tap_center">中心点按对焦</string>
+    <string name="cam_tap_hint">轻触画面对焦并测光，双击在该点锁定对焦，长按半秒锁定 AE/AF</string>
+    <!-- 对焦锁定（用户反馈第 2 条）：主入口=双击取景画面在该点对焦并锁定；长按画面=解锁并
+         在该点重新对焦；副控制=对焦胶囊里的锁定/解除条目。锁定期轻触与双击不重焦（首次提示） -->
+    <string name="cam_focus_lock">锁定对焦</string>
+    <string name="cam_focus_unlock">解除锁定</string>
+    <string name="cam_focus_locked_tip">对焦已锁定，轻触画面不会重新对焦</string>
+    <string name="cam_focus_tap_locked_tip">对焦已锁定；要换焦点请长按画面或打开对焦胶囊解除</string>
+    <string name="cam_focus_manual_locked">手动对焦档本身即锁定，无需再锁</string>
+    <string name="cam_focus_lock_unsupported">此镜头不支持单次自动对焦，无法锁定焦点</string>
+    <string name="cam_focus_lock_recording">录制中不可锁定对焦</string>
+    <string name="cam_recording_readonly">录制中不可调整，停止后可改</string>
+    <string name="cam_manual_exposure_only">切到手动曝光档后可调</string>
+    <string name="cam_auto_exposure_only">自动曝光档下生效</string>
+
+    <!-- 镜头面板 -->
+    <string name="cam_lens_tip">等效焦距与视场角按本机 characteristics 现算</string>
+    <string name="cam_lens_empty">没有可用镜头</string>
+    <string name="cam_lens_using">正在使用</string>
+    <string name="cam_lens_fov">等效 %1$s mm · 水平视场角 %2$s°</string>
+    <string name="cam_lens_fov_only">等效 %1$s mm</string>
+    <string name="cam_size_range">本机支持范围 %1$s ～ %2$s</string>
+    <string name="cam_lens_super_wide">超广角</string>
+    <string name="cam_lens_wide">广角</string>
+    <string name="cam_lens_telephoto">长焦</string>
+    <string name="cam_lens_super_telephoto">超长焦</string>
+    <string name="cam_lens_auto">自动</string>
+    <string name="cam_lens_front">前置</string>
+
+    <!-- 曝光 / 对焦 / 白平衡 / 闪光 / 防抖 / 渲染档位 -->
+    <string name="cam_ae_auto">自动</string>
+    <string name="cam_ae_manual">手动</string>
+    <string name="cam_ae_lock">锁定 AE/AF</string>
+    <string name="cam_af_continuous_video">录像连续</string>
+    <string name="cam_af_continuous_picture">拍照连续</string>
+    <string name="cam_af_macro">微距</string>
+    <string name="cam_af_manual">手动</string>
+    <string name="cam_wb_auto">自动</string>
+    <string name="cam_wb_incandescent">白炽灯</string>
+    <string name="cam_wb_fluorescent">荧光灯</string>
+    <string name="cam_wb_warm_fluorescent">暖荧光</string>
+    <string name="cam_wb_daylight">日光</string>
+    <string name="cam_wb_cloudy">阴天</string>
+    <string name="cam_wb_twilight">黄昏</string>
+    <string name="cam_wb_shade">阴影</string>
+    <string name="cam_wb_manual">手动色温</string>
+    <string name="cam_flash_off">闪光关闭</string>
+    <string name="cam_flash_on">闪光开启</string>
+    <string name="cam_flash_auto">闪光自动</string>
+    <string name="cam_flash_torch">常亮照明</string>
+    <string name="cam_stab_off">防抖关闭</string>
+    <string name="cam_stab_ois">光学防抖</string>
+    <string name="cam_stab_eis">电子防抖</string>
+    <string name="cam_stab_ois_eis">光学加电子</string>
+    <string name="cam_render_gpu">使用 GPU</string>
+    <string name="cam_render_direct">不使用 GPU</string>
+
+    <!-- 参考线面板 -->
+    <string name="cam_refline_title">参考线</string>
+    <string name="cam_refline_count">已选 %1$d 种</string>
+    <string name="cam_refline_all">全选</string>
+    <string name="cam_refline_clear">清空</string>
+
+    <!-- 屏幕监看面板 -->
+    <string name="cam_monitor_title">屏幕监看</string>
+    <string name="cam_monitor_need_gpu">需切到「使用 GPU」才生效</string>
+    <string name="cam_effect_none">关闭</string>
+    <string name="cam_effect_zebra">斑马纹</string>
+    <string name="cam_effect_peaking">峰值对焦</string>
+    <string name="cam_zebra_threshold">斑马纹阈值</string>
+    <string name="cam_zebra_density">条纹密度</string>
+    <string name="cam_zebra_d1">稀疏</string>
+    <string name="cam_zebra_d2">适中</string>
+    <string name="cam_zebra_d3">稠密</string>
+    <string name="cam_peaking_strength">峰值强度</string>
+    <string name="cam_peaking_color">峰值颜色</string>
+    <string name="cam_pk_white">白</string>
+    <string name="cam_pk_green">绿</string>
+    <string name="cam_pk_blue">蓝</string>
+    <string name="cam_pk_orange">橙</string>
+    <string name="cam_pk_red">红</string>
+
+    <!-- RGB 曲线（2026-10-03 换装左侧小弹窗后仅剩通道名与重置两用语；
+         title/tip/del_point/reset_ch/custom/points_limit 随 CurveSheet 大底板一并废弃） -->
+    <string name="cam_curve_ch_master">白</string>
+    <string name="cam_curve_ch_red">红</string>
+    <string name="cam_curve_ch_green">绿</string>
+    <string name="cam_curve_ch_blue">蓝</string>
+    <string name="cam_curve_reset_all">全部复位</string>
+
+    <!-- 录制结果与失败提示（机器码在 record 包，这里按码给文案）。
+         结果文案 = 原因句 + 附注句**叠加**（P3-1/P3-2 收口，分派见 ui/RecordResultNotice.kt 的
+         recordTextPlan 纯函数）：cam_record_saved + 三条 auto 整句 + 混合结果的 parts 条是原因句
+         （为什么停了/存了几段；时长只在这里带一次），其余是附注句（保存质量与"为什么停"短原因），
+         附注一律写成带前置"；"的**后缀**、可任意并列，两件同时命中谁也不盖谁 -->
+    <string name="cam_record_saved">已保存，时长 %1$s</string>
+    <string name="cam_record_saved_auto_battery">电量过低已自动停录，已保存 %1$s</string>
+    <string name="cam_record_saved_auto_storage">存储空间不足已自动停录，已保存 %1$s</string>
+    <string name="cam_record_saved_auto_camera_lost">相机被其它应用占用或被系统收回，录制已停止，已保存 %1$s</string>
+    <!-- 短原因附注（2026-10-16 收尾批）：有已保存分段但非干净成功（partial）时，原因句被
+         「已保存 N 段」/「已保存，时长」占用，"为什么自己停了"降为一条并列短附注——用户拍板
+         "该提醒的照旧"；不带时长（时长只由原因句带一次）、无占位符。干净成功路径仍走上面三条
+         整句（逐字不变），本组不会被调到 -->
+    <string name="cam_record_saved_auto_battery_short">；因电量过低自动停止</string>
+    <string name="cam_record_saved_auto_storage_short">；因存储空间不足自动停止</string>
+    <string name="cam_record_saved_auto_camera_lost_short">；因相机被收回而停止</string>
+    <!-- 混合/join 超时如实化（2026-10-16）：有已保存分段但非干净成功时，原因句只为"存了几段"——
+         旧形态是整句「录制失败」，而片其实已在相册。%1$d=段数、%2$s=时长（时长只由原因句带一次）；
+         单段**不**走本条（沿用上面「已保存 %1$s」措辞："已保存 1 段"是口语倒退，不许出现） -->
+    <string name="cam_record_saved_parts">已保存 %1$d 段，时长 %2$s</string>
+    <!-- 附注族（拼接次序即下方声明次序）：uncommitted 排最前——它是唯一"这条成片可能暂时看不见"
+         的提醒，uncommitted > 0 时必须永远可见，不许被任何并列附注盖掉（P3-2） -->
+    <string name="cam_record_saved_uncommitted">；相册登记未成功，重进相册或重启后再看</string>
+    <string name="cam_record_saved_degraded">；本次收尾未完整结束，成片末尾可能不完整</string>
+    <!-- 失败码语义转成的软附注（只用于"有已保存分段但非干净成功"）：片已在相册，只要说末尾这段
+         **可能**没保住；诊断原文仍在结果 error 字段、日志与换段受阻落盘账目里（可查）。无占位符。
+         措辞对两种结局都成立（收尾批 P3-1）：抽干吃满 join 线后泵仍可能正常封段 commit——
+         "末段未能保存"是假话，"可能未能保存（以相册为准）"两头都不冤 -->
+    <string name="cam_record_saved_note_tail">；收尾未完成，末段可能未能保存（以相册为准）</string>
+    <string name="cam_record_saved_note_rotate">；换段受阻，后续画面未能录下</string>
+    <!-- 环境音丢失（S1-M3-05 收口；P3-3 措辞修正）：成因两种——起录没建起来（全程没有）与
+         中途中断/换段重建失败（前段有、后段没有），旧文案把"整场没有"写绝对了、对后者不成立；
+         新措辞对两种成因都成立（缺失/中断 + 后段没有环境声音），不再绝对化 -->
+    <string name="cam_record_saved_ambient_lost">；环境声音缺失或中断（后段没有环境声音）</string>
+    <string name="cam_record_saved_loss">；其中约 %1$d 秒因换段受阻丢失</string>
+    <string name="cam_ambient_lost_tip">环境音不可用或已中断，后段没有环境声音</string>
+    <string name="cam_record_low_storage">存储空间不足：可用 %1$d MB，录制至少需要 %2$d MB</string>
+    <string name="cam_record_low_storage_short">存储空间不足，无法开始录制</string>
+    <string name="cam_record_no_output">无法创建输出文件，本次未录制</string>
+    <string name="cam_record_prepare_failed">编码器准备失败，请重试</string>
+    <string name="cam_record_start_failed">启动录制失败，请重试</string>
+    <string name="cam_record_engine_error">录制引擎报错，已停止并保留已录内容</string>
+    <!-- 换段受阻（2026-10-08 真机缺陷）：分段轮转这一腿超过有界上限时明确失败，并把丢失时长亮出来。
+         两种出口分开说：慢（腿走完但丢了 N 秒）与败（建新段直接失败、后续画面没录下） -->
+    <string name="cam_record_rotate_stall">换段受阻，已停止并保留已录内容（丢失约 %1$d 秒画面）</string>
+    <string name="cam_record_rotate_stall_short">换段受阻，已停止并保留已录内容（后续画面未能录下）</string>
+    <string name="cam_record_too_short">录制不足一秒，按废片丢弃</string>
+    <string name="cam_record_stop_failed">停止录制失败，文件可能不完整</string>
+    <string name="cam_record_released">录制已取消</string>
+    <string name="cam_record_failed_generic">录制失败，请重试</string>
+
+    <!-- 编辑控件页（docs/plan/13 第 5 条）：位置表 hud_layout 的编辑器 -->
+    <string name="hud_edit_back">返回</string>
+    <string name="hud_edit_save">保存</string>
+    <string name="hud_edit_saved">已保存，回录制页就是新位置</string>
+    <string name="hud_edit_reset">恢复默认</string>
+    <string name="hud_edit_reset_confirm">确认恢复默认？</string>
+    <string name="hud_edit_reset_arm_tip">再点一次「确认恢复默认」就把所有容器位置与每颗的格子清回出厂位置</string>
+    <string name="hud_edit_reset_done">已恢复默认位置</string>
+    <string name="hud_edit_undo">撤销</string>
+    <string name="hud_edit_undo_done">已撤销，恢复前那一份位置回来了</string>
+    <!-- #74：容器内改成固定格子。文案必须说清"拖一颗不动另一颗"，否则用户还会按旧模型预期 -->
+    <!-- 10-01 夜：同容器拖到**已被占**的格子从"跳到最近空格"改成**与那格对调**，
+         这一句必须跟着改——留着旧说法会让用户以为拖不动是 bug（行为与文案不一致比缺文案更贵）
+         2026-10-02：本串连同下面两条读数/提示整体搬进编辑页的**背景水印层**（draw 阶段的
+         noteLayout，不占布局高度）；改这段文案就是改背景水印的正文，别在前景操作栏里加回常驻说明 -->
+    <string name="hud_edit_note">按住容器拖 = 整枚挪位（底栏只认上下两栏，横向永远跟着可视区居中）；按住某颗控件拖 = 吸附到最近的格子，**落到已被占的格子就与那格对调**，别颗一律不动（左/右竖 Dock 与读数块）。顶栏与底栏里仍按顺序排。空格子就空着，重叠不禁止只提示。这页点不到控件本身（要改参数回录制页）；返回时不保存就丢弃未保存的改动。</string>
+    <string name="hud_edit_overlap_pair">%1$s 与 %2$s 的外接矩形叠在一起了（不拦，只是提示会叠字）</string>
+    <!-- 底栏那枚 Dock 只持久化 y：横向永远由安全区居中决定（快门中心＝可视窗口中心）。横拖一把之后必须给话，不能默默吞掉 -->
+    <string name="hud_edit_bottom_x_locked">底栏只认上下两栏：横向永远跟着可视区居中，所以刚才那一下横拖没有存进位置表</string>
+    <string name="hud_edit_save_failed">没能写进设置（保存失败），这里显示的仍是旧位置</string>
+    <!-- P1（docs/plan/17 §六）：整页网格的**格边长读数**，拼在水印层里 hud_edit_note 尾部。
+         两个占位符收的是同一个数（页格是正方形）：%1$d = %2$d = pageCellPx 折回 dp
+         （100% 档 34、120% 档 38，随系统字号档一起涨，与描边画的是同一把尺子）。
+         ⚠ 文案里**不放「格」字**：改前 Kotlin 侧拼的就是「空格 + 34×34dp」，资源化要求显示逐字不变，
+         多一个字都是显示回退；想加标签只改这一份资源即可，Kotlin 一个字不用动。 -->
+    <string name="hud_edit_page_cell_size">%1$d×%2$ddp</string>
+    <!-- P1（docs/plan/17 §十一 2）：被 hud_pills / hud_items 掩码关掉、但编辑页照旧列出（也照样能摆位）
+         的那些条目，在水印层里 hud_edit_note 尾部补这一句。为什么必须有：不说清"它只在编辑页可见"，
+         用户会以为"我在编辑页摆的位没生效"（他摆的正是录制页当前不显示的那几颗）。
+         摆位后保存、回录制页把那颗的显示打开，它就回到自己那一格。 -->
+    <string name="hud_edit_hidden_entries_note">已关闭显示的控件只在编辑页可见：照样能摆位，保存后回录制页把显示打开，它就回到你摆的这一格</string>
+    <string name="hud_zone_top">顶栏胶囊组</string>
+    <string name="hud_zone_left">左竖 Dock</string>
+    <string name="hud_zone_right">右竖 Dock</string>
+    <string name="hud_zone_readout">常驻读数块</string>
+    <string name="hud_zone_bottom">底栏 Dock</string>
+</resources>

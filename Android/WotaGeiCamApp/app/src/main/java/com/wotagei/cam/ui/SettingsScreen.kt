@@ -1,11 +1,15 @@
 package com.wotagei.cam.ui
 
 import android.Manifest
+import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.LocaleList
 import com.wotagei.cam.BuildConfig
 import com.wotagei.cam.diag.Diag
 import kotlinx.coroutines.CoroutineScope
@@ -242,6 +246,13 @@ object WotaSettings {
      */
     const val KEY_FROST_BLUR = "hud_frost_blur"
 
+    /** 语言设置：缺键 = "en"（默认 English），可选 "en" / "id" / "zh" / "system" */
+    const val KEY_LANGUAGE = "app_language"
+    const val LANG_ENGLISH = "en"
+    const val LANG_INDONESIAN = "id"
+    const val LANG_CHINESE = "zh"
+    const val LANG_SYSTEM = "system"
+
     /** 手调曲线的恢复值：曲线是用户一点点拖出来的，重开进程不该丢 */
     const val KEY_CURVE_STACK = "curve_stack"
 
@@ -269,7 +280,7 @@ object WotaSettings {
     private var defaultsApplied = false
 
     fun of(ctx: Context): SharedPreferences =
-        ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        (ctx.applicationContext ?: ctx).getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     fun motionMode(prefs: SharedPreferences): MotionMode =
         runCatching { MotionMode.valueOf(prefs.getString(KEY_MOTION, MotionMode.FLUENT.name)!!) }
@@ -344,6 +355,78 @@ object WotaSettings {
     /** 录制页默认方向：缺键或坏串都回落到 [UIOrientation.DEFAULT]（横屏），不抛 */
     fun uiOrientation(prefs: SharedPreferences): UIOrientation =
         UIOrientation.fromPersistValue(prefs.getString(KEY_UI_ORIENTATION, UIOrientation.DEFAULT.persistValue))
+
+    /** 根据语言代码返回 Locale（LANG_SYSTEM 返回 null 即跟随系统） */
+    fun getLocale(lang: String): Locale? = when (lang) {
+        LANG_ENGLISH -> Locale.ENGLISH
+        LANG_INDONESIAN -> Locale("in", "ID")
+        LANG_CHINESE -> Locale.SIMPLIFIED_CHINESE
+        LANG_SYSTEM -> null
+        else -> Locale.ENGLISH
+    }
+
+    /** 当前语言：默认 English（"en"） */
+    fun language(prefs: SharedPreferences): String =
+        prefs.getString(KEY_LANGUAGE, LANG_ENGLISH) ?: LANG_ENGLISH
+
+    /** 包装 Context 配置，使得新 Context 强制采用用户选择的 Locale */
+    fun wrapContext(context: Context): Context {
+        val prefs = of(context)
+        val lang = language(prefs)
+        val locale = getLocale(lang) ?: return context
+        Locale.setDefault(locale)
+        val res = context.resources
+        val config = Configuration(res.configuration)
+        config.setLocale(locale)
+        val localeList = LocaleList(locale)
+        config.setLocales(localeList)
+        LocaleList.setDefault(localeList)
+        return context.createConfigurationContext(config)
+    }
+
+    /** 把语言代码应用到系统 LocaleList 与 Resources */
+    @Suppress("DEPRECATION")
+    fun applyLanguage(context: Context? = null, lang: String) {
+        val locale = getLocale(lang)
+        if (locale != null) {
+            Locale.setDefault(locale)
+            val localeList = LocaleList(locale)
+            LocaleList.setDefault(localeList)
+            if (context != null) {
+                val res = context.resources
+                val config = Configuration(res.configuration)
+                config.setLocale(locale)
+                config.setLocales(localeList)
+                res.updateConfiguration(config, res.displayMetrics)
+                val appRes = context.applicationContext?.resources
+                if (appRes != null && appRes !== res) {
+                    val appConfig = Configuration(appRes.configuration)
+                    appConfig.setLocale(locale)
+                    appConfig.setLocales(localeList)
+                    appRes.updateConfiguration(appConfig, appRes.displayMetrics)
+                }
+            }
+        }
+        val localeListCompat = if (lang == LANG_SYSTEM || locale == null) {
+            androidx.core.os.LocaleListCompat.getEmptyLocaleList()
+        } else {
+            androidx.core.os.LocaleListCompat.forLanguageTags(if (lang == LANG_INDONESIAN) "in,id" else lang)
+        }
+        androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(localeListCompat)
+    }
+
+    /** 写入语言设置并应用到 AppCompatDelegate 与 Context */
+    @Suppress("ApplySharedPref")
+    fun setLanguage(context: Context, prefs: SharedPreferences, lang: String) {
+        prefs.edit().putString(KEY_LANGUAGE, lang).commit()
+        applyLanguage(context, lang)
+    }
+
+    @Suppress("ApplySharedPref")
+    fun setLanguage(prefs: SharedPreferences, lang: String) {
+        prefs.edit().putString(KEY_LANGUAGE, lang).commit()
+        applyLanguage(null, lang)
+    }
 
     /**
      * 这里**故意用 `commit()`（同步落盘）而不是 `apply()`**：方向是"刚改完就可能被强杀"的低频设置——
@@ -534,7 +617,7 @@ private fun BlockHost(block: SettingsBlock, prefs: SharedPreferences, onOpenHudE
         SettingsBlock.COMPARE -> BlockCompare(prefs)
         SettingsBlock.TEXT -> BlockText(prefs)
         SettingsBlock.PERM -> BlockPerm()
-        SettingsBlock.ABOUT -> BlockAbout()
+        SettingsBlock.ABOUT -> BlockAbout(prefs)
         SettingsBlock.DIAG -> BlockDiag(prefs)
     }
 }
@@ -1149,10 +1232,12 @@ private fun BlockPerm() {
 }
 
 @Composable
-private fun BlockAbout() {
+private fun BlockAbout(prefs: SharedPreferences) {
     val context = LocalContext.current
     SettingGroup(stringResource(R.string.set_group_about))
     Card {
+        LanguageSelectorRow(prefs)
+        Line()
         // 版本号单一真源 = app/build.gradle.kts 的 appVersionName（经 BuildConfig.VERSION_NAME
         // 直通）：打新 tag 前改脚本那两行是发版必经步骤，设置页/容器/产物名因此永远一致（2026-10-03）
         InfoRow(stringResource(R.string.set_version), BuildConfig.VERSION_NAME)
@@ -1169,6 +1254,147 @@ private fun BlockAbout() {
             color = WotaColor.textMid,
             modifier = Modifier.padding(top = 8.dp)
         )
+    }
+}
+
+@Composable
+private fun LanguageSelectorRow(prefs: SharedPreferences) {
+    val context = LocalContext.current
+    var currentLang by remember { mutableStateOf(WotaSettings.language(prefs)) }
+    var showDialog by remember { mutableStateOf(false) }
+
+    val langLabel = when (currentLang) {
+        WotaSettings.LANG_ENGLISH -> stringResource(R.string.language_en)
+        WotaSettings.LANG_INDONESIAN -> stringResource(R.string.language_id)
+        WotaSettings.LANG_CHINESE -> stringResource(R.string.language_zh)
+        WotaSettings.LANG_SYSTEM -> stringResource(R.string.language_system)
+        else -> stringResource(R.string.language_en)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showDialog = true }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.language_title),
+            style = MaterialTheme.typography.bodyMedium,
+            color = WotaText,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = langLabel,
+            style = MaterialTheme.typography.bodyMedium,
+            color = WotaColor.accent
+        )
+    }
+
+    if (showDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showDialog = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(WotaShape.card))
+                    .background(WotaColor.surface)
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.language_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = WotaText,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                val options = listOf(
+                    WotaSettings.LANG_ENGLISH to stringResource(R.string.language_en),
+                    WotaSettings.LANG_INDONESIAN to stringResource(R.string.language_id),
+                    WotaSettings.LANG_CHINESE to stringResource(R.string.language_zh),
+                    WotaSettings.LANG_SYSTEM to stringResource(R.string.language_system)
+                )
+
+                options.forEach { (code, title) ->
+                    val selected = currentLang == code
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) WotaColor.accent.copy(alpha = 0.12f) else Color.Transparent)
+                            .clickable {
+                                if (currentLang != code) {
+                                    currentLang = code
+                                    WotaSettings.setLanguage(context, prefs, code)
+                                    showDialog = false
+                                    context.findActivity()?.recreate()
+                                } else {
+                                    showDialog = false
+                                }
+                            }
+                            .padding(vertical = 12.dp, horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .height(18.dp)
+                                .width(18.dp)
+                                .clip(RoundedCornerShape(9.dp))
+                                .background(if (selected) WotaColor.accent else Color.Transparent)
+                                .then(
+                                    if (!selected) {
+                                        Modifier.background(Color.Transparent)
+                                    } else {
+                                        Modifier
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selected) {
+                                Box(
+                                    modifier = Modifier
+                                        .height(8.dp)
+                                        .width(8.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(WotaColor.surface)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .height(18.dp)
+                                        .width(18.dp)
+                                        .clip(RoundedCornerShape(9.dp))
+                                        .background(WotaColor.outline)
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (selected) WotaColor.accent else WotaText,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = stringResource(R.string.cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WotaColor.textMid,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { showDialog = false }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

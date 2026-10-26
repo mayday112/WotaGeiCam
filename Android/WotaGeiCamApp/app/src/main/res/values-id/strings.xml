@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WotaGeiCam</string>
+    <string name="settings_title">Pengaturan</string>
+    <string name="language_title">Bahasa</string>
+    <string name="language_system">Ikuti Sistem</string>
+    <string name="language_en">English</string>
+    <string name="language_id">Bahasa Indonesia</string>
+    <string name="language_zh">Bahasa Mandarin (中文)</string>
+
+    <!-- Umum -->
+    <string name="ok">OK</string>
+    <string name="cancel">Batal</string>
+    <string name="close">Tutup</string>
+    <string name="retry">Coba Lagi</string>
+    <string name="unsupported_by_device">Tidak didukung oleh perangkat ini</string>
+    <string name="approx_mark">※</string>
+    <string name="approx_mark_tip">Kamera tidak menyediakan rentang frame rate tetap ini; rentang terdekat yang tersedia telah dipilih</string>
+    <string name="capability_limited_tip">Kemampuan kamera terbatas (level LEGACY), beberapa kontrol manual tidak tersedia</string>
+
+    <!-- Izin -->
+    <string name="perm_bluetooth_rationale_low">Saat mencari speaker sekitar, sistem perangkat ini (Android 10/11) memerlukan izin Lokasi. WotaGeiCam tidak membaca atau menyimpan lokasi Anda, serta tidak menggunakannya untuk hal lain.</string>
+    <string name="perm_bluetooth_rationale">Izin Bluetooth diperlukan untuk menghubungkan ke speaker.</string>
+    <string name="perm_denied_settings">Izin ditolak, silakan aktifkan di Pengaturan sistem</string>
+    <string name="perm_open_settings">Buka Pengaturan</string>
+    <string name="no_audio_record_tip">Tidak ada izin mikrofon, hanya merekam video</string>
+
+    <!-- Log Diagnostik -->
+    <string name="set_group_diag">Log Diagnostik</string>
+    <string name="set_diag_enabled">Catat Log</string>
+    <string name="set_diag_enabled_note">Nonaktif secara default untuk menghemat ruang penyimpanan. Saat nonaktif, masalah sistem tidak akan tercatat; harap aktifkan sebelum mereproduksi kendala. Catatan crash tetap ditulis terlepas dari opsi ini.</string>
+    <string name="set_diag_verbose">Log Terperinci (aktifkan saat mereproduksi masalah)</string>
+    <string name="set_diag_verbose_note">Hanya berlaku jika \"Catat Log\" aktif: default hanya mencatat peristiwa penting, aktifkan opsi ini untuk mencatat detail debug tambahan (ukuran log akan membesar).</string>
+    <string name="set_diag_clear">Hapus Log</string>
+    <string name="set_diag_cleared">Berhasil Dihapus</string>
+    <string name="set_diag_size">Ukuran Log</string>
+    <string name="set_diag_path">Direktori Log</string>
+    <string name="set_diag_share">Bagikan Langsung</string>
+    <string name="set_diag_share_busy">Menyiapkan…</string>
+    <string name="set_diag_share_done">Berhasil membuat %1$s, silakan pilih aplikasi tujuan berbagi</string>
+    <string name="set_diag_share_failed">Gagal berbagi: Tidak dapat membuat file log</string>
+    <string name="set_diag_export">Ekspor Log</string>
+    <string name="set_diag_export_busy">Mengekspor…</string>
+    <string name="set_diag_export_done">Berhasil diekspor: %1$s\nLokasi: %2$s</string>
+    <string name="set_diag_export_failed">Gagal mengekspor: Direktori log tidak dapat ditulisi</string>
+    <string name="set_diag_note">Log hanya dibuat di perangkat lokal dan baru ditulis ke file saat Anda menekan \"Bagikan Langsung\" atau \"Ekspor Log\". Log tidak berisi video maupun suara dan tidak akan diunggah.\nSaat mengalami kendala (misalnya perekaman internal ditolak sistem): Aktifkan \"Catat Log\" (opsional \"Log Terperinci\") → lakukan langkah hingga kendala muncul → tekan \"Bagikan Langsung\". Saat tombol nonaktif, tidak ada data yang disimpan.</string>
+
+    <!-- Perekaman Audio Internal (AudioPlaybackCapture) -->
+    <string name="capture_channel_name">Perekaman Audio Internal</string>
+    <string name="capture_channel_desc">Notifikasi tetap yang ditampilkan saat merekam audio dari perangkat</string>
+    <string name="capture_notification_title">Perekaman Audio Internal Berjalan</string>
+    <string name="capture_notification_text">Sedang merekam audio yang diputar di perangkat, berhenti saat proyeksi layar dihentikan</string>
+    <string name="capture_notification_stop">Hentikan Perekaman Internal</string>
+
+    <!-- Panel Manajemen Sumber Audio -->
+    <string name="audio_panel_title">Manajemen Sumber Audio</string>
+    <string name="audio_tab_source">Sumber Audio</string>
+    <string name="audio_tab_bluetooth">Bluetooth</string>
+    <string name="audio_capture_label">Rekam Audio Internal</string>
+    <string name="audio_ambient_label">Suara Sekitar Default</string>
+    <string name="audio_state_authorizing">Menunggu izin sistem…</string>
+    <string name="audio_state_active">Sedang merekam audio internal perangkat</string>
+    <string name="audio_state_failed">Gagal memulai perekaman audio internal: %1$s (Dapat dicoba lagi)</string>
+    <string name="audio_state_revoked">Izin perekaman internal dicabut, beralih ke suara sekitar (dapat diaktifkan kembali)</string>
+    <string name="audio_state_idle">Saat ini merekam suara sekitar (Mikrofon)</string>
+    <string name="audio_capture_cancelled">Izin perekaman internal dibatalkan, kembali ke suara sekitar</string>
+    <string name="audio_capture_unavailable">Perangkat ini tidak mendukung perekaman audio internal</string>
+    <string name="audio_track_lost_init">Perekaman audio internal tidak tersedia (%1$s), sesi ini hanya merekam suara sekitar</string>
+    <string name="audio_track_lost_reason_unknown">Alasan tidak diketahui</string>
+    <string name="audio_track_lost_inactive">Perekaman internal terputus, sesi ini hanya merekam suara sekitar</string>
+    <string name="audio_track_lost_no_samples">Tidak ada sampel suara yang terekam secara internal, sesi ini hanya merekam suara sekitar</string>
+    <string name="audio_track_lost_encoder">Gagal membuat trek audio internal, sesi ini hanya merekam suara sekitar</string>
+    <string name="capture_silent_hint">Belum ada suara sistem yang terdeteksi: Pastikan musik sedang diputar, tidak tersambung ke Bluetooth, dan volume media tidak 0</string>
+    <string name="audio_chip_label">Audio</string>
+    <string name="audio_chip_capture_on">Internal</string>
+    <string name="audio_chip_bt_on">BT Terhubung</string>
+    <string name="audio_chip_bt_off">BT Terputus</string>
+
+    <!-- Debug Hook -->
+    <string name="merge_hook_pinned">Debug Pin p=%1$.2f · Durasi ×%2$.0f</string>
+    <string name="merge_hook_scale">Debug Skala ×%1$.0f (Tanpa Pin)</string>
+
+    <!-- Bantuan Tampilan Pemutar -->
+    <string name="player_rotate_ccw">Putar 90° Berlawanan Arah Jarum Jam</string>
+
+    <!-- Pengecekan Mandiri Rekaman -->
+    <string name="record_auto_retry">Perekaman dimulai ulang secara otomatis</string>
+    <string name="record_self_check_failed">Pengecekan mandiri rekaman gagal, silakan coba lagi</string>
+</resources>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="set_title">Pengaturan</string>
+    <string name="set_back">Kembali</string>
+
+    <!-- Pengaturan Awal Rekaman -->
+    <string name="set_group_default">Nilai Awal Buka Aplikasi</string>
+    <string name="set_default_note">Menentukan titik awal setiap aplikasi dibuka ulang (cold start). Parameter yang diubah di halaman kamera akan diingat dan tidak kembali ke default meski proses latar belakang dibersihkan.</string>
+    <string name="set_default_mute">Rekam Tanpa Suara</string>
+    <string name="set_default_mute_note">Menentukan apakah perekaman dimulai tanpa trek audio. Jika izin mikrofon tidak ada, otomatis dialihkan ke rekaman video saja.</string>
+    <string name="set_default_bitrate">Bitrate Default</string>
+    <string name="set_default_sample">Sample Rate Default</string>
+    <string name="set_default_render">Mode Render Default</string>
+    <string name="set_default_deadband">Batas Penggabungan</string>
+    <string name="set_default_deadband_note">Gambar dengan perbedaan kecerahan di bawah nilai ini tidak akan digabungkan. Nilai lebih tinggi lebih konservatif; nilai lebih rendah dapat menggabungkan derau (noise).</string>
+
+    <!-- Orientasi Tampilan -->
+    <string name="set_group_orientation">Orientasi Tampilan</string>
+    <string name="set_orientation_style">Orientasi Default</string>
+    <string name="set_orientation_landscape">Lansekap (Horizontal)</string>
+    <string name="set_orientation_portrait">Potret (Vertikal)</string>
+    <string name="set_orientation_note">Pengaturan ini hanya menentukan arah tampilan halaman kamera. Halaman Pengaturan, Galeri, dan Pemutar tetap mengikuti rotasi otomatis sistem. Berlaku langsung saat kembali ke kamera dan tetap tersimpan.</string>
+
+    <!-- Gaya Animasi Antarmuka -->
+    <string name="set_group_motion">Gaya Animasi</string>
+    <string name="set_motion_style">Animasi Interaksi</string>
+    <string name="set_motion_plain">Tanpa Animasi</string>
+    <string name="set_motion_fluent">Fluent (Default)</string>
+    <string name="set_motion_liquid">Efek Membal (Liquid)</string>
+    <string name="set_motion_note">Hanya berlaku pada pergeseran, skala, serta fade-in/fade-out panel dan tombol</string>
+
+    <!-- Pembacaan Tetap Viewfinder -->
+    <string name="set_group_hud">Fitur Tetap Viewfinder</string>
+    <string name="set_hud_note">Baris atas adalah pembacaan tetap (default: Shutter / FPS / Bitrate), baris bawah adalah kapsul kontrol halaman rekaman. Hapus centang untuk menyembunyikannya dari jendela bidik.</string>
+
+    <!-- Kunci Geser Slider -->
+    <string name="set_group_slider">Pelekatan Slider (Snap)</string>
+    <string name="set_slider_note">Secara default setiap slider akan menempel pada tanda skala saat digeser. Pilih parameter di bawah untuk mengubah slider menjadi nilai kontinu bebas (misal: zoom 1.2x, 1.7x). Kompensasi eksposur, ambang zebra, dan batas penggabungan memiliki nilai bulat berurutan sehingga tidak termasuk di sini.</string>
+
+    <!-- Garis Referensi Default -->
+    <string name="set_group_refline">Garis Referensi Default</string>
+    <string name="set_refline_note">Menentukan garis referensi yang dicentang secara default saat aplikasi dibuka awal. Pilihan di halaman rekaman akan disimpan dan tidak kembali ke default saat proses dibersihkan.</string>
+
+    <!-- Alat Bantu Pembidikan -->
+    <string name="set_group_level">Alat Bantu Bidik</string>
+    <string name="set_level_enable">Tampilkan Waterpass &amp; Pitch Meter</string>
+    <string name="set_level_buzz">Getar saat Waterpass / Pitch sejajar 0°</string>
+    <string name="set_level_buzz_note">Memberikan getaran halus saat posisi sejajar lurus. Jika dinonaktifkan, keduanya tidak akan bergetar.</string>
+
+    <!-- Pemutaran Komparasi -->
+    <string name="set_group_compare">Pemutaran Komparasi</string>
+    <string name="set_compare_tick">Interval Pengecekan Sinkronisasi</string>
+    <string name="set_compare_tick_note">Interval pengecekan penyelarasan audio dua video, peralihan segmen, dan putaran ulang (loop). Makin kecil makin presisi pelacakannya, makin besar makin hemat daya. Berlaku segera setelah diubah.</string>
+
+    <!-- Skala Teks -->
+    <string name="set_group_text">Ukuran Teks</string>
+    <string name="set_text_note">Dapat diatur secara mandiri untuk tiap layar, default 100%. Pada layar kecil, kurangi skala jika teks mempersempit tampilan jendela bidik.</string>
+    <string name="set_text_camera">Halaman Kamera (Termasuk bilah atas &amp; info pembacaan)</string>
+    <string name="set_text_dialog">Panel Konfigurasi (Parameter / Lensa / Garis / Monitor)</string>
+    <string name="set_text_settings">Halaman Pengaturan</string>
+
+    <!-- Izin -->
+    <string name="set_group_perm">Status Izin</string>
+    <string name="set_perm_camera">Kamera</string>
+    <string name="set_perm_audio">Mikrofon</string>
+    <string name="set_perm_media">Akses Video</string>
+    <string name="set_perm_bluetooth">Koneksi Bluetooth</string>
+    <string name="set_perm_bt_location">Lokasi (Hanya untuk memindai speaker sekitar)</string>
+    <string name="set_perm_granted">Diberikan</string>
+    <string name="set_perm_denied">Belum Diberikan</string>
+    <string name="set_perm_note">Tanpa mikrofon hanya merekam video. Tanpa akses video, hasil rekaman tidak akan muncul di galeri.</string>
+    <string name="set_open_system_settings">Buka Pengaturan Sistem</string>
+
+    <!-- Tentang -->
+    <string name="set_group_about">Tentang</string>
+    <string name="set_version">Versi</string>
+    <string name="set_package">Nama Paket</string>
+    <string name="set_about_note">Semua data disimpan di perangkat lokal; koneksi internet hanya diakses saat menekan tombol periksa pembaruan.</string>
+
+    <!-- Pembaruan Aplikasi -->
+    <string name="set_update">Periksa Pembaruan</string>
+    <string name="set_update_idle">Ketuk untuk memeriksa versi terbaru di GitHub</string>
+    <string name="set_update_checking">Memeriksa…</string>
+    <string name="set_update_cancelling">Membatalkan…</string>
+    <string name="set_update_latest">Aplikasi sudah versi terbaru</string>
+    <string name="set_update_failed">Gagal memeriksa, silakan coba lagi nanti</string>
+    <string name="set_update_available_title">Versi Baru Tersedia</string>
+    <string name="set_update_available_body">Versi baru %1$s · APK %2$s</string>
+    <string name="set_update_notes_title">Catatan Rilis</string>
+    <string name="set_update_download">Unduh Pembaruan</string>
+    <string name="set_update_cancel">Batal</string>
+    <string name="set_update_downloading">Mengunduh pembaruan…</string>
+    <string name="set_update_selecting_channel">Memilih server pengunduhan tercepat…</string>
+    <string name="set_update_progress">%1$d%% · Terunduh %2$s / %3$s</string>
+    <string name="set_update_progress_unknown">Terunduh %1$s</string>
+    <string name="set_update_ready_to_install">Unduhan selesai, siap dipasang</string>
+    <string name="set_update_install">Pasang</string>
+    <string name="set_update_download_failed">Unduhan gagal, silakan coba lagi nanti</string>
+    <string name="set_update_install_failed">Gagal membuka pemasang paket sistem</string>
+    <string name="set_update_close">Tutup</string>
+    <string name="set_update_size_unknown">Ukuran tidak diketahui</string>
+
+    <!-- Akses Semua File -->
+    <string name="set_group_storage">Akses Semua File</string>
+    <string name="set_storage_note">Setelah diaktifkan, tindakan hapus, pindah ke sampah, pulihkan, dan ubah nama berlaku langsung untuk semua video di perangkat tanpa dialog konfirmasi bahasa Inggris dari sistem; jika dinonaktifkan, hanya video rekaman aplikasi ini yang dapat dikelola.</string>
+    <string name="set_storage_open">Buka Pengaturan Sistem</string>
+    <string name="set_storage_on">Sudah Aktif</string>
+    <string name="set_storage_unsupported">Sistem saat ini (Android 10) tidak memiliki opsi \"Akses Semua File\"; tindakan hapus, sampah, dan ubah nama hanya berlaku untuk video yang direkam/diekspor oleh aplikasi ini.</string>
+
+    <!-- Kapsul Kontrol Kamera -->
+    <string name="cam_pill_level">Waterpass</string>
+    <string name="cam_pill_volume">Meteran Audio</string>
+    <string name="cam_pill_bt">Audio</string>
+    <string name="cam_pill_zoom">Zoom</string>
+    <string name="cam_pill_focus">Fokus</string>
+    <string name="cam_pill_stab">Penstabil</string>
+    <string name="cam_pill_refline">Garis Bantu</string>
+    <string name="cam_pill_monitor">Monitor Layar</string>
+    <string name="cam_pill_curve">Kurva RGB</string>
+    <string name="cam_pill_flash">Lampu Flash</string>
+    <string name="cam_pill_lens">Lensa</string>
+    <string name="cam_pill_size">Resolusi</string>
+    <string name="cam_pill_storage">Sisa Ruang</string>
+    <string name="set_pill_note">Sembunyikan dari halaman kamera jika dinonaktifkan; tombol shutter, thumbnail galeri, dan tombol pengaturan tidak dapat disembunyikan.</string>
+
+    <!-- Editor Tata Letak HUD -->
+    <string name="set_hud_editor">Edit Tata Letak Kontrol</string>
+    <string name="set_hud_editor_note">Hanya kontrol yang sudah aktif di atas yang dapat diedit: Geser wadah untuk mengubah posisi, geser item di dalam wadah untuk menyusun urutan, atau geser ke wadah lain. Tekan \"Simpan\" agar langsung diterapkan di halaman rekaman; tetap tersimpan setelah aplikasi ditutup. Posisi tidak akan tereset saat kontrol disembunyikan; gunakan \"Pulihkan Default\" di dalam editor untuk mengembalikan susunan pabrik.</string>
+</resources>

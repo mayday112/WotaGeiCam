@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 蓝牙音箱（bt/BtSpeakerController.kt、ui/dialog/BtSpeakerPanel.kt，就近面板正文由 ui/dialog/AudioSourcePanel.kt 承载） -->
+    <!-- 权限提示按 SDK 分档，两条都在 strings.xml、消费点是 ui/dialog/BtSpeakerPanel.kt 的 HintCard：
+         API ≤ 30（Android 10/11）走 perm_bluetooth_rationale_low（解释"搜音箱为什么弹位置框"），
+         API 31+ 走 perm_bluetooth_rationale；「去设置」两档共用 perm_open_settings -->
+    <string name="bt_start_scan">搜索附近设备</string>
+    <string name="bt_stop_scan">停止搜索</string>
+
+    <!-- 当前输出 -->
+    <string name="bt_no_active">未连接音箱</string>
+    <string name="bt_active">当前输出：%1$s</string>
+    <string name="bt_battery">电量 %1$d%%</string>
+    <string name="bt_battery_unknown">电量未知</string>
+
+    <!-- 设备列表 -->
+    <string name="bt_group_paired">已配对</string>
+    <string name="bt_group_nearby">附近设备</string>
+    <string name="bt_group_nearby_scanning">附近设备（搜索中…）</string>
+    <string name="bt_no_device">还没有可用的蓝牙设备</string>
+    <string name="bt_connect">连接</string>
+    <string name="bt_connected">已连接</string>
+    <string name="bt_disconnected">未连接</string>
+    <!-- A2DP 主动连接不开放给三方应用，点「连接」只会跳系统设置 -->
+    <string name="bt_tip_settings_only">配对与连接请在系统蓝牙设置中完成</string>
+
+    <!-- 音量与播控 -->
+    <string name="bt_volume">媒体音量</string>
+    <string name="bt_volume_value">%1$d%%</string>
+    <string name="bt_play_pause">播放 / 暂停</string>
+    <string name="bt_prev">上一曲</string>
+    <string name="bt_next">下一曲</string>
+
+    <!-- 状态提示 -->
+    <string name="bt_grant">授予权限</string>
+    <string name="bt_adapter_off">系统蓝牙未开启，请先在设置中打开</string>
+
+    <!-- Android 10/11 扫描的另一半门槛：位置权限之外，系统定位服务开关也必须开着（平台对
+         discovery 结果的过滤是两者同时成立，缺开关与缺权限一样都是静默空结果）。
+         权限是什么、为什么弹框见 strings.xml 的 perm_bluetooth_rationale_low；这里只管开关 -->
+    <string name="bt_location_off">系统定位服务未开启：这台设备的系统（Android 10/11）搜索蓝牙设备时要求定位服务保持开启。WotaGeiCam 不会读取你的位置。</string>
+    <string name="bt_open_location">去开启定位服务</string>
+</resources>

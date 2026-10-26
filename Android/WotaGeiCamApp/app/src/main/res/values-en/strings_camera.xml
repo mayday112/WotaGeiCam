@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Viewfinder UI: Top / Bottom Bars / Readouts / Pills -->
+    <string name="cam_settings">Settings</string>
+    <string name="cam_gallery_entry">Gallery</string>
+    <string name="cam_volume_meter">Audio Meter</string>
+    <string name="cam_perm_title">Permission Required</string>
+    <string name="cam_lock_tip">Recording in progress. Stop recording to change this setting</string>
+    <string name="cam_no_camera_perm">Camera permission is required to preview</string>
+    <string name="cam_preview_failed">Preview not ready</string>
+    <string name="cam_wait_preview">Preview has not started yet, please wait before recording</string>
+    <string name="cam_state_prepare">Preparing</string>
+    <string name="cam_state_stopping">Stopping</string>
+    <string name="cam_state_high_fps">Frame rate exceeds device capability; capped at maximum supported</string>
+    <string name="cam_direct_no_effect">Zebra pattern and focus peaking require GPU rendering</string>
+
+    <!-- Split Screen -->
+    <string name="cam_split">Split Screen</string>
+    <string name="cam_split_exit">Exit Split Screen</string>
+    <string name="cam_split_lens">Record with Another Lens</string>
+    <string name="cam_split_compare">Live Compare Playback</string>
+    <string name="cam_split_pick">Select Video</string>
+    <string name="cam_split_lens_unsupported">Concurrent multi-camera is not supported on this device</string>
+    <string name="cam_split_lens_soon">Coming soon</string>
+
+    <!-- Slider Input Mode -->
+    <string name="cam_switch_input_mode">Toggle step and slider input</string>
+
+    <!-- Parameter Labels -->
+    <string name="cam_p_shutter">Shutter Speed</string>
+    <string name="cam_p_iso">ISO</string>
+    <string name="cam_p_ev">EV</string>
+    <string name="cam_p_ae">Exposure Mode</string>
+    <string name="cam_p_af">Focus Mode</string>
+    <string name="cam_p_mf">Manual Focus</string>
+    <string name="cam_p_wb">White Balance</string>
+    <string name="cam_p_kelvin">Color Temp</string>
+    <string name="cam_p_tint">Tint</string>
+    <string name="cam_p_lens">Lens</string>
+    <string name="cam_p_size">Resolution</string>
+    <string name="cam_p_fps">Frame Rate</string>
+    <string name="cam_fps_convert_title">No native fixed rate on device; frame-dropping to target rate during recording</string>
+    <string name="cam_fps_convert_mend">Auto drop &amp; merge arcs</string>
+    <string name="cam_fps_convert_drop">Drop frames only</string>
+    <string name="cam_fps_convert_mend_note">Dropped frames are blended into adjacent frames for continuous light arcs</string>
+    <string name="cam_fps_convert_drop_note">Drops frames without blending; light arcs may show gaps at drop points</string>
+    <string name="cam_fps_deadband">Merge Threshold</string>
+    <string name="cam_fps_deadband_note">Frames with brightness difference below this threshold will not be merged. Higher is more conservative; lower may merge noise</string>
+    <string name="cam_arc_switch_gpu">Switched to GPU rendering: Frame dropping requires GPU encoding pipeline, tap record again</string>
+    <string name="cam_p_bitrate">Bitrate</string>
+    <string name="cam_p_stab">Stabilization</string>
+    <string name="cam_p_flash">Flash</string>
+    <string name="cam_p_zoom">Zoom</string>
+    <string name="cam_p_refline">Reference Lines</string>
+    <string name="pill_dismiss">Collapse</string>
+    <string name="pill_focus">Focus</string>
+    <string name="cam_af_fixed_focus">This lens is fixed-focus; focus distance cannot be adjusted</string>
+    <string name="cam_free_space_title">Available Time</string>
+    <string name="pill_minutes_unit">min</string>
+    <string name="pill_hours_unit">hrs</string>
+    <string name="pill_record_minutes">~%2$s %1$s at current bitrate</string>
+    <string name="pill_storage_note">Estimate based on video bitrate only; actual time may be slightly less due to container overhead</string>
+    <string name="cam_p_curve">RGB Curve</string>
+    <string name="cam_p_monitor">Monitor</string>
+
+    <!-- Viewfinder Readouts -->
+    <string name="cam_hud_shutter">Shutter</string>
+    <string name="cam_hud_iso">ISO</string>
+    <string name="cam_hud_wb">WB</string>
+    <string name="cam_hud_zoom">Zoom</string>
+    <string name="cam_hud_ev">EV</string>
+    <string name="cam_hud_fps">FPS</string>
+    <string name="cam_hud_bitrate">Bitrate</string>
+    <string name="cam_tap_center">Center Tap Focus</string>
+    <string name="cam_tap_hint">Tap to focus &amp; meter; double-tap to lock focus at point; long-press 0.5s to lock AE/AF</string>
+    <string name="cam_focus_lock">Lock Focus</string>
+    <string name="cam_focus_unlock">Unlock Focus</string>
+    <string name="cam_focus_locked_tip">Focus locked. Tapping the screen will not refocus</string>
+    <string name="cam_focus_tap_locked_tip">Focus locked. Long-press screen or open focus pill to unlock</string>
+    <string name="cam_focus_manual_locked">Manual focus is already locked</string>
+    <string name="cam_focus_lock_unsupported">This lens does not support single auto-focus; cannot lock</string>
+    <string name="cam_focus_lock_recording">Cannot lock focus while recording</string>
+    <string name="cam_recording_readonly">Cannot adjust while recording; change after stopping</string>
+    <string name="cam_manual_exposure_only">Available in manual exposure mode</string>
+    <string name="cam_auto_exposure_only">Active in auto exposure mode</string>
+
+    <!-- Lens Panel -->
+    <string name="cam_lens_tip">Equivalent focal length and FOV calculated from device characteristics</string>
+    <string name="cam_lens_empty">No available lenses</string>
+    <string name="cam_lens_using">In Use</string>
+    <string name="cam_lens_fov">Equiv %1$s mm · HFOV %2$s°</string>
+    <string name="cam_lens_fov_only">Equiv %1$s mm</string>
+    <string name="cam_size_range">Device supported range: %1$s – %2$s</string>
+    <string name="cam_lens_super_wide">Ultra Wide</string>
+    <string name="cam_lens_wide">Wide</string>
+    <string name="cam_lens_telephoto">Telephoto</string>
+    <string name="cam_lens_super_telephoto">Super Telephoto</string>
+    <string name="cam_lens_auto">Auto</string>
+    <string name="cam_lens_front">Front</string>
+
+    <!-- Modes: Exposure / Focus / WB / Flash / Stabilization / Render -->
+    <string name="cam_ae_auto">Auto</string>
+    <string name="cam_ae_manual">Manual</string>
+    <string name="cam_ae_lock">Lock AE/AF</string>
+    <string name="cam_af_continuous_video">Continuous Video</string>
+    <string name="cam_af_continuous_picture">Continuous Picture</string>
+    <string name="cam_af_macro">Macro</string>
+    <string name="cam_af_manual">Manual</string>
+    <string name="cam_wb_auto">Auto</string>
+    <string name="cam_wb_incandescent">Incandescent</string>
+    <string name="cam_wb_fluorescent">Fluorescent</string>
+    <string name="cam_wb_warm_fluorescent">Warm Fluorescent</string>
+    <string name="cam_wb_daylight">Daylight</string>
+    <string name="cam_wb_cloudy">Cloudy</string>
+    <string name="cam_wb_twilight">Twilight</string>
+    <string name="cam_wb_shade">Shade</string>
+    <string name="cam_wb_manual">Manual Temp</string>
+    <string name="cam_flash_off">Flash Off</string>
+    <string name="cam_flash_on">Flash On</string>
+    <string name="cam_flash_auto">Flash Auto</string>
+    <string name="cam_flash_torch">Torch</string>
+    <string name="cam_stab_off">Stabilization Off</string>
+    <string name="cam_stab_ois">OIS</string>
+    <string name="cam_stab_eis">EIS</string>
+    <string name="cam_stab_ois_eis">OIS + EIS</string>
+    <string name="cam_render_gpu">GPU Render</string>
+    <string name="cam_render_direct">Direct (No GPU)</string>
+
+    <!-- Reference Lines -->
+    <string name="cam_refline_title">Reference Lines</string>
+    <string name="cam_refline_count">%1$d selected</string>
+    <string name="cam_refline_all">Select All</string>
+    <string name="cam_refline_clear">Clear</string>
+
+    <!-- Monitor Panel -->
+    <string name="cam_monitor_title">Screen Monitor</string>
+    <string name="cam_monitor_need_gpu">Requires \"GPU Render\" to take effect</string>
+    <string name="cam_effect_none">Off</string>
+    <string name="cam_effect_zebra">Zebra Pattern</string>
+    <string name="cam_effect_peaking">Focus Peaking</string>
+    <string name="cam_zebra_threshold">Zebra Threshold</string>
+    <string name="cam_zebra_density">Stripe Density</string>
+    <string name="cam_zebra_d1">Low</string>
+    <string name="cam_zebra_d2">Medium</string>
+    <string name="cam_zebra_d3">Dense</string>
+    <string name="cam_peaking_strength">Peaking Strength</string>
+    <string name="cam_peaking_color">Peaking Color</string>
+    <string name="cam_pk_white">White</string>
+    <string name="cam_pk_green">Green</string>
+    <string name="cam_pk_blue">Blue</string>
+    <string name="cam_pk_orange">Orange</string>
+    <string name="cam_pk_red">Red</string>
+
+    <!-- RGB Curve -->
+    <string name="cam_curve_ch_master">White</string>
+    <string name="cam_curve_ch_red">Red</string>
+    <string name="cam_curve_ch_green">Green</string>
+    <string name="cam_curve_ch_blue">Blue</string>
+    <string name="cam_curve_reset_all">Reset All</string>
+
+    <!-- Recording Results and Error Notices -->
+    <string name="cam_record_saved">Saved, duration %1$s</string>
+    <string name="cam_record_saved_auto_battery">Auto-stopped due to low battery; saved %1$s</string>
+    <string name="cam_record_saved_auto_storage">Auto-stopped due to low storage; saved %1$s</string>
+    <string name="cam_record_saved_auto_camera_lost">Camera reclaimed by system or another app, recording stopped; saved %1$s</string>
+    <string name="cam_record_saved_auto_battery_short">; auto-stopped due to low battery</string>
+    <string name="cam_record_saved_auto_storage_short">; auto-stopped due to low storage</string>
+    <string name="cam_record_saved_auto_camera_lost_short">; stopped because camera was reclaimed</string>
+    <string name="cam_record_saved_parts">Saved %1$d segments, duration %2$s</string>
+    <string name="cam_record_saved_uncommitted">; gallery indexing pending, re-enter gallery or restart to view</string>
+    <string name="cam_record_saved_degraded">; finalization incomplete, tail of video may be truncated</string>
+    <string name="cam_record_saved_note_tail">; finalization incomplete, last segment may not be preserved (check gallery)</string>
+    <string name="cam_record_saved_note_rotate">; segment rotation stalled, subsequent footage not recorded</string>
+    <string name="cam_record_saved_ambient_lost">; ambient audio missing or interrupted (no sound in later segment)</string>
+    <string name="cam_record_saved_loss">; ~%1$d s lost due to rotation stall</string>
+    <string name="cam_ambient_lost_tip">Ambient sound unavailable or interrupted; no sound in later segments</string>
+    <string name="cam_record_low_storage">Insufficient storage: %1$d MB available, recording requires at least %2$d MB</string>
+    <string name="cam_record_low_storage_short">Insufficient storage space to start recording</string>
+    <string name="cam_record_no_output">Unable to create output file, recording skipped</string>
+    <string name="cam_record_prepare_failed">Encoder preparation failed, please retry</string>
+    <string name="cam_record_start_failed">Failed to start recording, please retry</string>
+    <string name="cam_record_engine_error">Recording engine error; stopped and preserved recorded footage</string>
+    <string name="cam_record_rotate_stall">Segment rotation stalled; stopped and preserved footage (~%1$d s lost)</string>
+    <string name="cam_record_rotate_stall_short">Segment rotation stalled; stopped and preserved footage (subsequent footage not recorded)</string>
+    <string name="cam_record_too_short">Recording less than 1 second; discarded</string>
+    <string name="cam_record_stop_failed">Failed to stop recording cleanly; file may be incomplete</string>
+    <string name="cam_record_released">Recording cancelled</string>
+    <string name="cam_record_failed_generic">Recording failed, please retry</string>
+
+    <!-- HUD Editor -->
+    <string name="hud_edit_back">Back</string>
+    <string name="hud_edit_save">Save</string>
+    <string name="hud_edit_saved">Saved. New layout applied to camera view</string>
+    <string name="hud_edit_reset">Reset Defaults</string>
+    <string name="hud_edit_reset_confirm">Reset to default layout?</string>
+    <string name="hud_edit_reset_arm_tip">Tap \"Reset to default layout?\" again to restore all containers and item slots to factory defaults</string>
+    <string name="hud_edit_reset_done">Restored to default layout</string>
+    <string name="hud_edit_undo">Undo</string>
+    <string name="hud_edit_undo_done">Undone; previous layout restored</string>
+    <string name="hud_edit_note">Hold &amp; drag container = move entire zone (bottom bar only supports top/bottom rows and stays horizontally centered). Hold &amp; drag control = snaps to nearest slot; dropping onto an occupied slot swaps positions with it without moving other items. Top &amp; bottom bars arrange sequentially. Empty slots remain empty. Overlaps are permitted with notice. Controls cannot be triggered on this page. Unsaved changes are discarded upon exiting.</string>
+    <string name="hud_edit_overlap_pair">%1$s and %2$s bounding boxes overlap</string>
+    <string name="hud_edit_bottom_x_locked">Bottom bar is locked to center: horizontal dragging is not saved</string>
+    <string name="hud_edit_save_failed">Failed to save settings; current display remains unchanged</string>
+    <string name="hud_edit_page_cell_size">%1$d×%2$ddp</string>
+    <string name="hud_edit_hidden_entries_note">Hidden controls are visible on this editor page: you can arrange their positions now; after saving, enable them in settings to show them in their assigned slots</string>
+    <string name="hud_zone_top">Top Bar Pills</string>
+    <string name="hud_zone_left">Left Vertical Dock</string>
+    <string name="hud_zone_right">Right Vertical Dock</string>
+    <string name="hud_zone_readout">Persistent Readouts</string>
+    <string name="hud_zone_bottom">Bottom Bar Dock</string>
+</resources>

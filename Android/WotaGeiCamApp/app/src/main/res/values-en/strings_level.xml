@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="level_state_level">Level</string>
+    <string name="level_state_tilt">Tilted</string>
+    <string name="level_tag_pitch">Pitch</string>
+    <string name="level_tag_roll">Roll</string>
+    <string name="level_angle_value">%1$+5.1f°</string>
+    <string name="level_mode_toggle">Toggle graphic / numeric display</string>
+</resources>

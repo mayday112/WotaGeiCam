@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 播放器通用控件 -->
+    <string name="player_play_pause">播放 / 暂停</string>
+    <string name="player_step_back">帧后退</string>
+    <string name="player_step_fwd">帧步进</string>
+    <string name="player_fps_step">%1$.1f fps</string>
+    <string name="player_fps_step_exact">%1$.2f fps</string>
+    <string name="player_loop_one">单视频循环</string>
+    <string name="player_mirror">水平镜像</string>
+    <string name="player_zoom">%1$.1fx 缩放</string>
+    <string name="player_zoom_badge">x%1$.2f</string>
+    <string name="player_error">播放失败，文件可能已损坏或格式不支持</string>
+
+    <!-- 光弧修复（用户需求第 7 项 v2 抽帧+补弧口径：可选按钮，绝不自动；先选目标帧率，GPU/CPU 二选一） -->
+    <string name="player_arc_repair">光弧修复</string>
+    <string name="player_arc_target">目标帧率</string>
+    <string name="player_arc_fps">%1$d fps</string>
+    <string name="player_arc_gpu">GPU 加速</string>
+    <string name="player_arc_cpu">纯 CPU</string>
+    <!-- 并入门槛（补弧差分死区 D，0..32，默认 12）：与录制页同一量纲；必须在按下面两枚按钮之前设好 -->
+    <string name="player_arc_deadband">并入门槛</string>
+    <string name="player_arc_deadband_note">亮度差不超过它的画面不并入。调大更保守、调小会把噪点也并进去；按住开始修复前设好</string>
+    <!-- 2026-10-05 分组重设计：动作组标题与两枚按钮的小注（与设置项视觉分组） -->
+    <string name="player_arc_start_group">开始修复</string>
+    <string name="player_arc_gpu_note">速度快·推荐</string>
+    <string name="player_arc_cpu_note">兼容模式</string>
+    <string name="player_arc_note">抽掉多余帧转到所选帧率，被抽帧的画面并入前后帧保持光弧连贯；后台处理生成新视频，不改原片</string>
+    <string name="player_arc_done">修复完成，已存入相册</string>
+    <string name="player_arc_failed">修复失败</string>
+    <string name="player_arc_no_need">源帧率不高于目标帧率，没有帧可抽</string>
+    <string name="player_arc_running">修复中 %1$d%%</string>
+    <string name="player_arc_busy">已有修复任务在跑</string>
+
+    <!-- 倍速档位（需求：0.1 / 0.3 / 0.5 / 0.75 / 1.0） -->
+    <string name="player_speed_current">倍速 %1$s</string>
+    <string name="player_speed_title">播放倍速</string>
+    <string name="player_speed_01">0.1x</string>
+    <string name="player_speed_03">0.3x</string>
+    <string name="player_speed_05">0.5x</string>
+    <string name="player_speed_075">0.75x</string>
+    <string name="player_speed_10">1x</string>
+
+    <!-- AB 段循环 -->
+    <string name="player_ab_a">A</string>
+    <string name="player_ab_b">B</string>
+    <string name="player_ab_loop">循环</string>
+    <string name="player_ab_clear">清除</string>
+    <string name="player_ab_invalid">B 点要晚于 A 点，请先打 A</string>
+
+    <!-- 音频自动同步 -->
+    <string name="player_sync_done">已按音频对齐</string>
+    <string name="player_sync_low_confidence">同步置信度低，请手动校正</string>
+    <string name="player_sync_failed">音频对齐失败，请手动拖动进度条</string>
+    <string name="player_sync_no_audio">视频没有音轨，无法自动对齐</string>
+    <string name="player_sync_too_short">音频太短，无法自动对齐</string>
+
+    <!-- 双视频对比（沉浸式浮层版，10-01：标题/长描述两条随旧布局一并移除，git 可回） -->
+    <string name="compare_mode_auto">自动同步（音频）</string>
+    <string name="compare_mode_manual">手动同步</string>
+    <string name="compare_side_a">左音频</string>
+    <string name="compare_side_b">右音频</string>
+    <string name="compare_sync">同步</string>
+    <string name="compare_add_right">添加右侧视频</string>
+    <string name="compare_pick_right">选择右侧视频</string>
+    <string name="compare_syncing">正在按音频对齐…</string>
+    <string name="compare_need_right">先添加右侧视频</string>
+    <string name="compare_left_tag">左</string>
+    <string name="compare_right_tag">右</string>
+    <string name="compare_left">左：%1$s</string>
+    <string name="compare_right">右：%1$s</string>
+    <string name="compare_offset">右偏移 %1$s</string>
+    <string name="compare_history">历史</string>
+    <string name="compare_history_empty">还没有对比记录</string>
+    <string name="compare_history_missing">视频已不存在</string>
+    <string name="compare_history_remove">删除该记录</string>
+    <string name="compare_pick_failed">无法读取所选视频</string>
+    <string name="compare_mirror">镜像</string>
+    <string name="compare_mirror_left">左镜像</string>
+    <string name="compare_mirror_right">右镜像</string>
+    <string name="compare_mirror_all">全镜像</string>
+    <string name="compare_practice">对着左片练</string>
+    <string name="compare_loop_full">全程循环</string>
+
+    <!-- 路由版播放器：mediaId 查完无此片（外部删掉/回收站清掉）的空态，不许停在转圈（2026-10-07） -->
+    <string name="player_clip_missing">视频不存在或已删除</string>
+
+    <!-- 掐头去尾剪辑导出（2026-10-04 方向 3：区间复用 A/B 标记，无损拷贝不重编码） -->
+    <string name="player_clip">剪辑</string>
+    <string name="player_clip_title">按 A/B 段导出（无损剪）</string>
+    <string name="player_clip_need_ab">先用底栏 A/B 标出要保留的段落，再回到这里导出</string>
+    <string name="player_clip_in">入点 %1$s（自动向前对齐关键帧）</string>
+    <string name="player_clip_out">出点 %1$s</string>
+    <string name="player_clip_keep">保留 %1$s / 共 %2$s</string>
+    <string name="player_clip_too_short">保留段太短，圈长一点再导</string>
+    <string name="player_clip_export">导出到媒体库</string>
+    <string name="player_clip_cancel">取消导出</string>
+    <string name="player_clip_done">剪辑已导出到媒体库</string>
+    <string name="player_clip_failed">导出失败，请重试</string>
+    <!-- #4：commit 全败但成片字节已在盘上，保留待冷启救援（文案与"导出失败"分开，不吓用户） -->
+    <string name="player_clip_commit_kept">导出完成但未收录，成片已保留，重启应用后自动恢复</string>
+
+    <!-- 内录选轨（批 4）：双音轨片才有音轨 chip/同步/导出三控件；音轨识别口径见 TrackSync 头注 -->
+    <string name="player_track_env">环境音</string>
+    <string name="player_track_cap">内录</string>
+    <string name="player_track_pick_title">选择音轨</string>
+    <string name="player_track_sync">同步音轨</string>
+    <string name="player_track_sync_auto">自动校准</string>
+    <string name="player_track_sync_manual">手动同步</string>
+    <string name="player_track_sync_source_fmt">%1$s %2$s ms</string>
+    <string name="player_track_sync_busy">自动校准中，请稍候</string>
+    <string name="player_track_sync_note">分享原片不改写音轨：录制前校准若已生效会保留在原片；未跑或失败的预校准与后校准残差只在本页导出、光弧修复时应用</string>
+    <string name="player_track_sync_low">未能自动校正，已按录制起点对齐</string>
+    <string name="player_track_sync_failed">同步失败，请重试</string>
+    <string name="player_track_sync_none">未同步，按录制起点对齐</string>
+    <string name="player_track_export">导出音轨</string>
+    <string name="player_track_export_title">导出选中音轨（全片）</string>
+    <string name="player_track_export_track">导出音轨：%1$s</string>
+    <string name="player_track_export_done">音轨成片已导出到媒体库</string>
+    <string name="player_track_export_failed">导出失败，请重试</string>
+    <string name="player_track_commit_kept">导出完成但未收录，成片已保留，重启应用后自动恢复</string>
+</resources>

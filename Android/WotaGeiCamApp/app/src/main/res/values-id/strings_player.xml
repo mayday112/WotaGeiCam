@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Kontrol Pemutar -->
+    <string name="player_play_pause">Putar / Jeda</string>
+    <string name="player_step_back">Mundur 1 Frame</string>
+    <string name="player_step_fwd">Maju 1 Frame</string>
+    <string name="player_fps_step">%1$.1f fps</string>
+    <string name="player_fps_step_exact">%1$.2f fps</string>
+    <string name="player_loop_one">Ulang video ini</string>
+    <string name="player_mirror">Cermin Horizontal</string>
+    <string name="player_zoom">%1$.1fx zoom</string>
+    <string name="player_zoom_badge">x%1$.2f</string>
+    <string name="player_error">Pemutaran gagal, file mungkin rusak atau format tidak didukung</string>
+
+    <!-- Perbaikan Lintasan Cahaya (Light Arc) -->
+    <string name="player_arc_repair">Perbaikan Lintasan Cahaya</string>
+    <string name="player_arc_target">Frame Rate Target</string>
+    <string name="player_arc_fps">%1$d fps</string>
+    <string name="player_arc_gpu">Akselerasi GPU</string>
+    <string name="player_arc_cpu">Hanya CPU</string>
+    <string name="player_arc_deadband">Batas Penggabungan</string>
+    <string name="player_arc_deadband_note">Gambar dengan perbedaan kecerahan di bawah nilai ini tidak akan digabungkan. Nilai lebih tinggi lebih konservatif; nilai lebih rendah dapat menggabungkan derau (noise). Atur sebelum memulai perbaikan.</string>
+    <string name="player_arc_start_group">Mulai Perbaikan</string>
+    <string name="player_arc_gpu_note">Cepat · Disarankan</string>
+    <string name="player_arc_cpu_note">Mode Kompatibilitas</string>
+    <string name="player_arc_note">Mengurangi frame berlebih menuju target frame rate, lalu menggabungkan gambar frame yang dibuang ke frame sebelum/sesudahnya agar lintasan cahaya tetap mulus. Diproses di latar belakang menghasilkan video baru tanpa mengubah aslinya.</string>
+    <string name="player_arc_done">Perbaikan selesai, tersimpan di galeri</string>
+    <string name="player_arc_failed">Perbaikan gagal</string>
+    <string name="player_arc_no_need">Frame rate sumber tidak lebih tinggi dari target; tidak ada frame yang perlu dibuang</string>
+    <string name="player_arc_running">Memperbaiki %1$d%%</string>
+    <string name="player_arc_busy">Tugas perbaikan lain sedang berjalan</string>
+
+    <!-- Kecepatan Pemutaran -->
+    <string name="player_speed_current">Kecepatan %1$s</string>
+    <string name="player_speed_title">Kecepatan Pemutaran</string>
+    <string name="player_speed_01">0.1x</string>
+    <string name="player_speed_03">0.3x</string>
+    <string name="player_speed_05">0.5x</string>
+    <string name="player_speed_075">0.75x</string>
+    <string name="player_speed_10">1x</string>
+
+    <!-- Loop Segmen AB -->
+    <string name="player_ab_a">A</string>
+    <string name="player_ab_b">B</string>
+    <string name="player_ab_loop">Ulang</string>
+    <string name="player_ab_clear">Hapus</string>
+    <string name="player_ab_invalid">Titik B harus setelah titik A. Tentukan titik A terlebih dahulu.</string>
+
+    <!-- Sinkronisasi Audio Otomatis -->
+    <string name="player_sync_done">Berhasil disejajarkan berdasarkan audio</string>
+    <string name="player_sync_low_confidence">Tingkat keyakinan sinkronisasi rendah, silakan sesuaikan secara manual</string>
+    <string name="player_sync_failed">Penyelarasan audio gagal, silakan geser bilah progres secara manual</string>
+    <string name="player_sync_no_audio">Video tidak memiliki trek audio, tidak dapat disinkronkan otomatis</string>
+    <string name="player_sync_too_short">Durasi audio terlalu pendek, tidak dapat disinkronkan otomatis</string>
+
+    <!-- Perbandingan Dua Video -->
+    <string name="compare_mode_auto">Sinkronisasi Otomatis (Audio)</string>
+    <string name="compare_mode_manual">Sinkronisasi Manual</string>
+    <string name="compare_side_a">Audio Kiri</string>
+    <string name="compare_side_b">Audio Kanan</string>
+    <string name="compare_sync">Sinkron</string>
+    <string name="compare_add_right">Tambah Video Kanan</string>
+    <string name="compare_pick_right">Pilih Video Kanan</string>
+    <string name="compare_syncing">Menyelaraskan berdasarkan audio…</string>
+    <string name="compare_need_right">Pilih video sisi kanan terlebih dahulu</string>
+    <string name="compare_left_tag">Kiri</string>
+    <string name="compare_right_tag">Kanan</string>
+    <string name="compare_left">Kiri: %1$s</string>
+    <string name="compare_right">Kanan: %1$s</string>
+    <string name="compare_offset">Pergeseran Kanan %1$s</string>
+    <string name="compare_history">Riwayat</string>
+    <string name="compare_history_empty">Belum ada riwayat perbandingan</string>
+    <string name="compare_history_missing">Video sudah tidak ada</string>
+    <string name="compare_history_remove">Hapus catatan ini</string>
+    <string name="compare_pick_failed">Tidak dapat membaca video yang dipilih</string>
+    <string name="compare_mirror">Cermin</string>
+    <string name="compare_mirror_left">Cermin Kiri</string>
+    <string name="compare_mirror_right">Cermin Kanan</string>
+    <string name="compare_mirror_all">Cermin Semua</string>
+    <string name="compare_practice">Latihan Mengikuti Kiri</string>
+    <string name="compare_loop_full">Ulang Penuh</string>
+
+    <!-- Status Video Hilang -->
+    <string name="player_clip_missing">Video tidak ada atau telah dihapus</string>
+
+    <!-- Ekspor Potongan Video -->
+    <string name="player_clip">Potong</string>
+    <string name="player_clip_title">Ekspor Segmen A/B (Pemotongan Lossless)</string>
+    <string name="player_clip_need_ab">Tandai bagian yang ingin disimpan menggunakan A/B di bilah bawah sebelum mengekspor</string>
+    <string name="player_clip_in">Titik Masuk %1$s (Otomatis menyesuaikan ke keyframe)</string>
+    <string name="player_clip_out">Titik Keluar %1$s</string>
+    <string name="player_clip_keep">Disimpan %1$s / Total %2$s</string>
+    <string name="player_clip_too_short">Segmen yang dipilih terlalu pendek; perpanjang rentang sebelum mengekspor</string>
+    <string name="player_clip_export">Ekspor ke Galeri</string>
+    <string name="player_clip_cancel">Batal Ekspor</string>
+    <string name="player_clip_done">Potongan video berhasil diekspor ke galeri</string>
+    <string name="player_clip_failed">Ekspor gagal, silakan coba lagi</string>
+    <string name="player_clip_commit_kept">Ekspor selesai tetapi belum terindeks; file tetap tersimpan dan akan dipulihkan saat aplikasi dibuka ulang</string>
+
+    <!-- Pemilihan Trek Audio -->
+    <string name="player_track_env">Suara Sekitar</string>
+    <string name="player_track_cap">Audio Internal</string>
+    <string name="player_track_pick_title">Pilih Trek Audio</string>
+    <string name="player_track_sync">Sinkronkan Trek Audio</string>
+    <string name="player_track_sync_auto">Kalibrasi Otomatis</string>
+    <string name="player_track_sync_manual">Sinkronisasi Manual</string>
+    <string name="player_track_sync_source_fmt">%1$s %2$s ms</string>
+    <string name="player_track_sync_busy">Sedang mengalibrasi otomatis, mohon tunggu</string>
+    <string name="player_track_sync_note">Membagikan video asli tidak mengubah trek audio: Kalibrasi sebelum merekam tetap tersimpan di video asli; koreksi sinkronisasi di halaman ini hanya diterapkan saat mengekspor atau perbaikan lintasan cahaya</string>
+    <string name="player_track_sync_low">Gagal menyelaraskan otomatis, diselaraskan ke awal rekaman</string>
+    <string name="player_track_sync_failed">Sinkronisasi gagal, silakan coba lagi</string>
+    <string name="player_track_sync_none">Belum disinkronkan, diselaraskan ke awal rekaman</string>
+    <string name="player_track_export">Ekspor Trek Audio</string>
+    <string name="player_track_export_title">Ekspor Trek Terpilih (Durasi Penuh)</string>
+    <string name="player_track_export_track">Ekspor trek: %1$s</string>
+    <string name="player_track_export_done">Trek audio berhasil diekspor ke galeri</string>
+    <string name="player_track_export_failed">Ekspor gagal, silakan coba lagi</string>
+    <string name="player_track_commit_kept">Ekspor selesai tetapi belum terindeks; file tetap tersimpan dan akan dipulihkan saat aplikasi dibuka ulang</string>
+</resources>

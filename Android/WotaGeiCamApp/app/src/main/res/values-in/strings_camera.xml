@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Kerangka Halaman Rekaman: Bilah Atas / Bilah Bawah / Kolom Meteran / Kapsul -->
+    <string name="cam_settings">Pengaturan</string>
+    <string name="cam_gallery_entry">Galeri</string>
+    <string name="cam_volume_meter">Meteran Audio</string>
+    <string name="cam_perm_title">Izin Belum Diberikan</string>
+    <string name="cam_lock_tip">Sedang merekam, hentikan perekaman untuk mengubah pengaturan ini</string>
+    <string name="cam_no_camera_perm">Izin kamera diperlukan untuk menampilkan jendela bidik</string>
+    <string name="cam_preview_failed">Pratinjau belum siap</string>
+    <string name="cam_wait_preview">Pratinjau belum menampilkan gambar, tunggu sebentar sebelum merekam</string>
+    <string name="cam_state_prepare">Menyiapkan</string>
+    <string name="cam_state_stopping">Menghentikan</string>
+    <string name="cam_state_high_fps">Frame rate melebihi kemampuan perangkat; dialihkan ke batas maksimal</string>
+    <string name="cam_direct_no_effect">Pola zebra dan focus peaking tidak aktif saat tidak menggunakan GPU</string>
+
+    <!-- Layar Terpisah (Split Screen) -->
+    <string name="cam_split">Layar Terpisah</string>
+    <string name="cam_split_exit">Keluar Layar Terpisah</string>
+    <string name="cam_split_lens">Rekam dengan Lensa Lain</string>
+    <string name="cam_split_compare">Pemutaran Komparasi Langsung</string>
+    <string name="cam_split_pick">Pilih Video</string>
+    <string name="cam_split_lens_unsupported">Perangkat ini tidak mendukung multi-kamera bersamaan</string>
+    <string name="cam_split_lens_soon">Segera hadir</string>
+
+    <!-- Mode Input Slider -->
+    <string name="cam_switch_input_mode">Beralih antara mode skala dan slider</string>
+
+    <!-- Label Parameter -->
+    <string name="cam_p_shutter">Kecepatan Shutter</string>
+    <string name="cam_p_iso">Sensitivitas (ISO)</string>
+    <string name="cam_p_ev">Kompensasi Eksposur</string>
+    <string name="cam_p_ae">Mode Eksposur</string>
+    <string name="cam_p_af">Mode Fokus</string>
+    <string name="cam_p_mf">Fokus Manual</string>
+    <string name="cam_p_wb">White Balance</string>
+    <string name="cam_p_kelvin">Suhu Warna</string>
+    <string name="cam_p_tint">Corak Warna (Tint)</string>
+    <string name="cam_p_lens">Lensa</string>
+    <string name="cam_p_size">Resolusi</string>
+    <string name="cam_p_fps">Frame Rate</string>
+    <string name="cam_fps_convert_title">Tidak ada opsi bawaan di perangkat; frame akan disesuaikan saat merekam</string>
+    <string name="cam_fps_convert_mend">Otomatis sesuaikan &amp; sambung lintasan cahaya</string>
+    <string name="cam_fps_convert_drop">Hanya kurangi frame</string>
+    <string name="cam_fps_convert_mend_note">Frame yang dikurangi digabungkan ke frame sekitar agar lintasan cahaya tetap mulus</string>
+    <string name="cam_fps_convert_drop_note">Hanya membuang frame tanpa penggabungan; lintasan cahaya dapat terputus</string>
+    <string name="cam_fps_deadband">Batas Penggabungan</string>
+    <string name="cam_fps_deadband_note">Gambar dengan perbedaan kecerahan di bawah nilai ini tidak akan digabungkan. Nilai lebih tinggi lebih konservatif; nilai lebih rendah dapat menggabungkan derau (noise)</string>
+    <string name="cam_arc_switch_gpu">Beralih ke render GPU: Pengurangan frame membutuhkan jalur encoding GPU, silakan tekan rekam lagi</string>
+    <string name="cam_p_bitrate">Bitrate</string>
+    <string name="cam_p_stab">Penstabil Gambar</string>
+    <string name="cam_p_flash">Lampu Flash</string>
+    <string name="cam_p_zoom">Zoom</string>
+    <string name="cam_p_refline">Garis Bantu</string>
+    <string name="pill_dismiss">Ciutkan</string>
+    <string name="pill_focus">Fokus</string>
+    <string name="cam_af_fixed_focus">Lensa ini bertipe fokus tetap (fixed-focus), jarak fokus tidak dapat diatur</string>
+    <string name="cam_free_space_title">Perkiraan Durasi</string>
+    <string name="pill_minutes_unit">menit</string>
+    <string name="pill_hours_unit">jam</string>
+    <string name="pill_record_minutes">Tersisa sekitar %2$s %1$s pada bitrate saat ini</string>
+    <string name="pill_storage_note">Estimasi hanya berdasarkan bitrate video; durasi sebenarnya mungkin sedikit lebih sedikit</string>
+    <string name="cam_p_curve">Kurva RGB</string>
+    <string name="cam_p_monitor">Monitor</string>
+
+    <!-- Pembacaan Parameter Viewfinder -->
+    <string name="cam_hud_shutter">Shutter</string>
+    <string name="cam_hud_iso">ISO</string>
+    <string name="cam_hud_wb">WB</string>
+    <string name="cam_hud_zoom">Zoom</string>
+    <string name="cam_hud_ev">EV</string>
+    <string name="cam_hud_fps">FPS</string>
+    <string name="cam_hud_bitrate">Bitrate</string>
+    <string name="cam_tap_center">Fokus di Titik Tengah</string>
+    <string name="cam_tap_hint">Ketuk layar untuk fokus &amp; metering; ketuk ganda untuk mengunci fokus; tekan tahan 0,5 detik untuk mengunci AE/AF</string>
+    <string name="cam_focus_lock">Kunci Fokus</string>
+    <string name="cam_focus_unlock">Buka Kunci Fokus</string>
+    <string name="cam_focus_locked_tip">Fokus terkunci, mengetuk layar tidak akan mengubah fokus</string>
+    <string name="cam_focus_tap_locked_tip">Fokus terkunci; tekan tahan layar atau buka kapsul fokus untuk membuka kunci</string>
+    <string name="cam_focus_manual_locked">Fokus manual sudah terkunci secara alami</string>
+    <string name="cam_focus_lock_unsupported">Lensa ini tidak mendukung autofokus tunggal; tidak dapat mengunci fokus</string>
+    <string name="cam_focus_lock_recording">Tidak dapat mengunci fokus saat merekam</string>
+    <string name="cam_recording_readonly">Tidak dapat diubah saat merekam; ubah setelah perekaman berhenti</string>
+    <string name="cam_manual_exposure_only">Dapat diatur setelah beralih ke mode eksposur manual</string>
+    <string name="cam_auto_exposure_only">Berlaku pada mode eksposur otomatis</string>
+
+    <!-- Panel Lensa -->
+    <string name="cam_lens_tip">Panjang fokus ekuivalen dan sudut pandang dihitung berdasarkan karakteristik perangkat</string>
+    <string name="cam_lens_empty">Tidak ada lensa yang tersedia</string>
+    <string name="cam_lens_using">Sedang Digunakan</string>
+    <string name="cam_lens_fov">Ekuivalen %1$s mm · Sudut Pandang Horizontal %2$s°</string>
+    <string name="cam_lens_fov_only">Ekuivalen %1$s mm</string>
+    <string name="cam_size_range">Rentang yang didukung perangkat: %1$s ～ %2$s</string>
+    <string name="cam_lens_super_wide">Ultra Lebar</string>
+    <string name="cam_lens_wide">Lebar</string>
+    <string name="cam_lens_telephoto">Telefoto</string>
+    <string name="cam_lens_super_telephoto">Super Telefoto</string>
+    <string name="cam_lens_auto">Otomatis</string>
+    <string name="cam_lens_front">Depan</string>
+
+    <!-- Pilihan Mode: Eksposur / Fokus / WB / Flash / Penstabil / Render -->
+    <string name="cam_ae_auto">Otomatis</string>
+    <string name="cam_ae_manual">Manual</string>
+    <string name="cam_ae_lock">Kunci AE/AF</string>
+    <string name="cam_af_continuous_video">Video Berkelanjutan</string>
+    <string name="cam_af_continuous_picture">Foto Berkelanjutan</string>
+    <string name="cam_af_macro">Makro</string>
+    <string name="cam_af_manual">Manual</string>
+    <string name="cam_wb_auto">Otomatis</string>
+    <string name="cam_wb_incandescent">Pijar</string>
+    <string name="cam_wb_fluorescent">Fluoresen</string>
+    <string name="cam_wb_warm_fluorescent">Fluoresen Hangat</string>
+    <string name="cam_wb_daylight">Cahaya Siang</string>
+    <string name="cam_wb_cloudy">Berawan</string>
+    <string name="cam_wb_twilight">Senja</string>
+    <string name="cam_wb_shade">Teduh</string>
+    <string name="cam_wb_manual">Suhu Warna Manual</string>
+    <string name="cam_flash_off">Flash Mati</string>
+    <string name="cam_flash_on">Flash Hidup</string>
+    <string name="cam_flash_auto">Flash Otomatis</string>
+    <string name="cam_flash_torch">Lampu Sorot Tetap</string>
+    <string name="cam_stab_off">Penstabil Mati</string>
+    <string name="cam_stab_ois">OIS (Optik)</string>
+    <string name="cam_stab_eis">EIS (Elektronik)</string>
+    <string name="cam_stab_ois_eis">OIS + EIS</string>
+    <string name="cam_render_gpu">Gunakan GPU</string>
+    <string name="cam_render_direct">Tanpa GPU (Langsung)</string>
+
+    <!-- Panel Garis Bantu -->
+    <string name="cam_refline_title">Garis Bantu</string>
+    <string name="cam_refline_count">%1$d jenis dipilih</string>
+    <string name="cam_refline_all">Pilih Semua</string>
+    <string name="cam_refline_clear">Kosongkan</string>
+
+    <!-- Panel Monitor Layar -->
+    <string name="cam_monitor_title">Monitor Layar</string>
+    <string name="cam_monitor_need_gpu">Harus beralih ke \"Gunakan GPU\" agar berfungsi</string>
+    <string name="cam_effect_none">Mati</string>
+    <string name="cam_effect_zebra">Pola Zebra</string>
+    <string name="cam_effect_peaking">Focus Peaking</string>
+    <string name="cam_zebra_threshold">Ambang Zebra</string>
+    <string name="cam_zebra_density">Kerapatan Garis</string>
+    <string name="cam_zebra_d1">Renggang</string>
+    <string name="cam_zebra_d2">Sedang</string>
+    <string name="cam_zebra_d3">Rapat</string>
+    <string name="cam_peaking_strength">Intensitas Peaking</string>
+    <string name="cam_peaking_color">Warna Peaking</string>
+    <string name="cam_pk_white">Putih</string>
+    <string name="cam_pk_green">Hijau</string>
+    <string name="cam_pk_blue">Biru</string>
+    <string name="cam_pk_orange">Oranye</string>
+    <string name="cam_pk_red">Merah</string>
+
+    <!-- Kurva RGB -->
+    <string name="cam_curve_ch_master">Putih</string>
+    <string name="cam_curve_ch_red">Merah</string>
+    <string name="cam_curve_ch_green">Hijau</string>
+    <string name="cam_curve_ch_blue">Biru</string>
+    <string name="cam_curve_reset_all">Reset Semua</string>
+
+    <!-- Hasil Perekaman & Pemberitahuan Kesalahan -->
+    <string name="cam_record_saved">Tersimpan, durasi %1$s</string>
+    <string name="cam_record_saved_auto_battery">Baterai lemah, perekaman otomatis berhenti; tersimpan %1$s</string>
+    <string name="cam_record_saved_auto_storage">Ruang penyimpanan penuh, perekaman otomatis berhenti; tersimpan %1$s</string>
+    <string name="cam_record_saved_auto_camera_lost">Kamera dipakai aplikasi lain atau ditarik sistem, perekaman berhenti; tersimpan %1$s</string>
+    <string name="cam_record_saved_auto_battery_short">; otomatis berhenti karena baterai lemah</string>
+    <string name="cam_record_saved_auto_storage_short">; otomatis berhenti karena penyimpanan penuh</string>
+    <string name="cam_record_saved_auto_camera_lost_short">; berhenti karena akses kamera ditarik</string>
+    <string name="cam_record_saved_parts">Tersimpan %1$d bagian, durasi %2$s</string>
+    <string name="cam_record_saved_uncommitted">; pendaftaran galeri tertunda, buka ulang galeri atau aplikasi</string>
+    <string name="cam_record_saved_degraded">; penutupan berkas tidak sempurna, bagian akhir mungkin terpotong</string>
+    <string name="cam_record_saved_note_tail">; penutupan tidak selesai, bagian terakhir mungkin belum tersimpan (cek galeri)</string>
+    <string name="cam_record_saved_note_rotate">; peralihan segmen tertahan, rekaman lanjutan tidak tersimpan</string>
+    <string name="cam_record_saved_ambient_lost">; audio sekitar hilang atau terputus (bagian akhir tanpa suara)</string>
+    <string name="cam_record_saved_loss">; sekitar %1$d detik hilang karena peralihan segmen tertahan</string>
+    <string name="cam_ambient_lost_tip">Audio sekitar tidak tersedia atau terputus, bagian akhir rekaman tanpa suara</string>
+    <string name="cam_record_low_storage">Ruang penyimpanan tidak cukup: tersedia %1$d MB, rekaman memerlukan minimal %2$d MB</string>
+    <string name="cam_record_low_storage_short">Ruang penyimpanan tidak cukup untuk mulai merekam</string>
+    <string name="cam_record_no_output">Gagal membuat berkas keluaran, sesi ini tidak direkam</string>
+    <string name="cam_record_prepare_failed">Persiapan encoder gagal, silakan coba lagi</string>
+    <string name="cam_record_start_failed">Gagal memulai perekaman, silakan coba lagi</string>
+    <string name="cam_record_engine_error">Terjadi kesalahan pada mesin perekam, dihentikan dan rekaman disimpan</string>
+    <string name="cam_record_rotate_stall">Peralihan segmen tertahan, dihentikan dan rekaman disimpan (hilang sekitar %1$d detik)</string>
+    <string name="cam_record_rotate_stall_short">Peralihan segmen tertahan, dihentikan dan rekaman disimpan (rekaman lanjutan tidak tersimpan)</string>
+    <string name="cam_record_too_short">Durasi rekaman kurang dari satu detik, berkas dibuang</string>
+    <string name="cam_record_stop_failed">Gagal menghentikan perekaman secara bersih, berkas mungkin tidak lengkap</string>
+    <string name="cam_record_released">Perekaman dibatalkan</string>
+    <string name="cam_record_failed_generic">Perekaman gagal, silakan coba lagi</string>
+
+    <!-- Editor Tata Letak HUD -->
+    <string name="hud_edit_back">Kembali</string>
+    <string name="hud_edit_save">Simpan</string>
+    <string name="hud_edit_saved">Tersimpan, tata letak baru diterapkan di halaman rekaman</string>
+    <string name="hud_edit_reset">Pulihkan Default</string>
+    <string name="hud_edit_reset_confirm">Konfirmasi pulihkan default?</string>
+    <string name="hud_edit_reset_arm_tip">Ketuk \"Konfirmasi pulihkan default?\" sekali lagi untuk mereset semua posisi wadah dan kisi kontrol ke bawaan pabrik</string>
+    <string name="hud_edit_reset_done">Tata letak default berhasil dipulihkan</string>
+    <string name="hud_edit_undo">Urungkan</string>
+    <string name="hud_edit_undo_done">Berhasil diurungkan, susunan sebelum pemulihan telah dikembalikan</string>
+    <string name="hud_edit_note">Tahan &amp; geser wadah = memindahkan seluruh area (bilah bawah hanya mendukung baris atas/bawah dan selalu berada di tengah secara horizontal). Tahan &amp; geser kontrol = menempel ke kisi terdekat; meletakkan di kisi yang sudah terisi akan bertukar posisi tanpa menggeser kontrol lain. Bilah atas dan bawah tersusun secara berurutan. Kisi kosong dibiarkan kosong, tumpang tindih diperbolehkan dengan peringatan. Tombol tidak dapat ditekan pada halaman ini. Perubahan yang belum disimpan akan dibuang saat kembali.</string>
+    <string name="hud_edit_overlap_pair">Area %1$s dan %2$s saling tumpang tindih</string>
+    <string name="hud_edit_bottom_x_locked">Bilah bawah terkunci di tengah secara horizontal: pergeseran horizontal tidak disimpan</string>
+    <string name="hud_edit_save_failed">Gagal menyimpan ke pengaturan; posisi yang ditampilkan tetap yang lama</string>
+    <string name="hud_edit_page_cell_size">%1$d×%2$ddp</string>
+    <string name="hud_edit_hidden_entries_note">Kontrol yang dinonaktifkan tetap terlihat di halaman editor: posisinya dapat diatur sekarang; setelah disimpan, aktifkan kembali di pengaturan untuk memunculkannya di posisi tersebut</string>
+    <string name="hud_zone_top">Grup Kapsul Bilah Atas</string>
+    <string name="hud_zone_left">Dock Vertikal Kiri</string>
+    <string name="hud_zone_right">Dock Vertikal Kanan</string>
+    <string name="hud_zone_readout">Blok Pembacaan Tetap</string>
+    <string name="hud_zone_bottom">Dock Bilah Bawah</string>
+</resources>

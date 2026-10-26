@@ -67,3 +67,7 @@ repro_screen*.png
 agent-memory/
 node_modules/
 *.bak
+
+
+#======= AI Agent ======
+.plans/
