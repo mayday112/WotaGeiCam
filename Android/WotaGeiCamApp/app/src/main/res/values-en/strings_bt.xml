@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bt_start_scan">Scan for nearby devices</string>
+    <string name="bt_stop_scan">Stop scanning</string>
+
+    <!-- Current Output -->
+    <string name="bt_no_active">No speaker connected</string>
+    <string name="bt_active">Current output: %1$s</string>
+    <string name="bt_battery">Battery %1$d%%</string>
+    <string name="bt_battery_unknown">Battery unknown</string>
+
+    <!-- Device List -->
+    <string name="bt_group_paired">Paired devices</string>
+    <string name="bt_group_nearby">Nearby devices</string>
+    <string name="bt_group_nearby_scanning">Nearby devices (Scanning…)</string>
+    <string name="bt_no_device">No Bluetooth devices available</string>
+    <string name="bt_connect">Connect</string>
+    <string name="bt_connected">Connected</string>
+    <string name="bt_disconnected">Disconnected</string>
+    <string name="bt_tip_settings_only">Please pair and connect in system Bluetooth settings</string>
+
+    <!-- Volume and Playback -->
+    <string name="bt_volume">Media volume</string>
+    <string name="bt_volume_value">%1$d%%</string>
+    <string name="bt_play_pause">Play / Pause</string>
+    <string name="bt_prev">Previous</string>
+    <string name="bt_next">Next</string>
+
+    <!-- Status Hints -->
+    <string name="bt_grant">Grant permission</string>
+    <string name="bt_adapter_off">Bluetooth is turned off. Please turn it on in Settings</string>
+    <string name="bt_location_off">Location services are off: Scanning Bluetooth devices on this device (Android 10/11) requires Location services to remain enabled. WotaGeiCam will not access your location.</string>
+    <string name="bt_open_location">Turn on Location</string>
+</resources>

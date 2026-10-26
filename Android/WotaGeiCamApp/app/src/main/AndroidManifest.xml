@@ -64,6 +64,7 @@
         android:supportsRtl="false"
         android:largeHeap="false"
         android:theme="@style/Theme.WotaGeiCam"
+        android:localeConfig="@xml/locales_config"
         tools:targetApi="34">
 
         <activity

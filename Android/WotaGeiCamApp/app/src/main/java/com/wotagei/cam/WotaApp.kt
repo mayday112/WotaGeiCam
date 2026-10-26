@@ -48,11 +48,15 @@ class WotaApp : Application() {
         // prefs 定序：先等上面的后台预热完成， Diag.install 参数里的 WotaSettings 读不碰磁盘。
         runCatching {
             prefsPrefetched.await()
+            val prefs = WotaSettings.of(this)
             Diag.install(
                 this,
-                verbose = WotaSettings.diagVerbose(WotaSettings.of(this)),
-                enabled = WotaSettings.diagEnabled(WotaSettings.of(this))
+                verbose = WotaSettings.diagVerbose(prefs),
+                enabled = WotaSettings.diagEnabled(prefs)
             )
+            // 首次启动默认应用 English（若尚未设置过语言）
+            val lang = WotaSettings.language(prefs)
+            WotaSettings.applyLanguage(lang)
         }
     }
 

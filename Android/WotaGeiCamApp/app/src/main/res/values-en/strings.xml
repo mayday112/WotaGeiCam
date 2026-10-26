@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WotaGeiCam</string>
+    <string name="settings_title">Settings</string>
+    <string name="language_title">Language</string>
+    <string name="language_system">System Default</string>
+    <string name="language_en">English</string>
+    <string name="language_id">Bahasa Indonesia</string>
+    <string name="language_zh">中文 (简体)</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="close">Close</string>
+    <string name="retry">Retry</string>
+    <string name="unsupported_by_device">Not supported on this device</string>
+    <string name="approx_mark">※</string>
+    <string name="approx_mark_tip">The camera does not provide this exact fixed frame rate range; the closest available range was selected</string>
+    <string name="capability_limited_tip">Camera hardware capability is limited (LEGACY hardware level). Some manual controls are unavailable</string>
+
+    <!-- Permissions -->
+    <string name="perm_bluetooth_rationale_low">When scanning for nearby speakers, this device (Android 10/11) requires Location permission. WotaGeiCam will not read or store your location, nor use this permission for any other purpose.</string>
+    <string name="perm_bluetooth_rationale">Bluetooth permission is required to connect to speakers.</string>
+    <string name="perm_denied_settings">Permission denied. Please enable it in system settings.</string>
+    <string name="perm_open_settings">Go to Settings</string>
+    <string name="no_audio_record_tip">No microphone permission; recording video only</string>
+
+    <!-- Diagnostics Logs -->
+    <string name="set_group_diag">Diagnostic Logs</string>
+    <string name="set_diag_enabled">Record Logs</string>
+    <string name="set_diag_enabled_note">Disabled by default to save storage space. When disabled, runtime anomalies will not be recorded; please enable this before reproducing an issue. Crash logs are always recorded regardless of this setting.</string>
+    <string name="set_diag_verbose">Verbose Logging (enable when reproducing issues)</string>
+    <string name="set_diag_verbose_note">Only applies when "Record Logs" is enabled. By default only key events are recorded; enabling this includes detailed debug traces, increasing log volume.</string>
+    <string name="set_diag_clear">Clear Logs</string>
+    <string name="set_diag_cleared">Cleared</string>
+    <string name="set_diag_size">Log Storage</string>
+    <string name="set_diag_path">Log Directory</string>
+    <string name="set_diag_share">Share Directly</string>
+    <string name="set_diag_share_busy">Preparing…</string>
+    <string name="set_diag_share_done">Generated %1$s. Please choose a target in the share sheet</string>
+    <string name="set_diag_share_failed">Share failed: Unable to generate log file</string>
+    <string name="set_diag_export">Export Logs</string>
+    <string name="set_diag_export_busy">Exporting…</string>
+    <string name="set_diag_export_done">Exported: %1$s\nLocation: %2$s</string>
+    <string name="set_diag_export_failed">Export failed: Log directory is not writable</string>
+    <string name="set_diag_note">Logs are only generated locally on your device and are only written when you tap "Share Directly" or "Export Logs". Logs never contain video or audio and are never uploaded.\nWhen troubleshooting issues (such as internal audio capture denial): First turn on "Record Logs" (and "Verbose Logging" if details are needed) → reproduce the issue once → tap "Share Directly" to send logs. No background data is recorded when the switch is off.</string>
+
+    <!-- Internal Audio Playback Capture -->
+    <string name="capture_channel_name">Internal Audio Capture</string>
+    <string name="capture_channel_desc">Persistent notification shown when capturing internal device audio</string>
+    <string name="capture_notification_title">Internal Capture Active</string>
+    <string name="capture_notification_text">Capturing audio played on device. Ends when projection stops.</string>
+    <string name="capture_notification_stop">Stop Capture</string>
+
+    <!-- Audio Source Panel -->
+    <string name="audio_panel_title">Audio Source Management</string>
+    <string name="audio_tab_source">Audio Source</string>
+    <string name="audio_tab_bluetooth">Bluetooth</string>
+    <string name="audio_capture_label">Capture Internal Audio</string>
+    <string name="audio_ambient_label">Default Ambient Sound</string>
+    <string name="audio_state_authorizing">Waiting for system authorization…</string>
+    <string name="audio_state_active">Capturing internal device audio</string>
+    <string name="audio_state_failed">Failed to initialize internal capture: %1$s (Tap to retry)</string>
+    <string name="audio_state_revoked">Internal capture revoked. Reverted to ambient mic; can be re-enabled.</string>
+    <string name="audio_state_idle">Currently capturing ambient sound (Microphone)</string>
+    <string name="audio_capture_cancelled">Internal capture authorization cancelled; reverted to ambient sound</string>
+    <string name="audio_capture_unavailable">Internal audio capture not supported on this device</string>
+    <string name="audio_track_lost_init">Internal capture unavailable (%1$s); recording ambient sound only</string>
+    <string name="audio_track_lost_reason_unknown">Unknown reason</string>
+    <string name="audio_track_lost_inactive">Internal capture interrupted; recording ambient sound only</string>
+    <string name="audio_track_lost_no_samples">No audio samples captured; recording ambient sound only</string>
+    <string name="audio_track_lost_encoder">Failed to initialize internal audio track; recording ambient sound only</string>
+    <string name="capture_silent_hint">No system audio detected yet: Make sure music is playing, not routed to Bluetooth, and media volume is above 0</string>
+    <string name="audio_chip_label">Audio</string>
+    <string name="audio_chip_capture_on">Internal</string>
+    <string name="audio_chip_bt_on">BT Connected</string>
+    <string name="audio_chip_bt_off">BT Disconnected</string>
+
+    <!-- Debug Hook -->
+    <string name="merge_hook_pinned">Debug Pinned p=%1$.2f · Duration ×%2$.0f</string>
+    <string name="merge_hook_scale">Debug Scale ×%1$.0f (Unpinned)</string>
+
+    <!-- Playback View Aux -->
+    <string name="player_rotate_ccw">Rotate 90° CCW</string>
+
+    <!-- Recording Self-Check -->
+    <string name="record_auto_retry">Automatically restarted recording</string>
+    <string name="record_self_check_failed">Recording self-check failed, please retry</string>
+</resources>

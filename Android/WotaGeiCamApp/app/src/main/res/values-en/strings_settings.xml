@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="set_title">Settings</string>
+    <string name="set_back">Back</string>
+
+    <!-- Recording Defaults -->
+    <string name="set_group_default">Startup Defaults</string>
+    <string name="set_default_note">Determines the initial settings upon cold start. Parameters changed in the camera view are remembered and will not reset on background process kill.</string>
+    <string name="set_default_mute">Mute Recording</string>
+    <string name="set_default_mute_note">Whether to record without an audio track by default. Automatically falls back to video-only if microphone permission is missing.</string>
+    <string name="set_default_bitrate">Default Bitrate</string>
+    <string name="set_default_sample">Default Sample Rate</string>
+    <string name="set_default_render">Default Render Mode</string>
+    <string name="set_default_deadband">Merge Threshold</string>
+    <string name="set_default_deadband_note">Frames with brightness difference below this threshold will not be merged. Higher values are more conservative; lower values may merge noise.</string>
+
+    <!-- Orientation -->
+    <string name="set_group_orientation">Interface Orientation</string>
+    <string name="set_orientation_style">Default Orientation</string>
+    <string name="set_orientation_landscape">Landscape</string>
+    <string name="set_orientation_portrait">Portrait</string>
+    <string name="set_orientation_note">This setting only applies to the camera recording view. Settings, Gallery, and Player follow system auto-rotation. Takes effect immediately upon returning to the camera view and persists across app restarts.</string>
+
+    <!-- Motion Animation Style -->
+    <string name="set_group_motion">Animation Style</string>
+    <string name="set_motion_style">Interaction Animations</string>
+    <string name="set_motion_plain">No Animations</string>
+    <string name="set_motion_fluent">Fluent (Default)</string>
+    <string name="set_motion_liquid">Liquid Bounce</string>
+    <string name="set_motion_note">Only affects panel and button transitions, scale, and fade animations</string>
+
+    <!-- Viewfinder HUD -->
+    <string name="set_group_hud">Viewfinder Features</string>
+    <string name="set_hud_note">Top row contains persistent readouts (defaults to Shutter / FPS / Bitrate). Bottom row contains camera control pills. Unchecking removes them from the viewfinder.</string>
+
+    <!-- Slider Snap -->
+    <string name="set_group_slider">Slider Snapping</string>
+    <string name="set_slider_note">Sliders snap to scale increments by default. Selecting a parameter below switches its slider to continuous values, allowing free adjustment (e.g. 1.2x, 1.7x zoom). Exposure Compensation, Zebra Threshold, and Merge Threshold always adjust by discrete steps and are excluded.</string>
+
+    <!-- Reference Lines Default -->
+    <string name="set_group_refline">Default Reference Lines</string>
+    <string name="set_refline_note">Determines reference lines enabled by default on cold start. Lines changed in the camera view are remembered and will not reset on background cleanup.</string>
+
+    <!-- Viewfinder Aids -->
+    <string name="set_group_level">Viewfinder Aids</string>
+    <string name="set_level_enable">Show Level and Pitch Meter</string>
+    <string name="set_level_buzz">Vibrate when Level / Pitch hits 0°</string>
+    <string name="set_level_buzz_note">Gives a subtle vibration feedback at level alignment. Disabled for both when turned off.</string>
+
+    <!-- Compare Playback -->
+    <string name="set_group_compare">Comparison Playback</string>
+    <string name="set_compare_tick">Sync Check Interval</string>
+    <string name="set_compare_tick_note">Check interval for dual-video audio alignment, cross-segment transitions, and loop wraps. Smaller intervals track tighter; larger intervals save battery. Takes effect immediately.</string>
+
+    <!-- Text Scale -->
+    <string name="set_group_text">Text Size</string>
+    <string name="set_text_note">Adjustable independently per screen, 100% is default. Reduce on smaller displays if text encroaches on the viewfinder.</string>
+    <string name="set_text_camera">Camera View (Top bar &amp; readouts)</string>
+    <string name="set_text_dialog">Panels (Controls / Lens / Lines / Monitor)</string>
+    <string name="set_text_settings">Settings View</string>
+
+    <!-- Permissions -->
+    <string name="set_group_perm">Permissions</string>
+    <string name="set_perm_camera">Camera</string>
+    <string name="set_perm_audio">Microphone</string>
+    <string name="set_perm_media">Video Access</string>
+    <string name="set_perm_bluetooth">Bluetooth</string>
+    <string name="set_perm_bt_location">Location (Nearby speakers scan only)</string>
+    <string name="set_perm_granted">Granted</string>
+    <string name="set_perm_denied">Not Granted</string>
+    <string name="set_perm_note">Without microphone only video is recorded. Without video access, recorded videos will not appear in gallery.</string>
+    <string name="set_open_system_settings">Open System Settings</string>
+
+    <!-- About -->
+    <string name="set_group_about">About</string>
+    <string name="set_version">Version</string>
+    <string name="set_package">Package</string>
+    <string name="set_about_note">All data is kept locally on this device. Internet is only accessed when checking for updates.</string>
+
+    <!-- App Update -->
+    <string name="set_update">Check for Updates</string>
+    <string name="set_update_idle">Tap to check GitHub for updates</string>
+    <string name="set_update_checking">Checking for updates…</string>
+    <string name="set_update_cancelling">Cancelling…</string>
+    <string name="set_update_latest">You are using the latest version</string>
+    <string name="set_update_failed">Update check failed, please try again later</string>
+    <string name="set_update_available_title">New Version Available</string>
+    <string name="set_update_available_body">Version %1$s · APK %2$s</string>
+    <string name="set_update_notes_title">Release Notes</string>
+    <string name="set_update_download">Download Update</string>
+    <string name="set_update_cancel">Cancel</string>
+    <string name="set_update_downloading">Downloading update…</string>
+    <string name="set_update_selecting_channel">Selecting fastest download server…</string>
+    <string name="set_update_progress">%1$d%% · %2$s / %3$s</string>
+    <string name="set_update_progress_unknown">%1$s downloaded</string>
+    <string name="set_update_ready_to_install">Download complete, ready to install</string>
+    <string name="set_update_install">Install</string>
+    <string name="set_update_download_failed">Download failed, please try again later</string>
+    <string name="set_update_install_failed">Unable to start package installer</string>
+    <string name="set_update_close">Close</string>
+    <string name="set_update_size_unknown">Size unknown</string>
+
+    <!-- Storage Access -->
+    <string name="set_group_storage">All Files Access</string>
+    <string name="set_storage_note">When enabled, delete, trash, restore, and rename operations apply directly to all device videos without system confirmation prompts. If disabled, only videos recorded by this app can be modified.</string>
+    <string name="set_storage_open">Enable in System Settings</string>
+    <string name="set_storage_on">Enabled</string>
+    <string name="set_storage_unsupported">Current system (Android 10) does not support \"All Files Access\". File actions only apply to videos recorded/exported by this app.</string>
+
+    <!-- Camera Control Pills -->
+    <string name="cam_pill_level">Level</string>
+    <string name="cam_pill_volume">Audio Meter</string>
+    <string name="cam_pill_bt">Audio</string>
+    <string name="cam_pill_zoom">Zoom</string>
+    <string name="cam_pill_focus">Focus</string>
+    <string name="cam_pill_stab">Stabilization</string>
+    <string name="cam_pill_refline">Reference Lines</string>
+    <string name="cam_pill_monitor">Monitor</string>
+    <string name="cam_pill_curve">RGB Curve</string>
+    <string name="cam_pill_flash">Flash</string>
+    <string name="cam_pill_lens">Lens</string>
+    <string name="cam_pill_size">Resolution</string>
+    <string name="cam_pill_storage">Remaining Storage</string>
+    <string name="set_pill_note">Hides the control from the viewfinder when unchecked. Shutter button, gallery thumbnail, and settings shortcut cannot be hidden.</string>
+
+    <!-- HUD Editor -->
+    <string name="set_hud_editor">Edit HUD Layout</string>
+    <string name="set_hud_editor_note">Only enabled controls above can be edited: Drag container to move, drag items inside container to reorder, or drag into other containers. Tap \"Save\" to apply immediately to the camera view; persists across restarts. Layout does not reset when items are hidden; use \"Reset Defaults\" in the editor to restore factory layout.</string>
+</resources>

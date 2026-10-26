@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Player Controls -->
+    <string name="player_play_pause">Play / Pause</string>
+    <string name="player_step_back">Frame backward</string>
+    <string name="player_step_fwd">Frame forward</string>
+    <string name="player_fps_step">%1$.1f fps</string>
+    <string name="player_fps_step_exact">%1$.2f fps</string>
+    <string name="player_loop_one">Loop single video</string>
+    <string name="player_mirror">Mirror horizontal</string>
+    <string name="player_zoom">%1$.1fx zoom</string>
+    <string name="player_zoom_badge">x%1$.2f</string>
+    <string name="player_error">Playback failed. File may be corrupted or format unsupported</string>
+
+    <!-- Light Arc Repair -->
+    <string name="player_arc_repair">Light Arc Repair</string>
+    <string name="player_arc_target">Target Frame Rate</string>
+    <string name="player_arc_fps">%1$d fps</string>
+    <string name="player_arc_gpu">GPU Accelerated</string>
+    <string name="player_arc_cpu">CPU Only</string>
+    <string name="player_arc_deadband">Merge Threshold</string>
+    <string name="player_arc_deadband_note">Frames with brightness difference below this value will not be merged. Higher values are more conservative; lower values may merge noise. Set before starting repair.</string>
+    <string name="player_arc_start_group">Start Repair</string>
+    <string name="player_arc_gpu_note">Fast · Recommended</string>
+    <string name="player_arc_cpu_note">Compatibility Mode</string>
+    <string name="player_arc_note">Drops extra frames to reach target frame rate, blending dropped frames into adjacent ones to maintain light arc continuity. Generates a new video in background without altering original.</string>
+    <string name="player_arc_done">Repair completed, saved to gallery</string>
+    <string name="player_arc_failed">Repair failed</string>
+    <string name="player_arc_no_need">Source frame rate is not higher than target; no frames to drop</string>
+    <string name="player_arc_running">Repairing %1$d%%</string>
+    <string name="player_arc_busy">Another repair task is already running</string>
+
+    <!-- Playback Speed -->
+    <string name="player_speed_current">Speed %1$s</string>
+    <string name="player_speed_title">Playback Speed</string>
+    <string name="player_speed_01">0.1x</string>
+    <string name="player_speed_03">0.3x</string>
+    <string name="player_speed_05">0.5x</string>
+    <string name="player_speed_075">0.75x</string>
+    <string name="player_speed_10">1x</string>
+
+    <!-- AB Loop -->
+    <string name="player_ab_a">A</string>
+    <string name="player_ab_b">B</string>
+    <string name="player_ab_loop">Loop</string>
+    <string name="player_ab_clear">Clear</string>
+    <string name="player_ab_invalid">Point B must be later than point A. Set point A first.</string>
+
+    <!-- Audio Auto Sync -->
+    <string name="player_sync_done">Aligned by audio</string>
+    <string name="player_sync_low_confidence">Sync confidence low, please calibrate manually</string>
+    <string name="player_sync_failed">Audio alignment failed, please drag progress bar manually</string>
+    <string name="player_sync_no_audio">Video has no audio track, cannot auto-align</string>
+    <string name="player_sync_too_short">Audio too short, cannot auto-align</string>
+
+    <!-- Dual Video Comparison -->
+    <string name="compare_mode_auto">Auto sync (Audio)</string>
+    <string name="compare_mode_manual">Manual sync</string>
+    <string name="compare_side_a">Left Audio</string>
+    <string name="compare_side_b">Right Audio</string>
+    <string name="compare_sync">Sync</string>
+    <string name="compare_add_right">Add right video</string>
+    <string name="compare_pick_right">Select right video</string>
+    <string name="compare_syncing">Aligning by audio…</string>
+    <string name="compare_need_right">Add right video first</string>
+    <string name="compare_left_tag">Left</string>
+    <string name="compare_right_tag">Right</string>
+    <string name="compare_left">Left: %1$s</string>
+    <string name="compare_right">Right: %1$s</string>
+    <string name="compare_offset">Right offset %1$s</string>
+    <string name="compare_history">History</string>
+    <string name="compare_history_empty">No comparison history yet</string>
+    <string name="compare_history_missing">Video no longer exists</string>
+    <string name="compare_history_remove">Delete this record</string>
+    <string name="compare_pick_failed">Unable to read selected video</string>
+    <string name="compare_mirror">Mirror</string>
+    <string name="compare_mirror_left">Mirror left</string>
+    <string name="compare_mirror_right">Mirror right</string>
+    <string name="compare_mirror_all">Mirror both</string>
+    <string name="compare_practice">Practice against left</string>
+    <string name="compare_loop_full">Loop full video</string>
+
+    <!-- Missing Clip State -->
+    <string name="player_clip_missing">Video does not exist or has been deleted</string>
+
+    <!-- Trimming Export -->
+    <string name="player_clip">Trim</string>
+    <string name="player_clip_title">Export A/B segment (Lossless trim)</string>
+    <string name="player_clip_need_ab">Mark segment to keep using bottom bar A/B points before exporting</string>
+    <string name="player_clip_in">In point %1$s (Auto-aligned to keyframe)</string>
+    <string name="player_clip_out">Out point %1$s</string>
+    <string name="player_clip_keep">Keep %1$s / Total %2$s</string>
+    <string name="player_clip_too_short">Selected segment too short; expand range before exporting</string>
+    <string name="player_clip_export">Export to gallery</string>
+    <string name="player_clip_cancel">Cancel export</string>
+    <string name="player_clip_done">Trimmed clip exported to gallery</string>
+    <string name="player_clip_failed">Export failed, please retry</string>
+    <string name="player_clip_commit_kept">Export completed but unindexed; file preserved and will restore on app restart</string>
+
+    <!-- Audio Track Selection -->
+    <string name="player_track_env">Ambient</string>
+    <string name="player_track_cap">Internal</string>
+    <string name="player_track_pick_title">Select audio track</string>
+    <string name="player_track_sync">Sync audio tracks</string>
+    <string name="player_track_sync_auto">Auto calibrate</string>
+    <string name="player_track_sync_manual">Manual sync</string>
+    <string name="player_track_sync_source_fmt">%1$s %2$s ms</string>
+    <string name="player_track_sync_busy">Auto calibrating, please wait</string>
+    <string name="player_track_sync_note">Sharing original video preserves untouched tracks: Pre-recording calibration is preserved in original; uncalibrated or residual sync offsets only apply during export or arc repair on this screen</string>
+    <string name="player_track_sync_low">Could not auto calibrate; aligned to recording start</string>
+    <string name="player_track_sync_failed">Sync failed, please retry</string>
+    <string name="player_track_sync_none">Not synced; aligned to recording start</string>
+    <string name="player_track_export">Export audio track</string>
+    <string name="player_track_export_title">Export selected track (Full duration)</string>
+    <string name="player_track_export_track">Export track: %1$s</string>
+    <string name="player_track_export_done">Audio track exported to gallery</string>
+    <string name="player_track_export_failed">Export failed, please retry</string>
+    <string name="player_track_commit_kept">Export completed but unindexed; file preserved and will restore on app restart</string>
+</resources>

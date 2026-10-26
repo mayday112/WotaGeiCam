@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tab Galeri -->
+    <string name="gallery_title">Galeri</string>
+    <string name="gallery_tab_all">Semua</string>
+    <string name="gallery_tab_like">Favorit</string>
+    <string name="gallery_tab_trash">Sampah</string>
+
+    <!-- Cakupan Data & Tata Letak -->
+    <string name="gallery_scope_wota">Aplikasi Ini</string>
+    <string name="gallery_scope_album">Galeri Perangkat</string>
+    <string name="gallery_mode_timeline">Linimasa</string>
+    <string name="gallery_mode_grid">Kisi</string>
+    <string name="gallery_mode_full">Layar Penuh</string>
+    <string name="gallery_cols_fmt">%1$d Kolom</string>
+    <string name="gallery_open_player">Buka Pemutar</string>
+
+    <!-- Pengelompokan Linimasa -->
+    <string name="gallery_day_today">Hari ini</string>
+    <string name="gallery_day_yesterday">Kemarin</string>
+    <string name="gallery_day_month_date">%2$d/%1$d</string>
+    <string name="gallery_day_year_date">%3$d/%2$d/%1$d</string>
+
+    <!-- Status Kosong -->
+    <string name="gallery_empty">Belum ada video di sini</string>
+    <string name="gallery_trash_empty">Tempat sampah kosong</string>
+
+    <!-- Deskripsi Ikon & Menu -->
+    <string name="gallery_desc_back">Kembali</string>
+    <string name="gallery_desc_liked">Difavoritkan</string>
+    <string name="gallery_desc_unliked">Belum Difavoritkan</string>
+    <string name="gallery_desc_trashed">Di tempat sampah</string>
+    <string name="gallery_desc_menu">Opsi lainnya</string>
+    <string name="gallery_menu_like">Favorit / Hapus Favorit</string>
+    <string name="gallery_menu_compare">Bandingkan Video</string>
+    <string name="gallery_menu_share">Bagikan</string>
+    <string name="gallery_menu_trash">Pindahkan ke Sampah</string>
+    <string name="gallery_menu_restore">Pulihkan</string>
+    <string name="gallery_menu_purge">Hapus Permanen</string>
+    <string name="gallery_menu_tags">Label Kategori</string>
+    <string name="gallery_menu_rename">Ubah Nama</string>
+
+    <!-- Pilihan Ganda -->
+    <string name="gallery_selected_count">%1$d item dipilih</string>
+    <string name="gallery_select_clear">Batal pilih</string>
+
+    <!-- Konfirmasi Penghapusan -->
+    <string name="gallery_purge_title">Hapus permanen video ini?</string>
+    <string name="gallery_purge_title_many">Hapus permanen %1$d video?</string>
+    <string name="gallery_purge_body">Setelah dihapus permanen, video tidak dapat dipulihkan. Favorit dan label kategori juga akan dibersihkan.</string>
+
+    <!-- Ubah Nama & Label -->
+    <string name="gallery_rename_title">Ubah Nama</string>
+    <string name="gallery_tag_title">Label Kategori</string>
+    <string name="gallery_tag_hint">Ketik label baru, tekan enter</string>
+    <string name="gallery_tag_add">Tambah Label</string>
+    <string name="gallery_tag_remove">Hapus Label</string>
+    <string name="gallery_tag_none">Belum ada label kustom</string>
+
+    <!-- Berbagi -->
+    <string name="gallery_share_title">Bagikan Video</string>
+
+    <!-- Tindakan Media -->
+    <string name="media_op_failed">Operasi gagal</string>
+    <string name="media_tag_invalid">Label tidak boleh kosong dan maksimal 24 karakter</string>
+    <string name="media_name_empty">Nama tidak boleh kosong</string>
+    <string name="media_rename_failed">Gagal mengubah nama atau izin tidak diberikan</string>
+    <string name="media_trash_failed">Gagal memindahkan ke sampah atau izin tidak diberikan</string>
+    <string name="media_restore_failed">Gagal memulihkan atau izin tidak diberikan</string>
+    <string name="media_delete_failed">Gagal menghapus atau izin tidak diberikan</string>
+    <string name="media_share_failed">Gagal membagikan</string>
+    <string name="media_share_no_app">Tidak ada aplikasi yang tersedia untuk berbagi</string>
+    <string name="media_need_all_files">Buka Pengaturan dan aktifkan \"Akses semua file\" agar pengelolaan video tidak memunculkan konfirmasi sistem lagi</string>
+    <string name="media_share_trashed">Video di tempat sampah harus dipulihkan terlebih dahulu sebelum dibagikan</string>
+
+    <!-- Seri Segmen -->
+    <string name="gallery_series_count">Total %1$d bagian</string>
+    <string name="gallery_desc_expand_series">Buka semua bagian rekaman ini</string>
+    <string name="gallery_desc_collapse_series">Ciutkan bagian rekaman</string>
+    <string name="gallery_part_prefix">Bagian %1$d</string>
+    <string name="gallery_group_ops">Tindakan grup (Semua %1$d bagian)</string>
+</resources>

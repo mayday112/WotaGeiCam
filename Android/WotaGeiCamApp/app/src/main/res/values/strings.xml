@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">WotaGeiCam</string>
+    <string name="settings_title">设置</string>
+    <string name="language_title">语言</string>
+    <string name="language_system">跟随系统</string>
+    <string name="language_en">English</string>
+    <string name="language_id">Bahasa Indonesia</string>
+    <string name="language_zh">中文 (简体)</string>
 
     <!-- 通用 -->
     <string name="ok">确定</string>

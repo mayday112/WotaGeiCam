@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Gallery Tabs -->
+    <string name="gallery_title">Gallery</string>
+    <string name="gallery_tab_all">All</string>
+    <string name="gallery_tab_like">Favorites</string>
+    <string name="gallery_tab_trash">Trash</string>
+
+    <!-- Scope and Layout -->
+    <string name="gallery_scope_wota">This App</string>
+    <string name="gallery_scope_album">Device Gallery</string>
+    <string name="gallery_mode_timeline">Timeline</string>
+    <string name="gallery_mode_grid">Grid</string>
+    <string name="gallery_mode_full">Fullscreen</string>
+    <string name="gallery_cols_fmt">%1$d Columns</string>
+    <string name="gallery_open_player">Open Player</string>
+
+    <!-- Timeline Grouping -->
+    <string name="gallery_day_today">Today</string>
+    <string name="gallery_day_yesterday">Yesterday</string>
+    <string name="gallery_day_month_date">%1$d/%2$d</string>
+    <string name="gallery_day_year_date">%2$d/%3$d/%1$d</string>
+
+    <!-- Empty States -->
+    <string name="gallery_empty">No videos found</string>
+    <string name="gallery_trash_empty">Trash is empty</string>
+
+    <!-- Icon Descriptions and Menus -->
+    <string name="gallery_desc_back">Back</string>
+    <string name="gallery_desc_liked">Favorited</string>
+    <string name="gallery_desc_unliked">Not Favorited</string>
+    <string name="gallery_desc_trashed">In Trash</string>
+    <string name="gallery_desc_menu">More options</string>
+    <string name="gallery_menu_like">Favorite / Unfavorite</string>
+    <string name="gallery_menu_compare">Compare Playback</string>
+    <string name="gallery_menu_share">Share</string>
+    <string name="gallery_menu_trash">Move to Trash</string>
+    <string name="gallery_menu_restore">Restore</string>
+    <string name="gallery_menu_purge">Permanently Delete</string>
+    <string name="gallery_menu_tags">Tags</string>
+    <string name="gallery_menu_rename">Rename</string>
+
+    <!-- Multi-selection -->
+    <string name="gallery_selected_count">%1$d selected</string>
+    <string name="gallery_select_clear">Clear selection</string>
+
+    <!-- Deletion Confirmation -->
+    <string name="gallery_purge_title">Permanently delete this video?</string>
+    <string name="gallery_purge_title_many">Permanently delete %1$d videos?</string>
+    <string name="gallery_purge_body">Permanently deleted videos cannot be recovered. Favorites and tags will also be removed.</string>
+
+    <!-- Rename and Tags -->
+    <string name="gallery_rename_title">Rename</string>
+    <string name="gallery_tag_title">Tags</string>
+    <string name="gallery_tag_hint">Type new tag and press enter</string>
+    <string name="gallery_tag_add">Add Tag</string>
+    <string name="gallery_tag_remove">Remove Tag</string>
+    <string name="gallery_tag_none">No custom tags yet</string>
+
+    <!-- Share -->
+    <string name="gallery_share_title">Share Video</string>
+
+    <!-- Media Actions -->
+    <string name="media_op_failed">Operation failed</string>
+    <string name="media_tag_invalid">Tag cannot be empty and must not exceed 24 characters</string>
+    <string name="media_name_empty">Name cannot be empty</string>
+    <string name="media_rename_failed">Rename failed or permission denied</string>
+    <string name="media_trash_failed">Failed to move to trash or permission denied</string>
+    <string name="media_restore_failed">Failed to restore or permission denied</string>
+    <string name="media_delete_failed">Failed to delete or permission denied</string>
+    <string name="media_share_failed">Share failed</string>
+    <string name="media_share_no_app">No compatible app found to share</string>
+    <string name="media_need_all_files">Enable \"All files access\" in Settings to manage videos without system prompts</string>
+    <string name="media_share_trashed">Restore video from trash before sharing</string>
+
+    <!-- Multi-segment Series -->
+    <string name="gallery_series_count">%1$d segments total</string>
+    <string name="gallery_desc_expand_series">Expand all segments of this recording</string>
+    <string name="gallery_desc_collapse_series">Collapse segments</string>
+    <string name="gallery_part_prefix">Part %1$d</string>
+    <string name="gallery_group_ops">Batch action (All %1$d segments)</string>
+</resources>

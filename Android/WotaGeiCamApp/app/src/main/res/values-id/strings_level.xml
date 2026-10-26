@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="level_state_level">Tegak Lurus</string>
+    <string name="level_state_tilt">Miring</string>
+    <string name="level_tag_pitch">Pitch</string>
+    <string name="level_tag_roll">Kemiringan</string>
+    <string name="level_angle_value">%1$+5.1f°</string>
+    <string name="level_mode_toggle">Ganti tampilan grafik / angka</string>
+</resources>
