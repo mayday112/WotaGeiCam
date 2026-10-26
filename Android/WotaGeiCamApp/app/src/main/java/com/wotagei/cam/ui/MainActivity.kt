@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.os.LocaleList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -72,6 +74,22 @@ const val ROUTE_HUD_EDITOR = "hudEditor"
  */
 class MainActivity : ComponentActivity() {
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(WotaSettings.wrapContext(newBase))
+    }
+
+    override fun applyOverrideConfiguration(overrideConfiguration: Configuration?) {
+        if (overrideConfiguration != null) {
+            val prefs = WotaSettings.of(this)
+            val locale = WotaSettings.getLocale(WotaSettings.language(prefs))
+            if (locale != null) {
+                overrideConfiguration.setLocale(locale)
+                overrideConfiguration.setLocales(LocaleList(locale))
+            }
+        }
+        super.applyOverrideConfiguration(overrideConfiguration)
+    }
+
     /**
      * 窗口级「常亮 + 高亮」的驱动（唯一真源，见 [WindowKeepOnDriver]）。
      * 放在 Activity 这一层：窗口归它所有，且驱动时机是 NavController 的目的地回调，
@@ -124,11 +142,25 @@ class MainActivity : ComponentActivity() {
             }, "wota-sweep").apply { isDaemon = true }.start()
         }
         setContent {
-            WotaTheme {
-                val prefs = remember { WotaSettings.of(this) }
-                var motion by remember { mutableStateOf(WotaSettings.motionMode(prefs)) }
-                WatchMotion(prefs) { motion = it }
-                WotaMotionProvider(mode = motion) { WotaRoot() }
+            val prefs = remember { WotaSettings.of(this) }
+            val lang = remember { WotaSettings.language(prefs) }
+            val locale = remember(lang) { WotaSettings.getLocale(lang) }
+            val baseConfig = androidx.compose.ui.platform.LocalConfiguration.current
+            val localizedConfig = remember(baseConfig, locale) {
+                if (locale == null) baseConfig
+                else Configuration(baseConfig).apply {
+                    setLocale(locale)
+                    setLocales(LocaleList(locale))
+                }
+            }
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalConfiguration provides localizedConfig
+            ) {
+                WotaTheme {
+                    var motion by remember { mutableStateOf(WotaSettings.motionMode(prefs)) }
+                    WatchMotion(prefs) { motion = it }
+                    WotaMotionProvider(mode = motion) { WotaRoot() }
+                }
             }
         }
     }

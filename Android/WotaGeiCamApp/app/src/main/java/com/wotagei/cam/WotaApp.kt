@@ -3,6 +3,7 @@ package com.wotagei.cam
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.Context
 import android.os.StrictMode
 import com.wotagei.cam.diag.Diag
 import com.wotagei.cam.record.CaptureFgService
@@ -12,6 +13,10 @@ import com.wotagei.cam.ui.WotaSettings
  * 启动期不做重活：Room / 媒体库查询全部延迟到进入对应页面，保证冷启动。
  */
 class WotaApp : Application() {
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(WotaSettings.wrapContext(base))
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -41,7 +46,6 @@ class WotaApp : Application() {
             }
             prefsPrefetched.countDown()
         }
-        createCaptureChannel()
         // 诊断日志（2026-10-09）：**必须在任何业务代码之前装**，否则冷启到页面就绪这段的日志收不到。
         // 只做三件事——建目录、起后台落盘线程、装崩溃处理器，都是轻量操作（不违反"冷启不做重活"）。
         // 总开关与详细档都从设置读（总开关默认关：关着时不写常规日志，崩溃件不受影响）。
@@ -56,8 +60,9 @@ class WotaApp : Application() {
             )
             // 首次启动默认应用 English（若尚未设置过语言）
             val lang = WotaSettings.language(prefs)
-            WotaSettings.applyLanguage(lang)
+            WotaSettings.applyLanguage(this, lang)
         }
+        createCaptureChannel()
     }
 
     /**
