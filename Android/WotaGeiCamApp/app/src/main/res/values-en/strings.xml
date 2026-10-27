@@ -23,6 +23,12 @@
     <string name="perm_bluetooth_rationale">Bluetooth permission is required to connect to speakers.</string>
     <string name="perm_denied_settings">Permission denied. Please enable it in system settings.</string>
     <string name="perm_open_settings">Go to Settings</string>
+    <!-- Media read permission runtime prompt (2026-10-26) -->
+    <string name="perm_media_partial_title">Can only read selected videos</string>
+    <string name="perm_media_partial_body">The system currently only allows this app to access selected videos; other videos in your gallery may be inaccessible. Please go to system settings and change \"Photos and videos\" permission to \"Allow all\", then try again.</string>
+    <string name="perm_media_none_title">Video read permission not granted</string>
+    <string name="perm_media_none_body">This app does not have permission to read videos; videos in your gallery may be inaccessible. Please go to system settings and grant video access permission, then try again.</string>
+    <string name="perm_media_all_files_hint">You can also enable \"All files access\" in app settings, which provides full media access.</string>
     <string name="no_audio_record_tip">No microphone permission; recording video only</string>
 
     <!-- Diagnostics Logs -->

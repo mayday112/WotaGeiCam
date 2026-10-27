@@ -132,4 +132,7 @@
     <!-- 编辑控件位置（键 hud_layout）：入口放在「取景器常驻功能」分组里 -->
     <string name="set_hud_editor">编辑控件位置</string>
     <string name="set_hud_editor_note">只有上面已开启显示的控件可编辑：拖容器改位置、容器内拖条目换序、拖到别的容器；改完点「保存」，录制页立刻生效，杀进程重进仍在。位置不会因为控件被隐藏而回到默认，要回默认用编辑页里的「恢复默认」</string>
+    <!-- HUD 毛玻璃背板（键 hud_frost_blur） -->
+    <string name="set_frost_blur">HUD 毛玻璃背板</string>
+    <string name="set_frost_blur_note">取景控件底板透出被模糊的实时画面。仅 GPU 模式生效；关掉即回到现在的观感。</string>
 </resources>

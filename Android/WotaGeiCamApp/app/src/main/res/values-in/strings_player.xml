@@ -71,8 +71,11 @@
     <string name="compare_history">Riwayat</string>
     <string name="compare_history_empty">Belum ada riwayat perbandingan</string>
     <string name="compare_history_missing">Video sudah tidak ada</string>
+    <string name="compare_history_unreadable">Tidak dapat mengakses sumber ini (izin akses mungkin telah kedaluwarsa)</string>
     <string name="compare_history_remove">Hapus catatan ini</string>
     <string name="compare_pick_failed">Tidak dapat membaca video yang dipilih</string>
+    <string name="compare_pick_foreign_source">Video ini berasal dari luar galeri dan saat ini tidak dapat dibaca</string>
+    <string name="compare_unnamed_video">Video tanpa nama</string>
     <string name="compare_mirror">Cermin</string>
     <string name="compare_mirror_left">Cermin Kiri</string>
     <string name="compare_mirror_right">Cermin Kanan</string>

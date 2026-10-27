@@ -165,7 +165,10 @@ android {
         // #73：钩子的开关走变体专属字段 BuildConfig.MERGE_HOOK（AGP 8 默认关，不开就没有这个类）
         buildConfig = true
     }
-    composeOptions { kotlinCompilerExtensionVersion = "1.5.2" }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.2"
+        useLiveLiterals = false
+    }
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"

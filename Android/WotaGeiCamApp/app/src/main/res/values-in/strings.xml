@@ -23,6 +23,12 @@
     <string name="perm_bluetooth_rationale">Izin Bluetooth diperlukan untuk menghubungkan ke speaker.</string>
     <string name="perm_denied_settings">Izin ditolak, silakan aktifkan di Pengaturan sistem</string>
     <string name="perm_open_settings">Buka Pengaturan</string>
+    <!-- Petunjuk runtime saat izin membaca media tidak mencukupi (2026-10-26) -->
+    <string name="perm_media_partial_title">Hanya dapat membaca sebagian video</string>
+    <string name="perm_media_partial_body">Sistem saat ini hanya mengizinkan aplikasi ini mengakses sebagian video yang Anda pilih; video lain di galeri mungkin tidak dapat dibaca. Silakan buka pengaturan sistem dan ubah izin \"Foto dan video\" menjadi \"Izinkan semua\", lalu coba lagi.</string>
+    <string name="perm_media_none_title">Izin membaca video belum diberikan</string>
+    <string name="perm_media_none_body">Aplikasi ini tidak memiliki izin membaca video; video di galeri mungkin tidak dapat dibaca. Silakan buka pengaturan sistem dan berikan izin akses video, lalu coba lagi.</string>
+    <string name="perm_media_all_files_hint">Anda juga dapat mengaktifkan \"Akses semua file\" di pengaturan aplikasi, yang setara dengan izin media penuh.</string>
     <string name="no_audio_record_tip">Tidak ada izin mikrofon, hanya merekam video</string>
 
     <!-- Log Diagnostik -->

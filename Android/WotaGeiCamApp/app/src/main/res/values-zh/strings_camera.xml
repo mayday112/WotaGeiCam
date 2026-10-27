@@ -87,6 +87,8 @@
     <string name="cam_focus_tap_locked_tip">对焦已锁定；要换焦点请长按画面或打开对焦胶囊解除</string>
     <string name="cam_focus_manual_locked">手动对焦档本身即锁定，无需再锁</string>
     <string name="cam_focus_lock_unsupported">此镜头不支持单次自动对焦，无法锁定焦点</string>
+    <string name="cam_focus_unsupported">当前镜头不支持对焦调节</string>
+    <string name="cam_flash_unsupported">当前镜头没有闪光灯</string>
     <string name="cam_focus_lock_recording">录制中不可锁定对焦</string>
     <string name="cam_recording_readonly">录制中不可调整，停止后可改</string>
     <string name="cam_manual_exposure_only">切到手动曝光档后可调</string>
@@ -265,4 +267,22 @@
     <string name="hud_zone_right">右竖 Dock</string>
     <string name="hud_zone_readout">常驻读数块</string>
     <string name="hud_zone_bottom">底栏 Dock</string>
+    <!-- 降噪（2026-10-26）：音频/画面两项默认关，一枚胶囊管两件事 -->
+    <string name="cam_pill_denoise">降噪</string>
+    <string name="denoise_audio_off">关闭</string>
+    <string name="denoise_audio_system">系统降噪</string>
+    <string name="denoise_video_off">关闭</string>
+    <string name="denoise_video_hal_fast">HAL 快速</string>
+    <string name="denoise_video_hal_hq">HAL 高质量</string>
+    <string name="denoise_video_gpu">GPU 双边</string>
+    <string name="denoise_title_audio">音频降噪（环境音）</string>
+    <string name="denoise_title_video">画面降噪（夜间暗部）</string>
+    <string name="denoise_audio_note">使用系统 NoiseSuppressor 压制风声与环境底噪；内录音轨不受影响。开启后录制改走自研引擎，本机不支持时自动按无降噪继续。</string>
+    <string name="denoise_video_note">HAL 档由相机硬件降噪（零额外功耗）；GPU 双边按边缘保持滤除暗部噪点，仅 GPU 渲染可用。</string>
+    <string name="denoise_video_fallback_direct">当前为直连渲染，GPU 双边不可用，已退回 HAL 快速档</string>
+    <string name="denoise_video_effect_on">监看叠加（斑马纹/峰值对焦）开着时不降噪，关掉后自动恢复</string>
+    <string name="denoise_lite_tip">本机负载较高（画质×帧率），画面降噪已自动改用轻量档</string>
+    <string name="denoise_audio_unsupported_tip">本机不支持系统降噪，环境音按原样录制</string>
+    <string name="cam_focus_manual_peaking_tip">手动对焦可配合监看·峰值对焦使用：合焦区域会高亮</string>
+    <string name="cam_fps_downgraded_tip">本机跑不动该帧率，已自动退回 %1$d 帧</string>
 </resources>

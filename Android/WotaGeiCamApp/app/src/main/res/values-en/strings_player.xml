@@ -71,8 +71,11 @@
     <string name="compare_history">History</string>
     <string name="compare_history_empty">No comparison history yet</string>
     <string name="compare_history_missing">Video no longer exists</string>
+    <string name="compare_history_unreadable">Unable to access this source (authorization may have expired)</string>
     <string name="compare_history_remove">Delete this record</string>
     <string name="compare_pick_failed">Unable to read selected video</string>
+    <string name="compare_pick_foreign_source">This video comes from outside the gallery and cannot be read at this time</string>
+    <string name="compare_unnamed_video">Unnamed video</string>
     <string name="compare_mirror">Mirror</string>
     <string name="compare_mirror_left">Mirror left</string>
     <string name="compare_mirror_right">Mirror right</string>

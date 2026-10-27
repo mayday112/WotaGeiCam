@@ -924,12 +924,12 @@ private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "HUD 毛玻璃背板",
+                    text = stringResource(R.string.set_frost_blur),
                     style = MaterialTheme.typography.bodyMedium,
                     color = WotaText
                 )
                 Text(
-                    text = "取景控件底板透出被模糊的实时画面。仅 GPU 模式生效；关掉即回到现在的观感。",
+                    text = stringResource(R.string.set_frost_blur_note),
                     style = MaterialTheme.typography.labelSmall,
                     color = WotaTextDim
                 )

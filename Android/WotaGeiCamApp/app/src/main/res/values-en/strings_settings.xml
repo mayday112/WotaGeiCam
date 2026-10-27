@@ -126,4 +126,7 @@
     <!-- HUD Editor -->
     <string name="set_hud_editor">Edit HUD Layout</string>
     <string name="set_hud_editor_note">Only enabled controls above can be edited: Drag container to move, drag items inside container to reorder, or drag into other containers. Tap \"Save\" to apply immediately to the camera view; persists across restarts. Layout does not reset when items are hidden; use \"Reset Defaults\" in the editor to restore factory layout.</string>
+    <!-- HUD Frosted Blur Background -->
+    <string name="set_frost_blur">HUD Frosted Glass Background</string>
+    <string name="set_frost_blur_note">Viewfinder control backgrounds show blurred real-time footage. Only effective in GPU mode; turn off to return to standard appearance.</string>
 </resources>

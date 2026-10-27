@@ -257,8 +257,7 @@ import kotlin.math.roundToInt
 fun CameraScreen(
     onOpenGallery: () -> Unit,
     onOpenSettings: () -> Unit,
-    onPracticeFinish: () -> Unit,
-    modifier: Modifier = Modifier
+    onPracticeFinish: () -> Unit
 ) {
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext }
@@ -413,6 +412,8 @@ fun CameraScreen(
     val focusLockRecordingText = stringResource(R.string.cam_focus_lock_recording)
     val focusManualLockedText = stringResource(R.string.cam_focus_manual_locked)
     val focusLockUnsupportedText = stringResource(R.string.cam_focus_lock_unsupported)
+    val focusManualPeakingTipText = stringResource(R.string.cam_focus_manual_peaking_tip)
+    val denoiseLiteTipText = stringResource(R.string.denoise_lite_tip)
     var lockedTapTipShown by remember { mutableStateOf(false) }
     val showLockedTapTip: () -> Unit = {
         if (!lockedTapTipShown) {
@@ -509,7 +510,7 @@ fun CameraScreen(
     LaunchedEffect(afMode) {
         if (afMode == AfMode.MANUAL && !focusManualTipShown) {
             focusManualTipShown = true
-            showTip(app.getString(R.string.cam_focus_manual_peaking_tip))
+            showTip(focusManualPeakingTipText)
         }
     }
     LaunchedEffect(recStatus) {
@@ -522,7 +523,7 @@ fun CameraScreen(
                 val lite = com.wotagei.cam.core.denoiseKernelLite(size.width, size.height, fps.value)
                 if (!denoiseLiteNotified && gpuDenoise && frameEffect == FrameEffect.NONE && lite) {
                     denoiseLiteNotified = true
-                    showTip(app.getString(R.string.denoise_lite_tip))
+                    showTip(denoiseLiteTipText)
                 }
             }
             else -> Unit
@@ -534,7 +535,7 @@ fun CameraScreen(
     LaunchedEffect(ctrl) {
         ctrl.fpsDowngraded.collect { to ->
             if (to == null) return@collect
-            showTip(app.getString(R.string.cam_fps_downgraded_tip, to))
+            showTip(context.getString(R.string.cam_fps_downgraded_tip, to))
             ctrl.clearFpsDowngrade()
         }
     }
@@ -543,7 +544,7 @@ fun CameraScreen(
     LaunchedEffect(runner) {
         runner.ambientLostNotice.collect { id ->
             if (id == null) return@collect
-            showTip(app.getString(id))
+            showTip(context.getString(id))
             runner.clearAmbientLostNotice()
         }
     }
@@ -552,7 +553,7 @@ fun CameraScreen(
     LaunchedEffect(runner) {
         runner.denoiseInactiveNotice.collect { id ->
             if (id == null) return@collect
-            showTip(app.getString(id))
+            showTip(context.getString(id))
             runner.clearDenoiseInactiveNotice()
         }
     }
@@ -1396,7 +1397,7 @@ fun CameraScreen(
     }
 
     Box(
-        modifier
+        Modifier
             .fillMaxSize()
             .background(WotaBg)
             .onSizeChanged { deviceDegrees = readDeviceDegrees(context) }

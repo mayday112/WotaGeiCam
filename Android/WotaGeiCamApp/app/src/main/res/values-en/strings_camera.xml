@@ -79,6 +79,8 @@
     <string name="cam_focus_tap_locked_tip">Focus locked. Long-press screen or open focus pill to unlock</string>
     <string name="cam_focus_manual_locked">Manual focus is already locked</string>
     <string name="cam_focus_lock_unsupported">This lens does not support single auto-focus; cannot lock</string>
+    <string name="cam_focus_unsupported">Current lens does not support focus adjustment</string>
+    <string name="cam_flash_unsupported">Current lens does not have a flash</string>
     <string name="cam_focus_lock_recording">Cannot lock focus while recording</string>
     <string name="cam_recording_readonly">Cannot adjust while recording; change after stopping</string>
     <string name="cam_manual_exposure_only">Available in manual exposure mode</string>
@@ -219,4 +221,22 @@
     <string name="hud_zone_right">Right Vertical Dock</string>
     <string name="hud_zone_readout">Persistent Readouts</string>
     <string name="hud_zone_bottom">Bottom Bar Dock</string>
+    <!-- Noise Reduction (2026-10-26): Audio/Video both off by default -->
+    <string name="cam_pill_denoise">Denoise</string>
+    <string name="denoise_audio_off">Off</string>
+    <string name="denoise_audio_system">System Denoise</string>
+    <string name="denoise_video_off">Off</string>
+    <string name="denoise_video_hal_fast">HAL Fast</string>
+    <string name="denoise_video_hal_hq">HAL High Quality</string>
+    <string name="denoise_video_gpu">GPU Bilateral</string>
+    <string name="denoise_title_audio">Audio Noise Reduction (Ambient)</string>
+    <string name="denoise_title_video">Video Noise Reduction (Low-light Noise)</string>
+    <string name="denoise_audio_note">Uses system NoiseSuppressor to reduce wind and ambient background noise; internal audio track is unaffected. When enabled, recording switches to the built-in engine. If not supported by this device, recording continues automatically without noise suppression.</string>
+    <string name="denoise_video_note">HAL modes use camera hardware noise reduction (zero extra power); GPU bilateral filters low-light noise while preserving edges, available only in GPU rendering mode.</string>
+    <string name="denoise_video_fallback_direct">Direct rendering active: GPU bilateral is unavailable, reverted to HAL Fast</string>
+    <string name="denoise_video_effect_on">Noise reduction paused while monitor overlay (zebra/focus peaking) is active; resumes when turned off</string>
+    <string name="denoise_lite_tip">High device load (resolution × frame rate); video noise reduction switched to lightweight mode</string>
+    <string name="denoise_audio_unsupported_tip">This device does not support system noise suppression; ambient audio recorded as-is</string>
+    <string name="cam_focus_manual_peaking_tip">Manual focus can be paired with Monitor · Focus Peaking: in-focus areas will be highlighted</string>
+    <string name="cam_fps_downgraded_tip">Device cannot sustain this frame rate; automatically reverted to %1$d fps</string>
 </resources>

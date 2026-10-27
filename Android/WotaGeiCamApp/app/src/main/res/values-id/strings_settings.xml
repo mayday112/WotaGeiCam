@@ -126,4 +126,7 @@
     <!-- Editor Tata Letak HUD -->
     <string name="set_hud_editor">Edit Tata Letak Kontrol</string>
     <string name="set_hud_editor_note">Hanya kontrol yang sudah aktif di atas yang dapat diedit: Geser wadah untuk mengubah posisi, geser item di dalam wadah untuk menyusun urutan, atau geser ke wadah lain. Tekan \"Simpan\" agar langsung diterapkan di halaman rekaman; tetap tersimpan setelah aplikasi ditutup. Posisi tidak akan tereset saat kontrol disembunyikan; gunakan \"Pulihkan Default\" di dalam editor untuk mengembalikan susunan pabrik.</string>
+    <!-- Latar Belakang Kaca Buram HUD -->
+    <string name="set_frost_blur">Latar Belakang Kaca Buram HUD</string>
+    <string name="set_frost_blur_note">Latar belakang kontrol jendela bidik menampilkan gambar buram secara real-time. Hanya berlaku pada mode GPU; matikan untuk kembali ke tampilan standar.</string>
 </resources>

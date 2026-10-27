@@ -79,6 +79,8 @@
     <string name="cam_focus_tap_locked_tip">Fokus terkunci; tekan tahan layar atau buka kapsul fokus untuk membuka kunci</string>
     <string name="cam_focus_manual_locked">Fokus manual sudah terkunci secara alami</string>
     <string name="cam_focus_lock_unsupported">Lensa ini tidak mendukung autofokus tunggal; tidak dapat mengunci fokus</string>
+    <string name="cam_focus_unsupported">Lensa saat ini tidak mendukung penyesuaian fokus</string>
+    <string name="cam_flash_unsupported">Lensa saat ini tidak memiliki lampu kilat</string>
     <string name="cam_focus_lock_recording">Tidak dapat mengunci fokus saat merekam</string>
     <string name="cam_recording_readonly">Tidak dapat diubah saat merekam; ubah setelah perekaman berhenti</string>
     <string name="cam_manual_exposure_only">Dapat diatur setelah beralih ke mode eksposur manual</string>
@@ -219,4 +221,22 @@
     <string name="hud_zone_right">Dock Vertikal Kanan</string>
     <string name="hud_zone_readout">Blok Pembacaan Tetap</string>
     <string name="hud_zone_bottom">Dock Bilah Bawah</string>
+    <!-- Reduksi Bising (2026-10-26): Audio & Video default nonaktif -->
+    <string name="cam_pill_denoise">Reduksi Bising</string>
+    <string name="denoise_audio_off">Nonaktif</string>
+    <string name="denoise_audio_system">Sistem</string>
+    <string name="denoise_video_off">Nonaktif</string>
+    <string name="denoise_video_hal_fast">HAL Cepat</string>
+    <string name="denoise_video_hal_hq">HAL Kualitas Tinggi</string>
+    <string name="denoise_video_gpu">Bilateral GPU</string>
+    <string name="denoise_title_audio">Reduksi Bising Audio (Suara Sekitar)</string>
+    <string name="denoise_title_video">Reduksi Bising Video (Derau Area Gelap)</string>
+    <string name="denoise_audio_note">Menggunakan NoiseSuppressor bawaan sistem untuk meredam suara angin dan derau latar sekitar; trek audio internal tidak terpengaruh. Saat aktif, perekaman beralih ke mesin kustom. Jika perangkat tidak mendukung, perekaman otomatis dilanjutkan tanpa peredam bising.</string>
+    <string name="denoise_video_note">Mode HAL menggunakan reduksi bising perangkat keras kamera (tanpa daya tambahan); Bilateral GPU memfilter derau area gelap dengan mempertahankan tepian objek, hanya tersedia pada mode render GPU.</string>
+    <string name="denoise_video_fallback_direct">Saat ini menggunakan render langsung: Bilateral GPU tidak tersedia, dialihkan ke HAL Cepat</string>
+    <string name="denoise_video_effect_on">Reduksi bising dijeda saat overlay monitor (zebra/focus peaking) aktif; otomatis dilanjutkan saat dimatikan</string>
+    <string name="denoise_lite_tip">Beban perangkat cukup tinggi (resolusi × frame rate); reduksi bising video otomatis dialihkan ke mode ringan</string>
+    <string name="denoise_audio_unsupported_tip">Perangkat ini tidak mendukung peredam bising sistem; suara sekitar direkam apa adanya</string>
+    <string name="cam_focus_manual_peaking_tip">Fokus manual dapat dipadukan dengan Monitor · Focus Peaking: area fokus akan disorot</string>
+    <string name="cam_fps_downgraded_tip">Perangkat tidak mampu mempertahankan frame rate ini; otomatis diturunkan ke %1$d fps</string>
 </resources>
