@@ -69,7 +69,13 @@ class Camera2Engine(
     private val sink: PreviewSink,
     private val scope: CoroutineScope,
     private val onDeviceStatus: (DeviceStatus) -> Unit = {},
-    private val onPreviewStatus: (PreviewStatus) -> Unit = {}
+    private val onPreviewStatus: (PreviewStatus) -> Unit = {},
+    /**
+     * 帧率被**自动降档**的回执（2026-10-26）：一次高速档请求失败后，引擎改用普通会话并把 fps 退到
+     * 可达上限，这里把"退到了多少"报给界面。用户口径：所有自动降档都要看得见——否则他只看到
+     * 帧率自己变了，只会当成 bug。
+     */
+    private val onFpsDowngraded: (Int) -> Unit = {}
 ) {
 
     companion object {
@@ -95,6 +101,15 @@ class Camera2Engine(
         private const val SINK_WAIT_MAX = 20
 
         /** 占用/内部错误后的自动重开 */
+        /** AE/AF 状态遥测的拍点间隔（反馈 #1/#7 方案F）：1s 一拍，d 级 */
+        private const val AE_AF_TELEMETRY_MS = 1_000L
+
+        /**
+         * 手动白平衡运行时探测的判负上限（反馈 #6）：保活拍点 500ms × 4 = 2s 内 HAL 一直
+         * 不回报 TRANSFORM_MATRIX ⇒ 判定增益不被采纳，弹回自动。
+         */
+        private const val WB_PROBE_MAX_FAILS = 4
+
         private const val REOPEN_DELAY_MS = 800L
         private const val REOPEN_MAX = 2
 
@@ -144,6 +159,38 @@ class Camera2Engine(
     private var highSpeedSession: CameraConstrainedHighSpeedCaptureSession? = null
     private var reqBuilder: CaptureRequest.Builder? = null
 
+    /**
+     * 本场会话是否已往 builder 写过**非 OFF** 的 HAL 降噪（2026-10-26）：决定退出该档时要不要
+     * 显式写 OFF 把残留清掉（「写 OFF」与「没写过」是两件不同的事）。生命周期跟 builder 走：
+     * [prepareBuilder] 建新 builder 时清零。
+     */
+    private var halNrWritten = false
+
+    /** 「清不掉」这条日志每场只打一次（未声明 OFF 的机型），避免逐帧刷屏 */
+    private var halNrStuckLogged = false
+
+    /**
+     * 当前 repeating builder 挂的目标面（2026-10-26 反馈 #1 方案A）：AE 档翻转时要**整 builder
+     * 重建**（SENSOR 三键在自动档必须从请求里缺席，而 Camera2 无单键 remove，"不写"清不掉
+     * 上一档写的值）——重建需要同一批 targets，故在 [prepareBuilder] 里存一份。
+     */
+    private var builderTargets: List<Surface> = emptyList()
+
+    /**
+     * 当前 repeating builder 对应的 AE 档（true=手动/AE_OFF）：与参数总线不一致 ⇒ 翻转发生，
+     * 下一次下发前先重建 builder。null = builder 刚建、还没对过账。
+     */
+    private var builderAeManual: Boolean? = null
+
+    /**
+     * 上一次**打过日志**的降噪下发值（2026-10-26）：只在变化时打，避免合成刷新每 5ms 一行。
+     * 初值 null 而不是 0：0 是 `NOISE_REDUCTION_MODE_OFF` 的合法值，用它当初值会让
+     * "第一次就该写 OFF"的那一帧被当成"没变化"而不打日志；null 又恰好是"本次不写键"，
+     * 所以再用 [halNrLoggedOnce] 区分"还没打过"与"已经打过且现在不写"。
+     */
+    private var halNrLastLogged: Int? = null
+    private var halNrLoggedOnce = false
+
     /** 录像面：DIRECT 模式由 record 包提供 MediaRecorder 的 surface；v0.0.1 不挂 YUV 分析流 */
     private var extraSurface: Surface? = null
     private var extraReader: ImageReader? = null
@@ -155,7 +202,10 @@ class Camera2Engine(
     private var sinkWaitRetries = 0
     private var reopenRetries = 0
     private var flashResetStage = false
-    private var lastWbKeepAliveMs = 0L   // 单调钟（SystemClock.elapsedRealtime）读数，不是墙钟
+    private var lastWbKeepAliveMs = 0L
+
+    /** 手动白平衡探测的连续不合拍数（见 WB_PROBE_MAX_FAILS；引擎线程独占写） */
+    private var wbProbeFails = 0
 
     /** 关闭代数：异步回调只认最新一次开机的结果，防止旧回调写脏状态 */
     private var generation = 0
@@ -216,6 +266,13 @@ class Camera2Engine(
             .launchIn(scope)
 
         // 闪光切换要「先复位再置新值」，不能只靠普通脏刷新
+        // 画面降噪档变化（2026-10-26）：HAL 档只改下发内容（脏刷新即可）；GPU↔HAL 切换要重建会话
+        // ——GPU 档是"GL 侧处理、相机侧按 OFF"，进 GPU 双边/退回 HAL 时结构签名不变但下发键变，
+        // 走合并刷新；renderMode 变化本就走结构脉冲重建，无需在此处理
+        collectJobs += params.videoDenoise.drop(1)
+            .onEach { post { markDirty() } }
+            .launchIn(scope)
+
         collectJobs += params.flash.drop(1)
             .onEach { post { onFlashChanged() } }
             .launchIn(scope)
@@ -259,7 +316,8 @@ class Camera2Engine(
             if (slot.ability.isLegacy()) {
                 Log.w(TAG, "镜头 ${slot.logicId} 是 LEGACY 等级，手动参数可能不生效")
             }
-            highSpeedActive = slot.ability.highSpeedCapable && fpsValue() > WotaTiers.HIGH_SPEED_FPS
+            highSpeedActive = slot.ability.highSpeedCapable &&
+                slot.ability.needsHighSpeed(params.size.value, fpsValue())
             reqState = RequestApplier.stateOf(slot.ability, params.size.value, highSpeedActive)
             chosenFps = null
             structuralSignature = ""
@@ -474,7 +532,7 @@ class Camera2Engine(
             }
             builder.addTarget(reader.surface)
             syncFpsPick(writeBack = false)
-            RequestApplier.apply(builder, state, snapshot())
+            applyParams(builder, state)
             val request = builder.build()
             reader.setOnImageAvailableListener({ latest ->
                 val image = latest.acquireLatestImage()             // 丢旧保新
@@ -524,8 +582,11 @@ class Camera2Engine(
     }
 
     private fun wantHighSpeed(): Boolean {
-        if (fpsValue() <= WotaTiers.HIGH_SPEED_FPS) return false
-        return ability?.highSpeedCapable == true
+        val a = ability ?: return false
+        if (!a.highSpeedCapable) return false
+        // 帧率普通会话覆盖不了（厂商把 50/60 只放进高速表，如 vivo V2520A）⇒ 高速会话；
+        // 旧阈值 fps > 60 会让 50/60 落回普通会话，而普通流根本没有这两档
+        return a.needsHighSpeed(params.size.value, fpsValue())
     }
 
     private fun signatureOf(size: Size, mode: RenderMode, highSpeed: Boolean, targets: List<Surface>): String =
@@ -678,9 +739,88 @@ class Camera2Engine(
         }
         targets.forEach { surface -> builder.addTarget(surface) }
         reqBuilder = builder
+        builderTargets = targets
+        // 新 builder = 请求里没有我们写过的任何键 ⇒ 残留账清零（生命周期与 builder 严格一致）；
+        // AE 档对齐当前值（新 builder 无 SENSOR 三键，manual 档下一次 apply 会补写）
+        halNrWritten = false
+        halNrStuckLogged = false
+        halNrLastLogged = null
+        halNrLoggedOnce = false
+        builderAeManual = params.aeMode.value == com.wotagei.cam.core.AeMode.MANUAL
     }
 
-    private fun snapshot(): RequestApplier.Snapshot = with(params) {
+    /**
+     * 画面降噪的实际档（2026-10-26）：GPU 双边只在 GPU 渲染下成立，DIRECT 时退回 HAL 快速档
+     * ——口径与 UI 的 [com.wotagei.cam.core.effectiveVideoDenoise] 同一支，不许各写一份。
+     */
+    private fun videoDenoiseActual(): com.wotagei.cam.core.VideoDenoise =
+        com.wotagei.cam.core.effectiveVideoDenoise(
+            params.videoDenoise.value,
+            params.renderMode.value == RenderMode.GPU
+        )
+
+    /**
+     * 下发一帧参数——**三个通道（repeating / 单发 / 拍照前）共用**，`NOISE_REDUCTION_MODE` 的
+     * "写过什么"就记在这里（唯一副作用点）。
+     *
+     * 为什么需要记：`CaptureRequest.Builder` 每会话只建一次、跨多次下发复用，且 Camera2 没有单键
+     * remove ⇒ "不再写这个键"不等于"清掉上一次写的值"。策略本身在
+     * [com.wotagei.cam.core.noiseReductionModeToSend]（纯函数、JVM 全测），这里只管
+     * ①把决议结果塞进快照 ②把"写过什么"记回来。
+     */
+    private fun applyParams(builder: CaptureRequest.Builder, state: RequestApplier.State) {
+        val requested = videoDenoiseActual()
+        val mode = com.wotagei.cam.core.noiseReductionModeToSend(
+            requested, state.noiseReductionModes, halNrWritten
+        )
+        // 画面降噪的**下发真值**（2026-10-26 取证）：只在"这次要写的值变了"时打一行，不跟着逐帧刷
+        // （合成刷新 5ms 一拍会淹掉 logcat）。null 的两种来历必须分开报，否则排障时分不清
+        // "用户关了"与"本机没声明这一档"：
+        //   · requested=OFF 且本场没写过 ⇒ 正常（不碰厂商默认）
+        //   · requested=HAL 但不在声明表 ⇒ 该档在本机不可用（面板本应已灰显）
+        if (!halNrLoggedOnce || mode != halNrLastLogged) {
+            halNrLoggedOnce = true
+            halNrLastLogged = mode
+            val why = when {
+                mode != null -> "写入 ${halNrName(mode)}"
+                // GPU 双边是**设计上**不写 HAL 键（由 GL 管线独占，避免 HAL+GL 双重降噪）——
+                // 这种情况必须与"HAL 档在本机不可用"分开报，否则排障会误判成能力缺失
+                requested == com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL ->
+                    "不写（GPU 双边由 GL 管线独占，HAL 侧按不降噪处理）" +
+                        if (halNrWritten) "；本次写 OFF 清残留" else ""
+                requested != com.wotagei.cam.core.VideoDenoise.OFF ->
+                    "不写（本机未声明该档：$requested，declared 里没有）"
+                else -> "不写（OFF；本场未写过该键）"
+            }
+            Log.i(
+                TAG,
+                "画面降噪下发 requested=$requested highSpeed=${state.highSpeed}" +
+                    " declared=${state.noiseReductionModes.sorted()} -> $why"
+            )
+        }
+        if (mode == null && halNrWritten && !halNrStuckLogged) {
+            // 退出 HAL 档却清不掉：本机没声明 OFF。留一条日志（用户排障时能看出"关不掉"的原因），
+            // 不阻断任何东西——下一场会话（新 builder）自然干净。
+            halNrStuckLogged = true
+            Log.w(TAG, "退出画面降噪但本机未声明 NOISE_REDUCTION_MODE_OFF，本场请求仍带上一档（下次开会话恢复）")
+        }
+        RequestApplier.apply(builder, state, snapshot(mode))
+        if (mode != null) {
+            halNrWritten = mode != CaptureRequest.NOISE_REDUCTION_MODE_OFF
+        }
+    }
+
+    /** 降噪模式的日志短名（Camera2 的 NOISE_REDUCTION_MODE_* 就这五档） */
+    private fun halNrName(mode: Int): String = when (mode) {
+        CaptureRequest.NOISE_REDUCTION_MODE_OFF -> "OFF(0)"
+        CaptureRequest.NOISE_REDUCTION_MODE_FAST -> "FAST(1)"
+        CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY -> "HIGH_QUALITY(2)"
+        CaptureRequest.NOISE_REDUCTION_MODE_MINIMAL -> "MINIMAL(3)"
+        CaptureRequest.NOISE_REDUCTION_MODE_ZERO_SHUTTER_LAG -> "ZSL(4)"
+        else -> "mode($mode)"
+    }
+
+    private fun snapshot(halNoiseReductionMode: Int?): RequestApplier.Snapshot = with(params) {
         RequestApplier.Snapshot(
             aeMode = aeMode.value,
             iso = iso.value.value,
@@ -699,7 +839,9 @@ class Camera2Engine(
             stabilize = stabilize.value,
             afRegions = tapAfRegions,
             aeRegions = tapAeRegions,
-            afTrigger = tapTrigger
+            afTrigger = tapTrigger,
+            halNoiseReductionMode = halNoiseReductionMode,
+            fpsTarget = fpsValue()
         )
     }
 
@@ -719,7 +861,17 @@ class Camera2Engine(
         // 让下面的分类 catch 对「下发前的最后计算」同样生效。
         try {
             syncFpsPick(writeBack = true)
-            RequestApplier.apply(builder, state, snapshot())
+            // AE 档翻转（反馈 #1 方案A）：SENSOR 三键在自动档必须从请求里**缺席**，
+            // 而 builder 无删键 ⇒ 整个重建（键集天然自洽，applyParams 随后全量重放其余键）。
+            // 放在 try 内：与 syncFpsPick/apply/build 同一条 P1 纪律（任何 RuntimeException 不许穿透）。
+            val manualNow = params.aeMode.value == com.wotagei.cam.core.AeMode.MANUAL
+            if (builderAeManual != manualNow) {
+                device?.takeIf { builderTargets.isNotEmpty() }?.let { prepareBuilder(it, builderTargets) }
+                builderAeManual = manualNow
+                Log.i(TAG, "AE 档翻转 → 重建 repeating builder（manual=$manualNow），清 SENSOR 三键残留")
+            }
+            // builder 可能刚被重建：重新取（prepareBuilder 失败时 reqBuilder 不动，沿用旧值）
+            applyParams(reqBuilder ?: builder, state)
             val request = builder.build()
             val hs = highSpeedSession
             val normal = session
@@ -748,7 +900,7 @@ class Camera2Engine(
     private fun singleCapture(tag: String) {
         val builder = reqBuilder ?: return
         val state = reqState ?: return
-        RequestApplier.apply(builder, state, snapshot())
+        applyParams(builder, state)
         val request = builder.build()
         val hs = highSpeedSession
         val normal = session
@@ -800,7 +952,11 @@ class Camera2Engine(
             request: CaptureRequest,
             result: TotalCaptureResult
         ) {
-            if (!RequestApplier.isManualWhiteBalance(params.wbMode.value)) return
+            logAeAfTelemetry(result)
+            if (!RequestApplier.isManualWhiteBalance(params.wbMode.value)) {
+                wbProbeFails = 0
+                return
+            }
             // 单调钟而非 System.currentTimeMillis()（2026-10-10 S3-03）：墙钟被往回调时
             // `now - lastWbKeepAliveMs` 变负、`< WB_KEEP_ALIVE_MS` 恒真 ⇒ 手动白平衡保活永久停摆，
             // 颜色慢慢漂回自动且无错误码。同族先例：record/Recorder.kt 的 ElapsedClock。
@@ -808,7 +964,59 @@ class Camera2Engine(
             if (now - lastWbKeepAliveMs < WB_KEEP_ALIVE_MS) return
             lastWbKeepAliveMs = now
             markDirty()
+            // 手动白平衡**运行时探测**（2026-10-26 反馈 #6）：公开 API 拿不到
+            // `android.colorCorrection.availableModes`（隐藏键，getKeys 不暴露，真机实证），
+            // "支不支持 TRANSFORM_MATRIX"只能行为探测——我们请求了 TRANSFORM_MATRIX，
+            // HAL 回报的却是别的模式 ⇒ 增益没被采纳（华为 ALN-AL00：AWB_OFF 被采纳画面变绿、
+            // 增益被忽略滑杆无响应）。连续 4 拍（≈2s）不合 ⇒ 弹回 AUTO 并留日志。
+            // 判据只在探测窗口连续累计；用户切回自动即清零。
+            val applied = runCatching { result.get(android.hardware.camera2.CaptureResult.COLOR_CORRECTION_MODE) }
+                .getOrNull()
+            if (applied == CaptureRequest.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX) {
+                wbProbeFails = 0
+            } else {
+                wbProbeFails++
+                Log.w(
+                    TAG,
+                    "手动白平衡探测：请求 TRANSFORM_MATRIX 但 HAL 回报 applied=$applied（连续 $wbProbeFails 拍）"
+                )
+                if (wbProbeFails >= WB_PROBE_MAX_FAILS) {
+                    wbProbeFails = 0
+                    params.wbMode.value = com.wotagei.cam.core.WbPreset.AUTO
+                    Log.w(TAG, "本机不支持手动白平衡（增益不被采纳），已弹回自动——反馈 #6 的运行时处置")
+                }
+            }
         }
+    }
+
+    /**
+     * AE/AF 状态遥测（2026-10-26 反馈 #1/#7 方案F）：每秒一拍，d 级（详细档才记）。
+     *
+     * 为什么是它：曝光闪动 / 弱光对焦差这类 3A 行为问题，此前现场**只有结果**（用户口述"闪"），
+     * 没有中间态。`CONTROL_AE_STATE / AF_STATE / AF_MODE` 每秒快照进日志后，"闪动时刻 AE 在
+     * SEARCHING 还是 CONVERGED""弱光下 AF 卡在 ACTIVE_SCAN"这类归因一眼可判——取证密度
+     * 是本轮的明线任务（用户指令：日志多解释）。`get` 失败按"未知"打，不让单键异常炸回调。
+     *
+     * 频率与级别：1s 一拍不会淹没缓冲；d 级吃详细档（Diag 拆闸后 logcat 的 d/v 仍受详细档），
+     * 不开详细档就零输出——遥测是排查工具，不是常态记录。
+     */
+    private var lastAeAfTelemetryMs = 0L
+
+    private fun logAeAfTelemetry(result: TotalCaptureResult) {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastAeAfTelemetryMs < AE_AF_TELEMETRY_MS) return
+        lastAeAfTelemetryMs = now
+        val aeState = runCatching { result.get(android.hardware.camera2.CaptureResult.CONTROL_AE_STATE) }.getOrNull()
+        val afState = runCatching { result.get(android.hardware.camera2.CaptureResult.CONTROL_AF_STATE) }.getOrNull()
+        val afMode = runCatching { result.get(android.hardware.camera2.CaptureResult.CONTROL_AF_MODE) }.getOrNull()
+        val aeFps = runCatching {
+            result.get(android.hardware.camera2.CaptureResult.CONTROL_AE_TARGET_FPS_RANGE)?.let { "[${it.lower},${it.upper}]" }
+        }.getOrNull()
+        Log.d(
+            TAG,
+            "3A遥测 aeState=$aeState afState=$afState afMode=$afMode fpsRange=${aeFps ?: "无"}" +
+                " lensFocus=${runCatching { result.get(android.hardware.camera2.CaptureResult.LENS_FOCUS_DISTANCE) }.getOrNull()}"
+        )
     }
 
     // ------------------------------------------------- fps 选择与钳制
@@ -822,6 +1030,16 @@ class Camera2Engine(
         val target = fpsValue()
         val normal = RequestApplier.pickFps(state.fpsRanges, target, state.highSpeed)
         if (normal != null) {
+            if (chosenFps != normal) {
+                // 帧率决议留痕（2026-10-26）：50/60 这类"区间内由 HAL 定"的档，事后只能靠这行
+                // 判断到底下发成了什么；ranges 一并打出来，机型差异（表长什么样）不用重编就能核。
+                // 这就是"给适配留的口子"：真机 logcat 一行 `adb logcat -s WotaCam | grep 帧率决议`
+                Log.i(
+                    TAG,
+                    "帧率决议 fps=$target -> [${normal.lo},${normal.hi}] exact=${normal.exact} " +
+                        "highSpeed=${state.highSpeed} ranges=[${rangesSummary(state.fpsRanges)}]"
+                )
+            }
             chosenFps = normal
             if (writeBack) {
                 // 总线保持用户档位（24 就是 24），不可用固定范围时用 exact 标记「※」
@@ -829,7 +1047,9 @@ class Camera2Engine(
                 // 帧周期钳制吃**范围下界**（2026-10-04 r26 与 r10/r11 同源）：lo=档位（[24,30] 的
                 // lo=24），1/24 的 41.67ms 在合法域 [1/30, 1/24] 内不再被 hi=30 钳回 1/30——
                 // 旧口径在回写时就把强制档改写掉，r10 的下发修正根本见不到 1/24
-                clampShutterToFrame(normal.lo)
+                // 钳制基准 = **目标档位**（不是区间下界）：可变高速档 [30,120] 的 lo=30 会让
+                // 50/60 档放行 1/30 死档（帧周期 20ms 装不下），见 Snapshot.fpsTarget 的说明
+                clampShutterToFrame(target)
             }
             return
         }
@@ -856,7 +1076,7 @@ class Camera2Engine(
             Log.w(TAG, "设备状态→OPEN_FAILED_HIGH_FPS：fps=$target 无可用范围，退到 $ceiling")
             publishDevice(DeviceStatus.OPEN_FAILED_HIGH_FPS)
             writeBackFps(ceiling, fallback.exact)
-            clampShutterToFrame(fallback.lo)
+            clampShutterToFrame(ceiling)
             if (device != null) publishDevice(DeviceStatus.OPEN_SUCCEED)
         }
     }
@@ -911,7 +1131,7 @@ class Camera2Engine(
     private fun onStructuralPulse(pulse: Pulse) {
         val slotAbility = ability ?: return
         val previous = reqState
-        val highSpeed = pulse.fps > WotaTiers.HIGH_SPEED_FPS && slotAbility.highSpeedCapable
+        val highSpeed = slotAbility.highSpeedCapable && slotAbility.needsHighSpeed(pulse.size, pulse.fps)
         // 每次结构脉冲都重建能力快照：fps 档位表、4K 门禁、active array 都跟着尺寸/分支变
         reqState = RequestApplier.stateOf(slotAbility, pulse.size, highSpeed)
         pushSinkFrameSize(pulse.size)
@@ -1054,26 +1274,52 @@ class Camera2Engine(
         else -> DeviceStatus.OPEN_FAILED_INNER_ERROR
     }
 
-    /** 高帧率失败：fps 退到 ≤60 的可达上限，用普通会话重建，并把降级结果写回总线 */
+    /**
+     * 高帧率失败：退到**普通表**里 ≤60 的可达上限，用普通会话重建，并把降级结果写回总线。
+     *
+     * 【2026-10-26 修正】退档候选原先取自 `state.fpsRanges`——高速态下它就是**高速表**，
+     * 而高速表的 `hi` 全是 120/240，`filter { hi <= 60 }` 恒空 ⇒ 退档分支只打一行日志就 return：
+     * 不写回 fps、不重建会话 ⇒ **取景器假死**（用户要切镜头才恢复）。这次的 50/60 修复正好把
+     * "高速请求被拒"从几乎不可达变成常见路径，所以这条必须同时修。
+     * 普通表才装着"本机正常能跑的帧率"，退档要找的正是它。
+     */
     private fun downgradeHighSpeed(reason: String) {
         publishDevice(DeviceStatus.OPEN_FAILED_HIGH_FPS)
         val state = reqState
-        val ceiling = state?.fpsRanges
-            ?.filter { it.hi <= WotaTiers.HIGH_SPEED_FPS }
-            ?.maxOfOrNull { it.hi }
+        val normalRanges = normalFpsRangesOf()
+        val ceiling = normalRanges
+            .filter { it.hi <= WotaTiers.HIGH_SPEED_FPS }
+            .maxOfOrNull { it.hi }
         if (state == null || ceiling == null) {
-            Log.w(TAG, "高帧率失败且无可退让档位：$reason")
+            // ability 拿不到（open 失败窗口）时 normalRanges 为空 ⇒ 走这条明确失败：
+            // 设备状态已是 OPEN_FAILED_HIGH_FPS，UI 有遮罩与自动重开路径，不假装能退档
+            Log.w(TAG, "高帧率失败且无可退让档位：$reason（能力表可用=${ability != null}）")
             return
         }
         Log.w(TAG, "设备状态→OPEN_FAILED_HIGH_FPS：$reason，fps 退到 $ceiling")
-        val pick = RequestApplier.pickFps(state.fpsRanges, ceiling, false) ?: return
+        val pick = RequestApplier.pickFps(normalRanges, ceiling, false) ?: return
         highSpeedActive = false
         chosenFps = pick
         writeBackFps(ceiling, pick.exact)
+        // 档位被系统改掉了：把原因摆到界面上（用户要求"所有自动降档都要看得见"），
+        // 否则他只看到帧率自己变了、以为是 bug。
+        onFpsDowngraded(ceiling)
         structuralSignature = ""
         publishDevice(DeviceStatus.OPEN_SUCCEED)
         if (desiredPreview) ensureSession()
     }
+
+    /**
+     * 普通（非高速）帧率表：退档候选的唯一来源。
+     *
+     * 【2026-10-26 二修】兜底链原来是 `ability?.fpsRanges ?: state?.fpsRanges`——`ability == null`
+     * 时会退到 [RequestApplier.State.fpsRanges]，而高速态下它**就是高速表**：`filter { hi <= 60 }`
+     * 恒空，退档分支又变回"打一行日志就 return"的原坑（取景器假死）。所以这一层**只认能力表**：
+     * ability 拿不到（open 失败窗口）就返回空表，让 [downgradeHighSpeed] 走"无可退让档位"的
+     * 明确失败路径并留日志——宁可如实失败，不拿错误的表装普通表硬退。
+     */
+    private fun normalFpsRangesOf(): List<com.wotagei.cam.core.RangeI> =
+        ability?.fpsRanges ?: emptyList()
 
     private fun failDevice(status: DeviceStatus, reason: String) {
         Log.w(TAG, "设备状态→$status：$reason")

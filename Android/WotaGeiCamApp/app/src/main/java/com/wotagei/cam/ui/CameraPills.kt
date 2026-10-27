@@ -43,7 +43,6 @@ import com.wotagei.cam.core.buildVideoSizeTable
 import com.wotagei.cam.core.screenAspectOf
 import com.wotagei.cam.core.enumerateLenses
 import com.wotagei.cam.core.hFovOf
-import com.wotagei.cam.core.pickFpsRange
 import com.wotagei.cam.core.ParamState
 import com.wotagei.cam.core.sizeCloseTo
 import com.wotagei.cam.record.StorageEstimate
@@ -96,7 +95,7 @@ import kotlin.math.roundToInt
  * 加值就等于改存量配置语义；右竖 Dock 的「对焦」本来也不属于可自定义读数。
  * 每个 key 的锚点写入方登记在 [pillAnchorWriters]，新增 key 必须同步那一行。
  */
-enum class PillKey { SIZE, FPS, SHUTTER, ISO, EV, WB, ZOOM, FOCUS, BITRATE, LENS, REFLINE, MONITOR, FLASH, STAB, STORAGE, BT }
+enum class PillKey { SIZE, FPS, SHUTTER, ISO, EV, WB, ZOOM, FOCUS, BITRATE, LENS, REFLINE, MONITOR, FLASH, STAB, STORAGE, BT, DENOISE }
 
 /**
  * 录制中仍可调参的白名单（A4，2026-10-17 拍板）：其余胶囊录制中可开窗但控件只读。
@@ -142,6 +141,7 @@ val pillAnchorWriters: Map<PillKey, String> = mapOf(
     PillKey.STAB to "HudLayer.HudEntryItem(STAB) ← 同上，位置由 hud_layout 的条目归属决定",
     PillKey.BT to "HudLayer.HudEntryItem(BT) → widget.AudioChip(modifier)，批 2 起这颗是「音频」chip（键名 BT 沿用：原蓝牙位，位掩码按 bit 持久化不许改名）",
     PillKey.REFLINE to "HudLayer.HudEntryItem(REFLINE) → design.WotaIconButton(modifier)",
+    PillKey.DENOISE to "HudLayer.HudEntryItem(DENOISE) → design.TierChip(modifier)，默认落底栏 Dock 左侧",
     PillKey.MONITOR to "HudLayer.HudEntryItem(MONITOR) → design.WotaChip(modifier)",
     PillKey.FLASH to "HudLayer.HudEntryItem(FLASH) → design.WotaIconButton(modifier)",
     PillKey.SHUTTER to "HudLayer.HudEntryItem(HudItem.SHUTTER) → design.WotaChip(modifier)",
@@ -186,11 +186,22 @@ fun PillHost(
     freeMb: Long,
     bt: com.wotagei.cam.bt.BtSpeakerController,
     capture: com.wotagei.cam.record.PlaybackCaptureController,
-    onEnableCapture: () -> Unit
+    onEnableCapture: () -> Unit,
+    /**
+     * 本机 HAL **声明的 NOISE_REDUCTION 模式集合**（画面降噪 HAL 两档的可用性判据）。
+     *
+     * 传集合而不是布尔：两档要**逐档**判——只声明了 HIGH_QUALITY 的机型上，"HAL 快速"能点但
+     * 下发时会被 `RequestApplier` 拦掉（未声明的模式不发），界面就成了"点了、亮着、什么也没发生"
+     * （2026-10-26 修正，判据与下发门从同一个集合来）。
+     */
+    halNoiseReductionModes: Set<Int>,
+    /** 监看叠加（斑马纹 / 峰值对焦）当前是否开着：开着时 GPU 双边不生效，面板要如实说明 */
+    monitorEffectOn: Boolean
 ) {
     val ability = slot?.ability
     // A4 录制中矩阵：所有弹窗都能开，只有白名单内的可调；其余控件禁用 + 顶部只读提示。
     val editable = !recording || pillEditableDuringRecording(key)
+    val halModes = halNoiseReductionModes
     when (key) {
         PillKey.SIZE -> SizePill(anchor, params, ability, editable, onClose, onUnsupported)
         PillKey.FPS -> FpsPill(anchor, params, ability, editable, onClose, onUnsupported, onPersist)
@@ -219,6 +230,10 @@ fun PillHost(
         PillKey.FLASH -> FlashPill(anchor, params, ability, editable, onClose, onUnsupported)
         PillKey.STAB -> StabPill(anchor, params, ability, editable, onClose, onUnsupported)
         PillKey.STORAGE -> StoragePill(anchor, params, freeMb, editable, onClose)
+        PillKey.DENOISE -> DenoisePill(
+            anchor, params, editable, gpuMode, halNoiseReductionModes, monitorEffectOn,
+            onClose, onPersist
+        )
         PillKey.BT -> {
             // 音源双开定版（2026-10-07）：环境音开关的真源是 params.audioEnabled（会话内生效，
             // 下次起录按它落音轨），与内录开关（controller 态）互相独立
@@ -295,7 +310,7 @@ private fun SizePill(
         )
         // 分辨率与帧率是同一件事的两半（换分辨率后帧率档可能失效），放一个弹窗里免得来回点
         PillChoices(
-            options = fpsOptions(ability, size, fps.value > WotaTiers.HIGH_SPEED_FPS),
+            options = fpsOptions(ability, size),
             selected = fps.value,
             label = stringResource(R.string.cam_p_fps),
             onPick = { opt ->
@@ -305,10 +320,9 @@ private fun SizePill(
                     // 会沿用旧档的 exact——"有原生 [25,25] 但无 [24,24]"的机型从 ※24 切到 25
                     // 会把 exact=false 带过去，arcConvertNow() 误把原生 25 当 ※ 档抽帧
                     //（白抽帧 + HUD 假 ※）
-                    val highSpeed = opt.value > WotaTiers.HIGH_SPEED_FPS
-                    val pick = pickFpsRange(
-                        ability?.fpsRangesFor(size, highSpeed) ?: emptyList(), opt.value
-                    )
+                    // 口径与 fpsOptions / 引擎下发同源（decideFps）：50/60 在只进高速表的机型上
+                    // 仍是可用档（标 ※），而"下发哪个区间"由那一支统一决定，不再各猜一次
+                    val pick = ability?.decideFps(size, opt.value)?.pick
                     params.fps.value = pick
                         ?.let { ParamState(opt.value, it.lo..it.hi, enabled = true, exact = it.exact) }
                         ?: fps.copy(value = opt.value, enabled = false, exact = false)
@@ -344,7 +358,7 @@ private fun FpsPill(
     WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_p_fps)) {
         if (!editable) Note(R.string.cam_recording_readonly)
         PillChoices(
-            options = fpsOptions(ability, size, fps.value > WotaTiers.HIGH_SPEED_FPS),
+            options = fpsOptions(ability, size),
             selected = fps.value,
             onPick = { opt ->
                 if (!opt.enabled) {
@@ -352,11 +366,8 @@ private fun FpsPill(
                 } else {
                     // 换档必须**按目标档重查**精确性：copy(value=) 会沿用旧档的 exact——
                     // "有原生 [25,25] 但无 [24,24]"的机型从 ※24 切到 25 会把 exact=false 带过去，
-                    // 转换误激活（白抽帧）+ 假 ※。fpsOptions 的求交口径在这里复用同一支。
-                    val highSpeed = opt.value > WotaTiers.HIGH_SPEED_FPS
-                    val pick = pickFpsRange(
-                        ability?.fpsRangesFor(size, highSpeed) ?: emptyList(), opt.value
-                    )
+                    // 转换误激活（白抽帧）+ 假 ※。口径与 fpsOptions / 引擎下发同源（decideFps）
+                    val pick = ability?.decideFps(size, opt.value)?.pick
                     params.fps.value = pick
                         ?.let { ParamState(opt.value, it.lo..it.hi, enabled = true, exact = it.exact) }
                         ?: fps.copy(value = opt.value, enabled = false, exact = false)
@@ -433,12 +444,14 @@ private fun FpsPill(
 
 /** 帧率档：与抽屉同一套求交逻辑，`※` 表示本机只能给近似值 */
 @Composable
-private fun fpsOptions(ability: CameraAbility?, size: Size, highSpeed: Boolean): List<PillOption> {
-    val ranges = ability?.fpsRangesFor(size, highSpeed) ?: emptyList()
+private fun fpsOptions(ability: CameraAbility?, size: Size): List<PillOption> {
+    // 可用性与「※」都走 [CameraAbility.decideFps]——与引擎下发、总线落档同一个出口。
+    // （2026-10-26：判据曾散成"当前会话模态 / 并集 / 按 fps 阈值猜表"三份，结果界面说可选、
+    //  请求里发的却是机器没声明过的 [50,50]）
     val approx = stringResource(R.string.approx_mark)
     return WotaTiers.FPS.map { tier ->
-        val pick = pickFpsRange(ranges, tier)
-        PillOption(tier, "$tier" + if (pick?.exact == false) approx else "", pick != null)
+        val d = ability?.decideFps(size, tier)
+        PillOption(tier, "$tier" + if (d != null && !d.pick.exact) approx else "", d != null)
     }
 }
 
@@ -464,8 +477,10 @@ private fun ShutterPill(
             // （可变范围 [24,30] 选 24 时 41.67ms 在合法域内、HAL 放到 24fps），选档域与下发同源；
             // 旧口径用 pick.hi=30 会把 1/24 灰显——那是 r10 之前"帧周期按 hi 钳"语义的产物。
             // 取不到（该档 fps 不可用）时退回用户档位，与 WotaParams.applyExposure 的退回一致。
-            val ranges = ability?.fpsRangesFor(size, fps.value > WotaTiers.HIGH_SPEED_FPS) ?: emptyList()
-            val fpsHi = pickFpsRange(ranges, fps.value)?.lo ?: fps.value
+            // 帧周期上界 = **目标档位**（与引擎钳制/曝光计划同一条线）：可变高速档的下界
+            // （[30,120] 的 30）低于目标 50，用它会把 1/30 放进梯子里——那是 50fps 装不下的死档
+            val fpsHi = ability?.decideFps(size, fps.value)
+                ?.let { maxOf(it.pick.lo, fps.value) } ?: fps.value
             // 2026-10-17 需求：快门 7 档快捷 chip 删除，档位改由刻度滑杆承担。
             // 梯只收 supported 档（被设备否决的档消失而不是灰 chip）；标签仍来自 shutterItems，
             // 所以强制档 1/24、1/25 的 ※ 保留。
@@ -590,7 +605,16 @@ private fun WbPill(
         // 白平衡属录制中可调白名单（A4）：预设行保持可选，否则手动组（色温/色调）不可达
         PillChoices(
             options = WbPreset.values().mapIndexed { i, p ->
-                PillOption(p.ordinal, names[i], p == WbPreset.MANUAL || ability?.awbModes?.contains(p.awbMode) != false)
+                // 手动档的门控（2026-10-26 反馈 #6）：增益生效的契约前提是 HAL 声明了
+                // TRANSFORM_MATRIX（见 CameraAbility.colorCorrectionModes）。没声明时手动档
+                // 按"选了也不生效"处理——在场但禁用，点了给解释（与对焦/闪光胶囊同一手法）。
+                // 预设档不受影响（走 AWB_MODE，另有 awbModes 门控）。
+                val ok = when {
+                    p != WbPreset.MANUAL -> ability?.awbModes?.contains(p.awbMode) != false
+                    // ability 为 null（编辑器/枚举前）放行：门控真源在 WotaParams.applyWhiteBalance 的回弹
+                    else -> ability == null || ability.manualWhiteBalancePossible()
+                }
+                PillOption(p.ordinal, names[i], ok)
             },
             selected = wbMode.ordinal,
             columns = 4,
@@ -1033,6 +1057,82 @@ private fun StabPill(
             },
             enabled = editable
         )
+    }
+}
+
+/**
+ * 降噪（2026-10-26 用户需求）：一颗胶囊管两件事——**音频降噪（环境音）** 与 **画面降噪（夜间暗部）**，
+ * 两项默认关（见 [com.wotagei.cam.core.Denoise] 的口径说明）。
+ *
+ * 能力门禁与提示都收在这一个面板里，不做成两个胶囊：
+ * - 音频档只有「关闭 / 系统降噪」（NoiseSuppressor），点选即写总线；
+ * - 画面档「关闭 / HAL 快速 / HAL 高质量 / GPU 双边」——HAL 两档要本机 HAL 声明了模式才可选；
+ *   GPU 双边只在 GPU 渲染下可选，DIRECT 下若已选中则**如实提示"已退回 HAL 快速"**（不静默失效）。
+ *
+ * 录制中：与其余控件同一条 A4 纪律——能开面板，但档位禁用（[editable] 由调用方裁决）。
+ */
+@Composable
+private fun DenoisePill(
+    anchor: IntRect,
+    params: WotaParams,
+    editable: Boolean,
+    gpuMode: Boolean,
+    halModes: Set<Int>,
+    monitorEffectOn: Boolean,
+    onClose: () -> Unit,
+    onPersist: () -> Unit
+) {
+    val audio by params.audioDenoise.observed()
+    val video by params.videoDenoise.observed()
+    val audioNames = com.wotagei.cam.core.AudioDenoise.ALL.map { stringResource(it.labelRes) }
+    val videoNames = com.wotagei.cam.core.VideoDenoise.ALL.map { stringResource(it.labelRes) }
+    WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_pill_denoise)) {
+        if (!editable) Note(R.string.cam_recording_readonly)
+
+        NoteText(stringResource(R.string.denoise_title_audio))
+        PillChoices(
+            options = com.wotagei.cam.core.AudioDenoise.ALL.mapIndexed { i, m ->
+                // 系统降噪档对"本机是否真的有 NoiseSuppressor"不做预判（NoiseSuppressor.create 要到
+                // 起录才试得起），这里恒可选；真机不支持时由 AudioDenoiser 降级并在日志留痕
+                PillOption(m.ordinal, audioNames[i], true)
+            },
+            selected = audio.ordinal,
+            columns = 2,
+            onPick = { opt ->
+                params.audioDenoise.value = com.wotagei.cam.core.AudioDenoise.ALL[opt.value]
+                onPersist()
+            },
+            enabled = editable
+        )
+        NoteText(stringResource(R.string.denoise_audio_note))
+
+        NoteText(stringResource(R.string.denoise_title_video))
+        PillChoices(
+            options = com.wotagei.cam.core.VideoDenoise.ALL.mapIndexed { i, m ->
+                // HAL 两档**逐档**判：模式集合里有它才可选（与 RequestApplier 的下发门同一集合，
+                // 否则"能点但一个键都不发"，界面会谎报生效）
+                val ok = com.wotagei.cam.core.halNoiseReductionMode(m)?.let { it in halModes }
+                    ?: (m == com.wotagei.cam.core.VideoDenoise.OFF || gpuMode)
+                PillOption(m.ordinal, videoNames[i], ok)
+            },
+            selected = video.ordinal,
+            columns = 2,
+            onPick = { opt ->
+                params.videoDenoise.value = com.wotagei.cam.core.VideoDenoise.ALL[opt.value]
+                onPersist()
+            },
+            enabled = editable
+        )
+        NoteText(stringResource(R.string.denoise_video_note))
+        // GPU 双边 + 监看叠加开着：降噪那条支路不存在（斑马纹/峰值是监看层，不对它降噪），
+        // 如实说明——不说的话胶囊亮着、用户以为在降噪
+        if (video == com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL && monitorEffectOn) {
+            NoteText(stringResource(R.string.denoise_video_effect_on))
+        }
+        // 已选 GPU 双边但当前是 DIRECT：如实提示实际生效档（不静默失效）
+        if (video == com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL && !gpuMode) {
+            NoteText(stringResource(R.string.denoise_video_fallback_direct))
+        }
     }
 }
 

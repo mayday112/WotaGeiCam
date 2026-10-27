@@ -87,6 +87,7 @@ import com.wotagei.cam.core.RenderMode
 import com.wotagei.cam.core.UIOrientation
 import com.wotagei.cam.core.WotaParams
 import com.wotagei.cam.core.WotaTiers
+import com.wotagei.cam.core.mediaReadPermissionFor
 import com.wotagei.cam.ui.anim.MotionMode
 import com.wotagei.cam.ui.dialog.bitrateText
 import com.wotagei.cam.ui.dialog.sampleRateText
@@ -188,6 +189,10 @@ object WotaSettings {
      */
     const val KEY_DEFAULT_ARC_MERGE_DEADBAND = "default_arc_merge_deadband"
 
+    /** 降噪两项（2026-10-26）：默认关，与相机参数同一条"录制页即改即存"纪律 */
+    const val KEY_DENOISE_AUDIO = "denoise_audio"
+    const val KEY_DENOISE_VIDEO = "denoise_video"
+
     /** 诊断日志总开关（默认关，2026-10-13 用户裁决：避免不必要的空间占用；崩溃件不受它影响） */
     const val KEY_DIAG_ENABLED = "diag_enabled"
 
@@ -199,6 +204,13 @@ object WotaSettings {
     const val KEY_HUD_ITEMS = "hud_items"
     /** 录制页控件胶囊的显隐（#54）：与读数分开一套位掩码，默认全开 */
     const val KEY_HUD_PILLS = "hud_pills"
+
+    /**
+     * 显隐位清单的**版本号**（2026-10-26）：与 [KEY_HUD_PILLS] 一起读写。存在的意义见
+     * [CamPill.MASK_SCHEMA]：缺它就没法区分"用户关掉了这颗"与"存掩码时这颗还不存在"，
+     * 新加的胶囊于是对老用户默认隐藏。
+     */
+    const val KEY_HUD_PILLS_SCHEMA = "hud_pills_schema"
     /**
      * 录制页的默认方向（13 号计划第 6 条）：`landscape`（默认）/ `portrait`。
      * 纯 UI 设置，**不进 [applyDefaultsOnce]** —— 那条链进程内只套一次，设置页改完回录制页会被挡住，
@@ -310,6 +322,14 @@ object WotaSettings {
         prefs.getInt(KEY_DEFAULT_ARC_MERGE_DEADBAND, ArcMergeDeadband.DEFAULT)
             .coerceIn(ArcMergeDeadband.MIN, ArcMergeDeadband.MAX)
 
+    /** 音频降噪档（坏串回 OFF——降噪是"改变了声音"的开关，不认识的值一律按关处理） */
+    fun audioDenoise(prefs: SharedPreferences): com.wotagei.cam.core.AudioDenoise =
+        com.wotagei.cam.core.AudioDenoise.fromKey(prefs.getString(KEY_DENOISE_AUDIO, null))
+
+    /** 画面降噪档（坏串回 OFF，同上） */
+    fun videoDenoise(prefs: SharedPreferences): com.wotagei.cam.core.VideoDenoise =
+        com.wotagei.cam.core.VideoDenoise.fromKey(prefs.getString(KEY_DENOISE_VIDEO, null))
+
     fun defaultAudioMuted(prefs: SharedPreferences): Boolean = prefs.getBoolean(KEY_DEFAULT_AUDIO_MUTE, false)
 
     /** 诊断日志总开关（见 [com.wotagei.cam.diag.Diag]）：默认关，关着时不写常规日志（崩溃件除外） */
@@ -338,7 +358,18 @@ object WotaSettings {
     fun levelBuzzEnabled(prefs: SharedPreferences) = prefs.getBoolean(KEY_LEVEL_BUZZ, true)
     fun hudItems(prefs: SharedPreferences) = prefs.getInt(KEY_HUD_ITEMS, HudItem.DEFAULT_MASK)
 
-    fun hudPills(prefs: SharedPreferences) = prefs.getInt(KEY_HUD_PILLS, CamPill.DEFAULT_MASK)
+    /**
+     * 显隐掩码（读）。缺键 = 从没动过 ⇒ 全开；有键但**版本落后** ⇒ 只补上"那一版之后新加的位"
+     * （[CamPill.migrateMask]），用户自己关过的一律不动。
+     *
+     * 这里是**纯读**（不写回）：迁移是幂等的，用户下一次在设置页动任何一颗时会把新掩码与新版本号
+     * 一起落盘，那之后迁移自然停止生效——没必要在 getter 里偷偷写盘（那个副作用会散到所有调用点）。
+     */
+    fun hudPills(prefs: SharedPreferences): Int {
+        val raw = prefs.getInt(KEY_HUD_PILLS, CamPill.DEFAULT_MASK)
+        val schema = prefs.getInt(KEY_HUD_PILLS_SCHEMA, 0)
+        return if (schema >= CamPill.MASK_SCHEMA) raw else CamPill.migrateMask(raw, schema)
+    }
 
     /** 关掉刻度吸附（改用连续值）的滑杆集合：缺键 = 空集 = 全部吸附 */
     fun continuousSliders(prefs: SharedPreferences): Set<SliderKey> =
@@ -525,10 +556,8 @@ object WotaSettings {
         ParamsPersist.restore(prefs, params)
     }
 
-    /** 媒体库读取权限：33+ 走细分权限，以下回退旧存储权限 */
-    fun mediaReadPermission(): String =
-        if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_VIDEO
-        else Manifest.permission.READ_EXTERNAL_STORAGE
+    /** 媒体库读取权限：33+ 走细分权限，以下回退旧存储权限（版本闸收在 core/MediaAccess 单一处） */
+    fun mediaReadPermission(): String = mediaReadPermissionFor(android.os.Build.VERSION.SDK_INT)
 }
 
 @Composable
@@ -865,7 +894,11 @@ private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
                     onClick = {
                         val next = if (on) pillMask and item.bit.inv() else pillMask or item.bit
                         pillMask = next
-                        prefs.edit().putInt(WotaSettings.KEY_HUD_PILLS, next).apply()
+                        // 版本号一起落盘：之后 [hudPills] 不再做迁移（用户此刻的取舍就是最终取舍）
+                        prefs.edit()
+                            .putInt(WotaSettings.KEY_HUD_PILLS, next)
+                            .putInt(WotaSettings.KEY_HUD_PILLS_SCHEMA, CamPill.MASK_SCHEMA)
+                            .apply()
                     }
                 )
             }

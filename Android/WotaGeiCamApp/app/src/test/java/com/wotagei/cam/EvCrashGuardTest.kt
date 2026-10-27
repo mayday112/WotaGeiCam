@@ -14,6 +14,8 @@ import com.wotagei.cam.source.KotlinSourceScan
 import com.wotagei.cam.source.KotlinSourceScan.bodyOf
 import com.wotagei.cam.source.KotlinSourceScan.codeOnly
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -74,29 +76,36 @@ class EvCrashGuardTest {
     }
 
     @Test
-    fun autoPlanKeepsUserEvAndRewritesSensorKeysWithDeterministicValues() {
+    fun autoPlanOmitsSensorTrioAndKeepsUserEv() {
+        // 2026-10-26 反馈 #1 方案A：AUTO 档 SENSOR 三键必须**缺席**（null = 不写）——
+        // 部分原子不守约的 MTK HAL 把三键当钳制采纳，与连续对焦搜索互相拉扯 ⇒ 成片曝光闪动。
+        // 残值清理由引擎在 AE 翻转时整 builder 重建承担（见 Camera2Engine.applyRepeatingNow）。
         val plan = RequestApplier.exposurePlan(state(), snapshot(AeMode.AUTO))
         assertEquals(CaptureRequest.CONTROL_AE_MODE_ON, plan.aeMode)
         assertEquals("EV 用户值不许因清键丢失（clampEv(2)=2，混合键集根因之二）", 2, plan.aeComp)
-        // auto 档也写 SENSOR 三键（AE_ON 下 HAL 按官方契约忽略），但值必须确定、域内、与 fps 自洽
-        assertEquals(800, plan.sensitivity)
-        assertEquals(20_000_000L, plan.exposureNs)
-        assertEquals(40_000_000L, plan.frameDurationNs)
+        assertNull("AUTO 档 ISO 必须缺席（写了就会被不守约的 HAL 采纳）", plan.sensitivity)
+        assertNull("AUTO 档曝光必须缺席", plan.exposureNs)
+        assertNull("AUTO 档帧周期必须缺席", plan.frameDurationNs)
     }
 
     @Test
-    fun sensorKeyValuesAreIdenticalAcrossTheAeFlip() {
-        // 证伪「两分支互不清键」：旧实现 auto 分支根本不写 SENSOR 三键（值是 builder 里的残值），
-        // 谈不到"两档同值"；新实现三键从同一套钳制算出，翻转只许改 AE_MODE/AE_COMP/AE_LOCK
+    fun sensorTrioIsPresentOnlyInManualAndDeterministic() {
+        // 2026-10-26 语义更新：manual 档三键必须给出确定值（可重复）；
+        // auto 档三键恒缺席（null）——残值清理由"翻转重建 builder"负责，不是计划层的事
         val s = state()
-        val manual = RequestApplier.exposurePlan(s, snapshot(AeMode.MANUAL))
+        val manual1 = RequestApplier.exposurePlan(s, snapshot(AeMode.MANUAL))
+        val manual2 = RequestApplier.exposurePlan(s, snapshot(AeMode.MANUAL))
         val auto = RequestApplier.exposurePlan(s, snapshot(AeMode.AUTO))
-        assertEquals("ISO 值两档同源", manual.sensitivity, auto.sensitivity)
-        assertEquals("曝光时间值两档同源", manual.exposureNs, auto.exposureNs)
-        assertEquals("帧周期值两档同源", manual.frameDurationNs, auto.frameDurationNs)
-        assertNotEquals(manual.aeMode, auto.aeMode)
-        assertEquals(CaptureRequest.CONTROL_AE_MODE_OFF, manual.aeMode)
-        assertEquals(0, manual.aeComp)
+        assertEquals("manual 三键可重复", manual1.sensitivity, manual2.sensitivity)
+        assertEquals(manual1.exposureNs, manual2.exposureNs)
+        assertEquals(manual1.frameDurationNs, manual2.frameDurationNs)
+        assertNotNull(manual1.sensitivity)
+        assertNotNull(manual1.exposureNs)
+        assertNotNull(manual1.frameDurationNs)
+        assertNull(auto.sensitivity)
+        assertNotEquals(manual1.aeMode, auto.aeMode)
+        assertEquals(CaptureRequest.CONTROL_AE_MODE_OFF, manual1.aeMode)
+        assertEquals(0, manual1.aeComp)
         assertEquals(2, auto.aeComp)
     }
 
@@ -135,10 +144,17 @@ class EvCrashGuardTest {
         }
     }
 
-    /** 「apply/build 落在 try 内」的判据抽出来，尺子测试要拿 mutate 文本复验 */
+    /**
+     * 「apply/build 落在 try 内」的判据抽出来，尺子测试要拿 mutate 文本复验。
+     *
+     * 锚点从 `RequestApplier.apply` 换成 `applyParams(`（2026-10-26）：下发那一句包进了引擎的
+     * 私有 helper（降噪残留账号的记账点与下发必须同处），但"整条路径必须在 try 内"这条 P1 纪律
+     * 一字不变 —— helper 体内仍然调 RequestApplier.apply（见本文件另一条断言）。
+     */
     private fun applyInsideTry(body: String): Boolean {
         val tryAt = KotlinSourceScan.occurrences(body, "try {")
-        return tryAt.isNotEmpty() && tryAt[0] < body.indexOf("RequestApplier.apply")
+        val applyAt = body.indexOf("applyParams(")
+        return tryAt.isNotEmpty() && applyAt >= 0 && tryAt[0] < applyAt
     }
 
     @Test
@@ -148,7 +164,11 @@ class EvCrashGuardTest {
         // P1：syncFpsPick/apply/build 原先在 try 外，任何 RuntimeException 穿透即进程死亡。
         // 证伪：把 apply 挪回 try 外（或整体删 try）→ applyInsideTry 红
         //（indexOf 裸比较在 try 被删时为 -1 < 正数，会假绿，所以判据必须先验 try 在场）
-        assertTrue("RequestApplier.apply 必须落在 try 之内（P1 逃逸通道回归点）", applyInsideTry(apply))
+        assertTrue("参数下发必须落在 try 之内（P1 逃逸通道回归点）", applyInsideTry(apply))
+        assertEquals(
+            "参数下发必须集中在 applyParams 一处（散成多份就会再次出现'某条通路的 try 覆盖漏了'）",
+            1, KotlinSourceScan.occurrences(src, "RequestApplier.apply").size
+        )
         // P2：IAE 原先不分会话类型一律 downgradeHighSpeed。证伪：删掉分流 →
         // "highSpeedSession != null" 从 catch 里消失 → occurrences == 0 红
         val branch = KotlinSourceScan.occurrences(apply, "highSpeedSession != null")

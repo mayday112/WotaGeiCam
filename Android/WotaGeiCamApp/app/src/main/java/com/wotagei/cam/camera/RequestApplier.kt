@@ -20,6 +20,7 @@ import com.wotagei.cam.core.Stabilize
 import com.wotagei.cam.core.WbPreset
 import com.wotagei.cam.core.WotaTiers
 import com.wotagei.cam.core.pickFpsRange
+import com.wotagei.cam.core.pickHighSpeedFpsRange
 import kotlin.math.roundToInt
 
 /**
@@ -75,7 +76,9 @@ object RequestApplier {
         val oisAvailable: Boolean,
         val eisAvailable: Boolean,
         val highSpeed: Boolean,
-        val eisBlockedBySize: Boolean
+        val eisBlockedBySize: Boolean,
+        /** HAL 声明可用的 NOISE_REDUCTION_MODE 集合（2026-10-26 画面降噪）；空 = 不下发该键 */
+        val noiseReductionModes: Set<Int> = emptySet()
     ) {
         /** 能力缺失时 RangeI 是 closed(0..0)，不能拿它去 coerce，否则会把 ISO 压成 0 */
         fun clampIso(value: Int): Int = if (isoMin in 1..isoMax) value.coerceIn(isoMin, isoMax) else value
@@ -107,7 +110,25 @@ object RequestApplier {
         val afRegions: List<MeteringRectangle>?,
         val aeRegions: List<MeteringRectangle>?,
         /** 单次通道用 TRIGGER_START；repeating 通道用 TRIGGER_IDLE 复位 */
-        val afTrigger: Int?
+        val afTrigger: Int?,
+        /**
+         * 本次要下发的 `NOISE_REDUCTION_MODE`（2026-10-26）：**null = 一个键都不写**。
+         * 取值由引擎经 `core.noiseReductionModeToSend` 决议（声明过才写、退出 HAL 档时清自己的残留、
+         * 从没写过就选关闭则完全不碰）——本层只负责"非 null 就写"，策略不进这里。
+         */
+        val halNoiseReductionMode: Int? = null,
+        /**
+         * 用户选的**帧率档位**（2026-10-26）：帧周期与快门钳制的基准。
+         *
+         * 为什么不直接用 [fps].lo：两个选档函数都只返回**包含目标**的区间（lo ≤ 目标恒成立），
+         * 而区间下界在可变高速档上会**低于**目标——vivo 的 50 → `[30,120]`，lo=30 ⇒ 帧周期
+         * 33.3ms > 50fps 的 20ms，快门梯因此放出一个"引擎必定被 HAL 压回"的死档。
+         * r10 那条"钳制吃范围下界"的裁决针对的是 `[24,30]` 选 24（lo==目标==24）；在 lo < 目标
+         * 的档上必须回到**目标档位**才与用户意图、与 `core.shutterCeilingNs`
+         * （WotaParams.applyAbility 一直按目标档算）同一条线。取 max 是防御：万一未来出现
+         * lo > 目标的选档（现在不可能），仍以较长帧周期为准不炸。
+         */
+        val fpsTarget: Int = 0
     )
 
     // ---------------------------------------------------------------- 能力快照
@@ -142,7 +163,8 @@ object RequestApplier {
             oisAvailable = ability.oisAvailable,
             eisAvailable = ability.eisAvailable,
             highSpeed = highSpeed,
-            eisBlockedBySize = longEdge >= EIS_BLOCK_LONG_EDGE && shortEdge >= EIS_BLOCK_SHORT_EDGE
+            eisBlockedBySize = longEdge >= EIS_BLOCK_LONG_EDGE && shortEdge >= EIS_BLOCK_SHORT_EDGE,
+            noiseReductionModes = ability.noiseReductionModes
         )
     }
 
@@ -181,15 +203,22 @@ object RequestApplier {
 
     /**
      * fps 档位 → 实际写入 CONTROL_AE_TARGET_FPS_RANGE 的范围。
-     * 固定 [f,f] 优先（录像时间戳稳定的前提），无固定档时由 core 落「包含 f 且上界最大」的可变范围
-     * 并标 exact=false（UI 打「※」）；高帧率分支只接受 Range(f,f)。
-     * 返回 null 表示设备没有任何范围覆盖 target，由引擎上报高帧率失败并退档，
+     *
+     * 两张表各用各的选法，**两条都不许自己造值**：
+     * - 普通表（`highSpeed=false`）：[pickFpsRange] —— 固定 [f,f] 优先，其次"包含 f 且上界最大"的可变
+     *   范围并标 exact=false（UI 打「※」）。普通会话里上界大一点没坏处，反而给 HAL 留了自动曝光余量。
+     * - 高速表（`highSpeed=true`）：[pickHighSpeedFpsRange] —— 固定档优先，其次"下界正好等于目标"，
+     *   再其次"覆盖目标里上界最小"，**绝不返回机器没声明过的 `[f,f]`**。
+     *   【2026-10-26 修正】旧实现 `FpsPick(target, target, true)` 就是自己造值：50/60 首次被路由进
+     *   高速会话后，`[50,50]` 不在声明表里 ⇒ `createHighSpeedRequestList` 拒收 ⇒ 掉进无退路的降档
+     *   分支（取景器假死）。
+     *
+     * 返回 null 表示**这张表**没有任何区间覆盖 target，由引擎按"本机做不到这一档"降级/上报，
      * 而不是静默跑另一个帧率（那会让 params.fps 与成片 fps 不一致）。
      */
     fun pickFps(ranges: List<RangeI>, target: Int, highSpeed: Boolean): FpsPick? {
         if (target <= 0) return null
-        if (highSpeed) return FpsPick(target, target, true)
-        return pickFpsRange(ranges, target)
+        return if (highSpeed) pickHighSpeedFpsRange(ranges, target) else pickFpsRange(ranges, target)
     }
 
     /**
@@ -323,7 +352,24 @@ object RequestApplier {
         applyWhiteBalance(builder, p)
         applyFlash(builder, state, p)
         applyStabilize(builder, state, p.stabilize)
+        applyNoiseReduction(builder, p.halNoiseReductionMode)
         applyMeteringRegions(builder, state, p)
+    }
+
+    /**
+     * 画面降噪（2026-10-26）：把引擎决议好的 `NOISE_REDUCTION_MODE` 写进请求；**null 就一个键都不写**。
+     *
+     * 策略（写哪个值、什么时候要写 OFF 清残留）全在 `core.noiseReductionModeToSend` 一处，
+     * 本函数只做"非 null 即写"这一件事：这样策略能被 JVM 用例直接钉住，而"是否真的写进请求"这一层
+     * 保持薄到不会再出错。
+     *
+     * 提醒后来人一条 Camera2 事实：`CaptureRequest.Builder` **每会话只建一次、跨多次下发复用**，
+     * 而且**没有单键 remove** —— 所以"不写"不等于"清掉上一次写的值"，那件事必须显式写 OFF
+     * （这正是 2026-10-26 修掉的缺陷：面板显示关闭、实际还在降噪）。
+     */
+    private fun applyNoiseReduction(builder: CaptureRequest.Builder, mode: Int?) {
+        if (mode == null) return
+        builder.set(CaptureRequest.NOISE_REDUCTION_MODE, mode)
     }
 
     private fun applyFps(builder: CaptureRequest.Builder, pick: FpsPick?) {
@@ -347,35 +393,58 @@ object RequestApplier {
         val aeMode: Int,
         /** manual → 0（AE OFF 下补偿无语义，非零值是矛盾信息）；auto → 钳制后的用户步数（EV 用户值不丢，在 params.ev） */
         val aeComp: Int,
-        val sensitivity: Int,
-        val exposureNs: Long,
-        val frameDurationNs: Long
+        /**
+         * SENSOR 三键（2026-10-26 反馈 #1 方案A）：**null = 本帧不写该键**（仅 AE 自动档）。
+         * 旧设计"auto 档也写三键的确定值"依赖官方契约"HAL 在 AE_ON 下忽略它们"——部分 MTK HAL
+         * 不守约，把三键当钳制采纳，与连续对焦搜索互相拉扯 ⇒ 预览与**成片**曝光闪动
+         * （vivo V2302A 实锤：连续档成片闪、手动档稳定）。
+         */
+        val sensitivity: Int?,
+        val exposureNs: Long?,
+        val frameDurationNs: Long?
     )
 
     /**
      * 曝光组键值计划（纯函数，可直接 JVM 单测）。
-     * SENSOR 三键在 auto 档也写（AE_ON 下 HAL 按官方契约忽略它们），值与 manual 档**同一套钳制**
-     * 算出：域内合法、帧周期与 TARGET_FPS_RANGE 自洽——翻转瞬间不会出现「带着上一档残值」的键，
-     * 这是「清残键」在 Camera2 无删键操作下唯一可执行的形态。
+     * SENSOR 三键只在 manual 档产出（null = 不写）；auto 档的残值清理由引擎侧"AE 翻转即重建
+     * repeating builder"承担（Camera2 无删键，整 builder 重建后键集天然自洽）——这是 2026-10-26
+     * 对旧设计"auto 也写三键确定值"的推翻：官方契约"HAL 在 AE_ON 下忽略它们"被部分 MTK HAL
+     * 打破，三键与 AF 搜索互相拉扯把闪动编码进了成片（vivo V2302A 实锤）。
      */
     fun exposurePlan(state: State, p: Snapshot): ExposurePlan {
         val manual = p.aeMode == AeMode.MANUAL
-        // 帧周期/快门钳制一律吃**范围下界**（2026-10-04 r10 修正）：无精确档设备上 [24,30] 的
-        // hi=30 会把强制 1/24 钳回 1/30，长曝光观感全失。lo=24（即档位）的帧周期 41.67ms 恰在
-        // 可变范围的合法域 [1/30, 1/24] 内——HAL 据此把节奏放到 24fps，MANUAL 档两键都被尊重；
-        // AE_ON 下这些键本就被 HAL 忽略。精确档 [f,f] 的 lo==hi==f，逐字同旧行为。
-        val fps = p.fps?.lo ?: WotaTiers.HIGH_SPEED_FPS
-        return ExposurePlan(
-            aeLock = !manual && p.aeMode == AeMode.LOCK,
-            aeMode = if (manual) CaptureRequest.CONTROL_AE_MODE_OFF else CaptureRequest.CONTROL_AE_MODE_ON,
-            aeComp = if (manual) 0 else state.clampEv(p.evSteps),
-            sensitivity = state.clampIso(p.iso),
+        // 帧周期/快门钳制的基准 = **用户档位**（2026-10-26 修正，见 Snapshot.fpsTarget 的说明）：
+        // r10 的"吃范围下界"在 lo==目标 的普通档上与档位相等（[24,30] 选 24 ⇒ 24），行为不变；
+        // 在可变高速档上（vivo 50 → [30,120]，lo=30 < 目标 50）必须回到目标，否则帧周期 33.3ms
+        // 超过 50fps 的 20ms，快门梯放出一个 HAL 必定压回的死档。
+        // 兜底链：两个来源都拿不到（异常态）才退 HIGH_SPEED_FPS——与旧 fallback 一致。
+        val fps = maxOf(p.fpsTarget, p.fps?.lo ?: 0).takeIf { it > 0 } ?: WotaTiers.HIGH_SPEED_FPS
+        // SENSOR 三键只在手动档产出（AE_OFF 下它们被尊重，值有意义）；
+        // 自动档 null = 不写。残值由引擎在 AE 翻转时**整 builder 重建**解决
+        //（Camera2 无单键 remove，"不写"清不掉上一档写的值——见 Camera2Engine.applyRepeatingNow）。
+        val sensitivity: Int?
+        val exposureNs: Long?
+        val frameDurationNs: Long?
+        if (manual) {
+            sensitivity = state.clampIso(p.iso)
             exposureNs = clampShutterNs(
                 p.shutterNs, fps, state.exposureMinNs, state.exposureMaxNs,
                 // 强制快门档（1/24、1/25）：设备曝光范围容不下也按该值下发
                 forceDeviceRange = WotaTiers.isRequiredShutterNs(p.shutterNs)
-            ),
+            )
             frameDurationNs = frameDurationNs(fps)
+        } else {
+            sensitivity = null
+            exposureNs = null
+            frameDurationNs = null
+        }
+        return ExposurePlan(
+            aeLock = !manual && p.aeMode == AeMode.LOCK,
+            aeMode = if (manual) CaptureRequest.CONTROL_AE_MODE_OFF else CaptureRequest.CONTROL_AE_MODE_ON,
+            aeComp = if (manual) 0 else state.clampEv(p.evSteps),
+            sensitivity = sensitivity,
+            exposureNs = exposureNs,
+            frameDurationNs = frameDurationNs
         )
     }
 
@@ -384,9 +453,12 @@ object RequestApplier {
         builder.set(CaptureRequest.CONTROL_AE_LOCK, plan.aeLock)
         builder.set(CaptureRequest.CONTROL_AE_MODE, plan.aeMode)
         builder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, plan.aeComp)
-        builder.set(CaptureRequest.SENSOR_SENSITIVITY, plan.sensitivity)
-        builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, plan.exposureNs)
-        builder.set(CaptureRequest.SENSOR_FRAME_DURATION, plan.frameDurationNs)
+        // SENSOR 三键只在手动档写（null = 不写）；自动档的残值由引擎侧 AE 翻转重建 builder 清掉。
+        // 这里的 `?.let` 不是"按档分支写键"的老病：三键在请求里**缺席**才是本设计的目标，
+        // 分支判断吃的是 plan 的可空性而不是档位字面量（守卫的 if(manual) 禁令针对后者）
+        plan.sensitivity?.let { builder.set(CaptureRequest.SENSOR_SENSITIVITY, it) }
+        plan.exposureNs?.let { builder.set(CaptureRequest.SENSOR_EXPOSURE_TIME, it) }
+        plan.frameDurationNs?.let { builder.set(CaptureRequest.SENSOR_FRAME_DURATION, it) }
     }
 
     private fun applyAutoFocus(builder: CaptureRequest.Builder, state: State, p: Snapshot) {

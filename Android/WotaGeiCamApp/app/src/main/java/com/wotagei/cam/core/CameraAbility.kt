@@ -76,7 +76,26 @@ data class CameraAbility(
      * [videoSizes] 是 PRIVATE ∪ JPEG，直接拿去开预览流可能命中只有 JPEG 支持的档；
      * DIRECT 模式挑预览流尺寸必须用这张单表。默认空表兼容旧构造点。
      */
-    val previewSizes: List<Size> = emptyList()
+    val previewSizes: List<Size> = emptyList(),
+    /**
+     * 本机可用的 `NOISE_REDUCTION_MODE` 集合（2026-10-26 画面降噪）。
+     * 空表 = HAL 未声明（[android.hardware.camera2.CameraMetadata.REQUEST_AVAILABLE_NOISE_REDUCTION_MODES]
+     * 缺失或不含任何有效项），此时 UI 的 HAL 两档按不可用处理——不猜、不下发未声明能力。
+     */
+    val noiseReductionModes: Set<Int> = emptySet(),
+    /**
+     * 本机可用的 `COLOR_CORRECTION_MODE` 集合（2026-10-26 反馈 #6）。
+     *
+     * 手动白平衡（色温/色调增益）的**契约前提**是 `TRANSFORM_MATRIX`：AWB_MODE=OFF 只关自动
+     * 白平衡，增益要被采纳必须同时进入变换矩阵模式——该机 HAL 没声明 TRANSFORM_MATRIX 时
+     * （华为 ALN-AL00 实测变绿+滑杆失效），系统回合退 FAST/HQ，增益被静默忽略。
+     *
+     * 采集走**键名匹配**而不是静态常量：`android.colorCorrection.availableModes` 这枚键在
+     * 公开 Java API 里没有静态字段（android-34 jar 只有 ABERRATION_MODES 那枚），但键本身
+     * 在能力表里、`getKeys()` 按名字就能拿到。空集合 = 拿不到（隐藏键被裁/LEGACY）⇒ 手动档
+     * 按不可用处理——与"增益不被采纳"的实际行为一致。
+     */
+    val colorCorrectionModes: Set<Int> = emptySet()
 ) {
     /** LEGACY 设备无逐帧控制/无 ZOOM_RATIO，UI 顶部要提示能力受限 */
     fun isLegacy(): Boolean = hardwareLevel == CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
@@ -89,6 +108,15 @@ data class CameraAbility(
     fun manualExposurePossible(): Boolean = iso.ok() && exposureNs.ok()
 
     /**
+     * 手动白平衡（色温/色调增益）在本机是否真能生效（2026-10-26 反馈 #6）：
+     * 契约前提是 HAL 声明了 `TRANSFORM_MATRIX`。空集合 = 隐藏键拿不到（无法判定）
+     * ⇒ 视为可用，保持既有行为（不因"查不到"而把用户已选的手动档弹掉）。
+     */
+    fun manualWhiteBalancePossible(): Boolean =
+        colorCorrectionModes.isEmpty() ||
+            colorCorrectionModes.contains(CameraMetadata.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)
+
+    /**
      * 帧率范围按尺寸分流：高速档是「尺寸 → 范围」表，
      * size 为空或该尺寸未列入高速表时，退化成所有高速尺寸的并集，仅用于档位可用性判断。
      */
@@ -98,6 +126,27 @@ data class CameraAbility(
         val exact = highSpeedFps.entries.firstOrNull { sizeCloseTo(it.key, size, VideoSizeCandidates.TOLERANCE_PX) }
         return exact?.value ?: emptyList()
     }
+
+    /**
+     * 档位可用性判定域：普通 ∪ 高速（按尺寸）并集——档位「能不能选」看它。
+     * 厂商常把 50/60 只放进高速表（如 vivo V2520A：普通流仅 [24,24]/[30,30]，
+     * 高速 1080p 给 [30,120]/[60,120]/[120,120]/[30,240]/[60,240]/[240,240]），
+     * 按当前会话模态判定会让 50/60/120/240 永远灰显（2026-10-26 用户报障）。
+     * 会话内的下发 / 钳制仍按单模态 [fpsRangesFor]（当前会话实际给得到的范围）。
+     */
+    fun fpsRangesUnion(size: Size?): List<RangeI> = fpsRangesUnion(fpsRanges, fpsRangesFor(size, true))
+
+    /** 该帧率普通会话覆盖不了、但高速表（按尺寸）覆盖 ⇒ 需要高速会话（结构性换挡） */
+    fun needsHighSpeed(size: Size?, fps: Int): Boolean =
+        needsHighSpeedFps(fpsRanges, fpsRangesFor(size, true), fps)
+
+    /**
+     * 一档的**完整决议**：用哪张表、下发哪个区间、精不精确、要不要高速会话。
+     * UI 的可选性/※ 标记、参数总线落档、引擎开会话与下发，四处都只认这一个出口
+     * （2026-10-26 三处判据分叉那次事故的根治：各写一份就会"界面说可选、请求发的是非法值"）。
+     */
+    fun decideFps(size: Size?, fps: Int): FpsDecision? =
+        decideFps(fpsRanges, fpsRangesFor(size, true), fps)
 
     /** 录像尺寸上下限（UI「本机支持范围 …～」文案数据源） */
     fun videoBounds(): Pair<Size?, Size?> {
@@ -118,6 +167,14 @@ data class CameraAbility(
             " minFocusD=$minFocusDistanceDiopter zoomRatio=$zoomRatioRange maxDigital=$maxDigitalZoom")
         Log.i(tag, "ability[$label] afModes=$afModes awbModes=$awbModes flash=$flashAvailable" +
             " regionsAf=$maxRegionsAf regionsAe=$maxRegionsAe ois=$oisAvailable eis=$eisAvailable")
+        // 画面降噪的**唯一能力依据**（2026-10-26）：0=OFF 1=FAST 2=HIGH_QUALITY 4=ZERO_SHUTTER_LAG。
+        // 面板"HAL 快速/HAL 高质量"能不能选、下发会不会被 RequestApplier 拦掉，都只看这一行；
+        // 空集合 = 未声明 ⇒ 两档都必须灰显（判"用户说开了却没效果"时先核这里）
+        Log.i(tag, "ability[$label] noiseReductionModes=${noiseReductionModes.sorted().joinToString()}" +
+            if (noiseReductionModes.isEmpty()) "（未声明 ⇒ HAL 两档不可用）" else "")
+        Log.i(tag, "ability[$label] colorCorrectionModes=${colorCorrectionModes.sorted().joinToString()}" +
+            if (colorCorrectionModes.contains(CameraMetadata.COLOR_CORRECTION_MODE_TRANSFORM_MATRIX)) ""
+            else "（未声明 TRANSFORM_MATRIX ⇒ 手动白平衡增益不被采纳）")
         Log.i(tag, "ability[$label] fpsRanges=${fpsRanges.joinToString { "[${it.lo},${it.hi}]" }}" +
             " fixed24=${hasFixedFps(24)} fixed25=${hasFixedFps(25)} highSpeedCapable=$highSpeedCapable")
         Log.i(tag, "ability[$label] videoSizes=${videoSizes.size} max=${maxSize.fmt()}(${maxSize.aspect()})" +
@@ -160,6 +217,17 @@ data class CameraAbility(
                 }
             } else emptyMap()
 
+            // 画面降噪（2026-10-26）：HAL 声明的降噪模式是「能不能开」的唯一依据
+            val noiseReductionModes =
+                (tryOrNull { cc.get(CameraCharacteristics.NOISE_REDUCTION_AVAILABLE_NOISE_REDUCTION_MODES) }
+                    ?: IntArray(0)).toSet()
+            // 手动白平衡的门控依据（反馈 #6）：隐藏键按名字取（公开 API 无静态字段，见字段注）
+            val colorCorrectionModes = tryOrNull {
+                @Suppress("UNCHECKED_CAST")
+                val key = cc.keys.firstOrNull { it.name == "android.colorCorrection.availableModes" }
+                    as? CameraCharacteristics.Key<IntArray>
+                key?.let { cc.get(it) } ?: IntArray(0)
+            }?.toSet() ?: emptySet()
             val zoomRatio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 RangeF.of(tryOrNull { cc.get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) })
             } else RangeF.CLOSED
@@ -195,7 +263,9 @@ data class CameraAbility(
                     ?: IntArray(0)).contains(CameraMetadata.CONTROL_VIDEO_STABILIZATION_MODE_ON),
                 highSpeedCapable = highSpeedCapable,
                 availableSurfaceFormats = tryOrNull { map?.outputFormats } ?: IntArray(0),
-                previewSizes = previewSizes
+                previewSizes = previewSizes,
+                noiseReductionModes = noiseReductionModes,
+                colorCorrectionModes = colorCorrectionModes
             )
         }
 
@@ -261,6 +331,57 @@ fun pickFpsRange(ranges: List<RangeI>, target: Int): FpsPick? {
     if (fixed != null) return FpsPick(fixed.lo, fixed.hi, true)
     val containing = ranges.filter { it.lo <= target && target <= it.hi }.maxByOrNull { it.hi } ?: return null
     return FpsPick(containing.lo, containing.hi, false)
+}
+
+/** 档位可用性判定域：普通 ∪ 高速并集。UI 档位「能不能选」与换档精确性按它判定；会话内下发 / 钳制仍按单模态范围表 */
+fun fpsRangesUnion(normal: List<RangeI>, highSpeed: List<RangeI>): List<RangeI> = normal + highSpeed
+
+/** 该帧率普通会话覆盖不了、但高速会话（按尺寸的高速范围表）覆盖 ⇒ 需要高速会话 */
+fun needsHighSpeedFps(normal: List<RangeI>, highSpeed: List<RangeI>, fps: Int): Boolean =
+    pickFpsRange(normal, fps) == null && pickHighSpeedFpsRange(highSpeed, fps) != null
+
+/**
+ * 高速表专用选档（2026-10-26 新增）：**只用机器声明过的区间**，绝不自己造 `[f,f]`。
+ *
+ * 为什么不沿用 [pickFpsRange]：它"取覆盖目标里上界最大者"，放到高速表上会挑到 `[30,240]`
+ * 这种极宽区间——用户选 60、HAL 却有机会跑到 240。高速表这里分三级：
+ * 1. **固定档 `[f,f]`**（`[120,120]`/`[240,240]`）⇒ 精确，原样返回；
+ * 2. **下界正好等于目标**的区间（目标 60 → `[60,120]`/`[60,240]`）⇒ 最贴近目标且 HAL 只会往上，
+ *    取其中上界最小者；
+ * 3. 再退：覆盖目标者取上界最小者（目标 50 只有 `[30,120]`/`[30,240]` ⇒ 取 `[30,120]`）。
+ *
+ * 返回 null = 这张表没有任何区间覆盖目标（调用方按"本机做不到这一档"处理，**不要**退回普通表硬发）。
+ *
+ * 【2026-10-26 修正】旧实现是 `FpsPick(target, target, true)`——直接造 `[50,50]`。那不是机器声明过
+ * 的值，送进 `createHighSpeedRequestList` 会被拒；而拒了之后又掉进没有退路的降档分支 ⇒ 取景器假死。
+ */
+fun pickHighSpeedFpsRange(ranges: List<RangeI>, target: Int): FpsPick? {
+    if (ranges.isEmpty() || target <= 0) return null
+    ranges.firstOrNull { it.lo == target && it.hi == target }?.let { return FpsPick(it.lo, it.hi, true) }
+    val containing = ranges.filter { it.lo <= target && target <= it.hi }
+    if (containing.isEmpty()) return null
+    val chosen = containing.filter { it.lo == target }.minByOrNull { it.hi }
+        ?: containing.minByOrNull { it.hi }!!
+    return FpsPick(chosen.lo, chosen.hi, false)
+}
+
+/** 一档的完整决议（见 [CameraAbility.decideFps]）：下发哪个区间、走不走高速会话 */
+data class FpsDecision(val pick: FpsPick, val highSpeed: Boolean)
+
+/**
+ * 一档的完整决议（纯函数，JVM 全测）：**普通表先来，普通表覆盖不了才看高速表**。
+ * 返回 null = 两张表都不覆盖 ⇒ 界面灰显、总线落 `enabled=false`，不硬发。
+ *
+ * 这条顺序就是产品口径：机器能在普通流里跑的就别开高速会话；只有普通流给不到的档才请出高速会话。
+ * 它同时回答"50/60 该不该灰"——**看机器在哪张表里声明**：声明在普通表就是普通档；只在高速表
+ * 声明的（如 vivo V2520A 的 50/60）仍然可用，因为那张表正是厂商把"高帧率录像"暴露给第三方 App
+ * 的途径，只是实际速率由 HAL 在区间内定 ⇒ 界面标 ※ 如实告知。
+ */
+fun decideFps(normal: List<RangeI>, highSpeed: List<RangeI>, fps: Int): FpsDecision? {
+    if (fps <= 0) return null
+    pickFpsRange(normal, fps)?.let { return FpsDecision(it, false) }
+    pickHighSpeedFpsRange(highSpeed, fps)?.let { return FpsDecision(it, true) }
+    return null
 }
 
 /** 35mm 等效焦距：eq = round(43.27 / sqrt(sw²+sh²) × focal × 100) / 100；43.27 是全画幅对角线，物理常量非机型值 */

@@ -132,7 +132,12 @@ import com.wotagei.cam.core.FrameEffect
 import com.wotagei.cam.core.CamPill
 import com.wotagei.cam.core.HudItem
 import com.wotagei.cam.core.LensType
+import com.wotagei.cam.core.MediaAccessState
 import com.wotagei.cam.core.RenderMode
+import com.wotagei.cam.core.isMediaStoreVideoUri
+import com.wotagei.cam.core.mediaAccessLabel
+import com.wotagei.cam.core.mediaAccessState
+import com.wotagei.cam.core.needsMediaAccessHint
 import com.wotagei.cam.core.Stabilize
 import com.wotagei.cam.core.TOP_BAR_CHROME_RESERVE_DP
 import com.wotagei.cam.core.TapPoint
@@ -140,6 +145,7 @@ import com.wotagei.cam.core.WotaParams
 import com.wotagei.cam.core.WotaTiers
 import com.wotagei.cam.media.SeriesStore
 import com.wotagei.cam.media.formatDuration
+import com.wotagei.cam.media.persistPickReadPermission
 import com.wotagei.cam.media.rememberMediaRepo
 import com.wotagei.cam.player.AudioTrackKind
 import com.wotagei.cam.player.ComparePractice
@@ -202,6 +208,7 @@ import com.wotagei.cam.ui.design.WotaIconButton
 import com.wotagei.cam.ui.design.WotaSpace
 import com.wotagei.cam.ui.design.wotaCard
 import com.wotagei.cam.ui.dialog.CurvePopup
+import com.wotagei.cam.ui.dialog.MediaAccessDialog
 import com.wotagei.cam.ui.dialog.evText
 import com.wotagei.cam.ui.dialog.lensLabelRes
 import com.wotagei.cam.ui.dialog.observed
@@ -290,6 +297,8 @@ fun CameraScreen(
     val refLines by params.refLines.observed()
     val levelEnabled by params.levelEnabled.observed()
     val arcMergeDeadband by params.arcMergeDeadband.observed()
+    /** 画面降噪档（2026-10-26）：实际生效档由 core.effectiveVideoDenoise 与本页 renderMode 共同裁决 */
+    val videoDenoise by params.videoDenoise.observed()
     // 常驻 HUD 与震动开关是纯 UI 设置，直接读 prefs：走参数总线会被 applyDefaultsOnce 的
     // 「进程内只套一次」挡住，在设置页改完回录制页看不到效果
     val settingsPrefs = remember(app) { WotaSettings.of(app) }
@@ -489,6 +498,46 @@ fun CameraScreen(
             runner.clearRetryNotice()
         }
     }
+    // 画面降噪"按负载自动降档"的提示（2026-10-26，用户要求：自动降档都要看得见）：
+    // 判据 [denoiseKernelLite] 与 GL 侧挑 program 用的是**同一支纯函数**（编码面像素 × 帧率），
+    // 所以这里判它降档 = GL 那边确实换了轻量核。每次录制最多一条，退到 IDLE 复位。
+    var denoiseLiteNotified by remember { mutableStateOf(false) }
+    // 切手动对焦时提示峰值对焦（2026-10-26 反馈 #2/#7 方案G 的最小形态）：手动对焦只有屈光度
+    // 滑杆没有判焦辅助确实难用，而峰值监看是既有功能——提示一次，不联动开启（联动改变用户
+    // 的监看设置属习惯变更，用户未要）。每次进页一条，重复切不刷屏。
+    var focusManualTipShown by remember { mutableStateOf(false) }
+    LaunchedEffect(afMode) {
+        if (afMode == AfMode.MANUAL && !focusManualTipShown) {
+            focusManualTipShown = true
+            showTip(app.getString(R.string.cam_focus_manual_peaking_tip))
+        }
+    }
+    LaunchedEffect(recStatus) {
+        when (recStatus) {
+            RecordStatus.IDLE -> denoiseLiteNotified = false
+            RecordStatus.START -> {
+                val gpuDenoise = com.wotagei.cam.core.effectiveVideoDenoise(
+                    videoDenoise, renderMode == RenderMode.GPU
+                ) == com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL
+                val lite = com.wotagei.cam.core.denoiseKernelLite(size.width, size.height, fps.value)
+                if (!denoiseLiteNotified && gpuDenoise && frameEffect == FrameEffect.NONE && lite) {
+                    denoiseLiteNotified = true
+                    showTip(app.getString(R.string.denoise_lite_tip))
+                }
+            }
+            else -> Unit
+        }
+    }
+    // 帧率被自动降档（2026-10-26）：引擎在一次高速档请求失败后把 fps 退到普通表可达上限，
+    // 走同一条 hint 通道报出去。用户口径：**所有自动降档都要看得见**——不说的话他只看到帧率
+    // 自己变了，只会当成 bug（本轮之前这条路径是"什么都不做、取景器假死"）。
+    LaunchedEffect(ctrl) {
+        ctrl.fpsDowngraded.collect { to ->
+            if (to == null) return@collect
+            showTip(app.getString(R.string.cam_fps_downgraded_tip, to))
+            ctrl.clearFpsDowngrade()
+        }
+    }
     // 环境音丢失提示（S1-M3-05 可见化）：录制中巡检读到引擎置位即推一次，同款 hint 通道。
     // 提示是"这一刻没有环境音"的信息，结果层的「已保存 + 附注」是另一条通道（两条各自可见）
     LaunchedEffect(runner) {
@@ -496,6 +545,15 @@ fun CameraScreen(
             if (id == null) return@collect
             showTip(app.getString(id))
             runner.clearAmbientLostNotice()
+        }
+    }
+    // 音频降噪「要了却没生效」（2026-10-26）：本机没有 NoiseSuppressor / 启用失败时如实报一次，
+    // 免得用户以为环境音在降噪（面板文案只说"会按无降噪继续"，不说明"这一次到底有没有生效"）
+    LaunchedEffect(runner) {
+        runner.denoiseInactiveNotice.collect { id ->
+            if (id == null) return@collect
+            showTip(app.getString(id))
+            runner.clearDenoiseInactiveNotice()
         }
     }
     // 录制中相机设备被系统收回（2026-10-16 M1-01）：唯一 CLOSE 发布点 Camera2Engine.handleDeviceLost
@@ -561,7 +619,7 @@ fun CameraScreen(
     // ---- GPU 特效档位实时下发；DIRECT 强制无特效（03 文档 §1）
     LaunchedEffect(
         glEngine, renderMode, frameEffect, zebraThreshold, zebraDensity, peakingStrength, peakingColor, curveStack,
-        arcMergeDeadband
+        arcMergeDeadband, videoDenoise
     ) {
         val gl = glEngine ?: return@LaunchedEffect
         gl.setEffect(if (renderMode == RenderMode.DIRECT) FrameEffect.NONE else frameEffect)
@@ -572,6 +630,12 @@ fun CameraScreen(
         // 补弧「并入门槛」同理：只下发给当前引擎的本段 uniform，下一段 setArcConvert 仍回落到
         // 参数总线发布的快照（真源在 WotaParams.setArcMergeDeadband）——这里不改打戳/抽帧节奏
         gl.setArcMergeDeadband(arcMergeDeadband)
+        // 画面降噪（2026-10-26）：GPU 双边档只在 GPU 渲染下成立，实际档由 core.effectiveVideoDenoise
+        // 统一裁决（DIRECT 退回 HAL，HAL 由相机请求下发、不走 GL）；换引擎时同曲线一样补发
+        gl.setVideoDenoise(
+            com.wotagei.cam.core.effectiveVideoDenoise(videoDenoise, renderMode == RenderMode.GPU) ==
+                com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL
+        )
     }
 
     // ---- 方向：显示角喂给两条 sink，sink 内部再叠自己读到的缓冲矩阵旋转分量（见 camera/PreviewOrientation）
@@ -865,13 +929,14 @@ fun CameraScreen(
     else BottomBarSpaceFallback.value.roundToInt()
     // ---- 可见条目集 = 设置里开着显示的那些。关掉的整颗不出现，但**仍留在位置表里**（见
     // [HudLayoutTable.visibleOrderOf]：过滤只读表、不改表），所以"隐藏再打开显示"回到的是用户放好的位置。
-    // #54 的开关位 + #44 的定焦判定 + 运行时「本机有无闪光灯」+ 音量表只在录制中出现，四条判据都收在
-    // 这里，少认一条就是假开关（历史上「对焦」那颗按下去没反应就是这个）
+    // #54 的开关位 + 运行时「本机有无闪光灯/这颗镜头能不能对焦」+ 音量表只在录制中出现。
+    // 2026-10-26 口径反转：闪光/对焦这两颗**能力给不了时不再整颗摘除**——摘除会在它们的钉格上
+    // 留一格空洞（marble 反馈：点亮「对焦」后录制页那格空着），且用户对着洞无从知道为什么；
+    // 改为留在 visibleEntries 里，由 HudEntryItem 按 ctx 两枚布尔画半透明禁用态、点击给解释。
+    // 少认一条仍是假开关：四条判据的现居处 = HudEntryItem 的 alpha + hudCtx 的 onClick 分流。
     val visibleEntries: Set<HudEntry> = buildSet {
         CamPill.ALL.filter { it !in hiddenPills }.filter { p ->
             when (p) {
-                CamPill.FLASH -> canFlash
-                CamPill.FOCUS -> focusUsable
                 CamPill.LEVEL -> levelEnabled
                 CamPill.VOLUME -> recording && audioEnabled
                 else -> true
@@ -1012,6 +1077,9 @@ fun CameraScreen(
     val lensEntry = HudEntry.of(CamPill.LENS)
     val lensInBottomDock = lensEntry in visibleEntries &&
         hudLayout.sourceZoneOf(lensEntry) == HudZone.BOTTOM
+    // 「降噪」那颗同理（2026-10-26）：归属归表说了算，在底栏时走 [BottomBandChips] 的伴随条目渲染，
+    // 被搬到别的容器时由那枚容器泛化渲染——同一颗只有一条渲染路，锚点也就只有一个写入方
+    val denoiseEntry = HudEntry.of(CamPill.DENOISE)
 
     // ---- 第 8 条：长按底栏 Dock 换栏（只作用 y，结果写进 hud_layout 的底栏容器那一份坐标）
     var dockDragging by remember { mutableStateOf(false) }
@@ -1149,6 +1217,10 @@ fun CameraScreen(
     val topBarSizeLabel = sizeText(size)
     val topBarWidths = rememberCapacityTextWidths(freeMb, topBarTotalBps, topBarSizeLabel)
     val hudCtx = HudCtx(
+        // 能力闸两颗（2026-10-26 口径反转）：给不了时胶囊**在场但禁用**（HudEntryItem 画半透明，
+        // 点击给解释），不再整颗隐藏——隐藏会在钉格上留洞且用户无从理解（见 visibleEntries 处注释）
+        focusUsable = focusUsable,
+        flashUsable = canFlash,
         recording = recStatus == RecordStatus.START,
         busy = recStatus == RecordStatus.PREPARE || recStatus == RecordStatus.STOPPING,
         // 计时与状态是**读数**不是入口：给它们挂 onClick 只会让人以为点开有配置项（§37 第 4 条）
@@ -1181,6 +1253,16 @@ fun CameraScreen(
         ),
         monitorActive = frameEffect != FrameEffect.NONE,
         curveOn = !curveStack.isPassthrough,
+        // 降噪胶囊读数（2026-10-26）：短名与"生效中"标记。短名恒取**控件名**（与 防抖/对焦/监看
+        // 同一条口径：读数颗的字面量是"它是什么"，而"开没开"由 TierChip 的选中态上色承担）。
+        // 不在这里改成"当前档短名"：底栏左带最窄只有 ≈64dp（竖屏 360dp 那一档），
+        // 一串「系统降噪·GPU 双边」会把那颗 chip 撑到顶掉整个 Dock 左带
+        denoiseLabel = stringResource(R.string.cam_pill_denoise),
+        denoiseActive = com.wotagei.cam.core.videoDenoiseActive(
+            params.videoDenoise.value, renderMode == RenderMode.GPU,
+            monitorEffectOn = frameEffect != FrameEffect.NONE
+        ) ||
+            params.audioDenoise.value != com.wotagei.cam.core.AudioDenoise.OFF,
         flash = flash,
         // 六项第 7 条：镜头入口从顶栏搬到底栏那颗，标签读当前镜头名
         lensLabel = stringResource(lensLabelRes(slot?.type ?: lens)),
@@ -1241,7 +1323,13 @@ fun CameraScreen(
         onFreeClick = { pop = PillKey.STORAGE },
         onRefLineClick = { pop = PillKey.REFLINE },
         onMonitorClick = { pop = PillKey.MONITOR },
-        onFlashClick = { pop = PillKey.FLASH },
+        // 能力给不了的两颗（2026-10-26 口径反转）：不再从 visibleEntries 整颗摘除（那会在它的
+        // 钉格上留一格空洞，用户对着洞无从理解），改为**在场但禁用**——点了给一句解释，面板不出现
+        //（#44「不摆灰选项骗点」保留在面板层）。半透明的禁用观感由 HudEntryItem 按 ctx 两枚布尔画。
+        onFlashClick = {
+            if (canFlash) pop = PillKey.FLASH else showTip(app.getString(R.string.cam_flash_unsupported))
+        },
+        onDenoiseClick = { pop = PillKey.DENOISE },
         onCurveClick = {
             openSheet(Sheet.CURVE)
             // 小弹窗没有副标题位：CPU 渲染档曲线不可拖，进弹窗第一时间用提示条说清
@@ -1249,7 +1337,9 @@ fun CameraScreen(
             if (renderMode != RenderMode.GPU) showTip(app.getString(R.string.cam_monitor_need_gpu))
         },
         onZoomClick = { pop = PillKey.ZOOM },
-        onFocusClick = { pop = PillKey.FOCUS },
+        onFocusClick = {
+            if (focusUsable) pop = PillKey.FOCUS else showTip(app.getString(R.string.cam_focus_unsupported))
+        },
         onStabClick = { pop = PillKey.STAB },
         onBtClick = { pop = PillKey.BT },
         // 2026-10-17：点按/长按都开镜头面板（点按不再切下一颗镜头）；录制中也能开，弹窗内只读
@@ -1503,69 +1593,36 @@ fun CameraScreen(
                             area = baseArea,
                             shiftYPx = { if (dockDragging) dockShiftPx else 0f },
                             nativeTopMinDp = 0,   // 同上：非顶栏容器不读这条下限
-                            onCardRect = { putCardRect(HudZone.BOTTOM, it) }
+                            onCardRect = { putCardRect(HudZone.BOTTOM, it) },
+                            // ---- 底栏 Dock 左侧、同一带的两枚 chip（10-01 布局批的码率读数 + 2026-10-26
+                            // 的降噪胶囊）。落位账全在 [BottomBandChips] 里：贴 Dock 左缘、装不下退屏幕
+                            // 左缘、再装不下上移一条带——两枚 chip 一起进退（一条 Row），不会互相压上。
+                            // 走 b 案（伴随条目挂在**容器槽里**）不选 a 案（Row 包 BOTTOM 的 HudZoneBox）：
+                            // BOTTOM 槽位是 `align(BottomCenter) + fillMaxWidth`，Row 里先摆 chip 再摆 Dock
+                            // 会把 Dock 的居中基准从"整宽安全区"改成"扣掉 chip 的剩余宽"，录制键中心≠可视
+                            // 水平中心，不变量②当场崩。伴随条目与 Dock 是同一枚槽 Box 的**两个兄弟**，
+                            // Dock 的居中一个字都不受影响。
+                            bandExtra = { dockLeftPx ->
+                                BottomBandChips(
+                                    dockLeftPx = dockLeftPx,
+                                    dockStripH = dockStripH,
+                                    denoiseEntry = denoiseEntry.takeIf {
+                                        it in visibleEntries && hudLayout.sourceZoneOf(it) == HudZone.BOTTOM
+                                    },
+                                    hudCtx = hudCtx,
+                                    bitrateLabel = if (HudItem.BITRATE in hudItems) {
+                                        hudCtx.readoutValue(HudItem.BITRATE)
+                                    } else null,
+                                    pillAnchors = pillAnchors,
+                                    onBitrateClick = { hudCtx.onReadoutOpen(HudItem.BITRATE) }
+                                )
+                            }
                         ) {
                             HudBottomZone(
                                 showLens = lensInBottomDock,
                                 ctx = hudCtx,
                                 drag = dockDrag
                             )
-                        }
-                        // ---- 码率读数 chip（10-01 布局批第 1 条）：底栏 Dock 左侧、同一带 ----
-                        // 选 b 案（HUD 根盒上加 sibling）不选 a 案（Row 包 BOTTOM 的 HudZoneBox）：BOTTOM
-                        // 槽位是 `align(BottomCenter) + fillMaxWidth`（HudZoneBox），Row 里先摆 chip 再摆 Dock
-                        // 会把 Dock 的居中基准从"整宽安全区"改成"扣掉 chip 的剩余宽"，录制键中心≠可视水平
-                        // 中心，不变量②当场崩；且 HudZoneBox 是 BoxScope 扩展，Row 作用域里编译不过。
-                        // 横向用 offset 反推而不用 padding(end=)：padding 会把左半带剩余宽压成 chip 的测量
-                        // 上限（竖屏 360dp 那档只有 ≈64dp，chip 自然宽 ≈90dp 被迫裁字——§58/§73 那族坑）；
-                        // offset 只平移不改测量约束，chip 永远按自然宽量。左半带真装不下（竖屏）时先退贴屏幕
-                        // 左缘；若那样仍压到 Dock（fallback 右缘越过 Dock 左缘）则再上移退出这条带
-                        // （见 bitrateYOffPx）——分两步退，第一步保持同带、第二步才是离带。chip 宽实测
-                        // 两轮收敛（与 topBarH/dockStripH 同一套手法），首帧按退避位画、第二帧贴上 Dock 左缘。
-                        // 已知边界：第 8 条把 Dock 长按换到上栏后这颗留在底带——跟 y 需要安全区盒的窗口原点
-                        // 这个新机制，用户未要求，不做。
-                        if (HudItem.BITRATE in hudItems) {
-                            val bitrateLabel = hudCtx.readoutValue(HudItem.BITRATE)
-                            if (bitrateLabel != null) {
-                                var bitrateChipWpx by remember { mutableIntStateOf(0) }
-                                val bitrateGapPx = with(hudDensity) { WotaSpace.s.toPx() }
-                                val bitrateEdgePx = with(hudDensity) { HudEdgePad.toPx() }
-                                val bitrateDockW =
-                                    if (dockCardW > 0) dockCardW else BottomDockWidthFallback.value.roundToInt()
-                                // Dock 居中于整宽安全区（不变量②），左缘 = (safeW − dockW)/2；
-                                // chip 右缘目标 = Dock 左缘 − 一枚 WotaSpace.s（与 planReadoutRow 的 dockGapDp 同一枚令牌）
-                                val bitrateDockLeftPx =
-                                    with(hudDensity) { ((safeW - bitrateDockW).coerceAtLeast(0) / 2f).dp.toPx() }
-                                val bitrateHugX = bitrateDockLeftPx - bitrateGapPx - bitrateChipWpx
-                                val bitrateFits = bitrateChipWpx > 0 && bitrateHugX >= bitrateEdgePx
-                                val bitrateX = if (bitrateFits) bitrateHugX else bitrateEdgePx
-                                // 审查 P1（10-01 布局批）：竖屏窄带（safeW <≈434dp）时 fallback 位（贴屏幕左缘）
-                                // 的右缘会越过 Dock 左缘、压上底板 26dp——fallback 必须真正退出这条带：上移一档
-                                // （dockStripH + 一枚间隙），与 READOUT 退化档"装不下就退到带上方"真正同族
-                                // （原注释称同族是错的，两者的退法并不同族）。首帧 chipW=0 不判重叠，第二帧实测接管
-                                val bitrateYOffPx =
-                                    if (!bitrateFits && bitrateEdgePx + bitrateChipWpx > bitrateDockLeftPx) {
-                                        with(hudDensity) { (dockStripH.dp + WotaSpace.s).toPx() }.roundToInt()
-                                    } else 0
-                                WotaChip(
-                                    label = bitrateLabel,
-                                    selected = false,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomStart)
-                                        // 与底板可见底边齐平（BottomBarOuterPadV 那一档），即与 READOUT 那行
-                                        // 同一条底缘线——"同带"的纵向口径与 #70 A 一致；上移档由 bitrateYOffPx 承担
-                                        .padding(bottom = BottomBarOuterPadV)
-                                        .offset { IntOffset(bitrateX.roundToInt(), -bitrateYOffPx) }
-                                        .onSizeChanged { if (it.width != bitrateChipWpx) bitrateChipWpx = it.width }
-                                        // BITRATE 就近浮层的锚点写入方从 HudEntryItem 换到这颗：不挂的话
-                                        // 长按弹层按 IntRect.Zero 钉回屏幕左上角（§69 缺陷族）
-                                        .pillAnchorReport(pillAnchors, PillKey.BITRATE),
-                                    secondary = stringResource(HudItem.BITRATE.labelRes),
-                                    onClick = { hudCtx.onReadoutOpen(HudItem.BITRATE) },
-                                    onLongClick = { hudCtx.onReadoutOpen(HudItem.BITRATE) },
-                                    frost = hudFrostPillPlate
-                                )
-                            }
                         }
                     }
                 }
@@ -1687,6 +1744,10 @@ fun CameraScreen(
             bt = bt,
             capture = capture,
             onEnableCapture = enableCapture,
+            // HAL 两档逐档判可用 ⇒ 传集合（不是"有没有任意模式"）；斑马纹/峰值开着时 GPU 双边不生效，
+            // 面板要如实说明（胶囊的"生效中"标记走 core.videoDenoiseActive 的同一条口径）
+            halNoiseReductionModes = slot?.ability?.noiseReductionModes.orEmpty(),
+            monitorEffectOn = frameEffect != FrameEffect.NONE,
             )
         }
         // 提示必须与胶囊同一层甚至更高：胶囊是独立窗口，写在主窗口里的提示会被它整个盖住，
@@ -1825,7 +1886,8 @@ private fun SplitPanel(
  * 左侧录制与这里互不干扰：这是**独立**的引擎实例，整条相机链路一次都不碰。
  *
  * 参考视频**外放**（用 PlayerEngine 默认音量）：内录要 MediaProjection 授权，本批不做，
- * 只让用户听得见。选片走系统相册 ACTION_PICK（与对比页同一手法）：content Uri → mediaId → 仓库反查；
+ * 只让用户听得见。选片走系统相册 ACTION_PICK（与对比页同一手法）：回程 content Uri 直接交仓库
+ * 解码播放（2026-10-26 起 URI 优先，mediaId 不再是播放门槛，外来 provider 也能播），
  * 选完默认暂停（[com.wotagei.cam.player.PlayerEngine.attach] 内置 playWhenReady=false），点播放才播。
  * （上面这句说的是**采集**外放，不是选轨：内录出产片——容器双音轨——的选轨播放已支持，见下。）
  *
@@ -1842,6 +1904,19 @@ private fun SplitComparePlayer(autoAttachId: Long?, modifier: Modifier = Modifie
     val scope = rememberCoroutineScope()
     var clipUri by remember { mutableStateOf<Uri?>(null) }
     var banner by remember { mutableStateOf<Int?>(null) }
+    /**
+     * 选片失败且媒体读取权限不足时的提示档（null = 不弹）。
+     *
+     * 与 [banner] 分工：权限不足要引导去开权限（可操作），其它失败（云端/私密相册/来源不支持）
+     * 只给一句文案。判据是运行时权限，不是列表内容——本应用自录的行在部分授权下同样可见，
+     * 「切到手机相册仍能看到自己录的视频」证明不了权限正常。
+     */
+    var accessPrompt by remember { mutableStateOf<MediaAccessState?>(null) }
+    /**
+     * 选片请求序号：云相册/远程 provider 的解析可能阻塞数秒，用户等不及再点一次时
+     * 先后两次的结果可能乱序返回。只应用最新一次的结果，旧的失败/弹层不许盖在新选择上。
+     */
+    var pickSeq by remember { mutableIntStateOf(0) }
     // 拖动中本地值覆盖轮询值（与单播放页同一条  手法）：松手才 seek，避免 seek 未完成时进度回跳
     var dragFrac by remember { mutableStateOf<Float?>(null) }
     // 观看辅助（部分参考视频可能是竖屏的，转个角度看）：双指缩放+平移复用 PlayerScreen 的
@@ -1860,6 +1935,12 @@ private fun SplitComparePlayer(autoAttachId: Long?, modifier: Modifier = Modifie
     val dur by engine.durationMs.observed()
     val playing by engine.isPlaying.observed()
     val audioGroups by engine.audioGroups.observed()
+    // 播放错误可见（2026-10-26）：坏文件/不支持的编码在 ExoPlayer 里只会走 onPlayerError，
+    // 不给 UI 反馈就是「画面黑着、进度不动」——导出诊断件也看不出是解码失败。
+    val playbackErr by engine.playbackError.observed()
+    LaunchedEffect(playbackErr) {
+        if (playbackErr != null) banner = R.string.player_error
+    }
 
     // 练习参考片自动挂载：只挂一次（clipUri 已非空 = 用户换过片，别再拉回去）
     LaunchedEffect(autoAttachId) {
@@ -1893,37 +1974,70 @@ private fun SplitComparePlayer(autoAttachId: Long?, modifier: Modifier = Modifie
         else engine.setAudioTrackOverride(plan.overrideGroupIndex, 0)
     }
 
+    /**
+     * 选片失败统一出口：先留现场（这两条失败分支原先一条日志都没有，用户导出的诊断件里
+     * 看不出走到哪一步，只能靠猜），再按媒体权限决定提示形态。
+     */
+    suspend fun reportPickFailure(uri: Uri?, id: Long, stage: String) {
+        // 权限探测里有 isExternalStorageManager 的 binder 调用：放 IO 上做，横幅仍回主线程写
+        val access = withContext(Dispatchers.IO) { mediaAccessState(app) }
+        // 形态也要记：MediaStore 条目之外的来源（照片选择器/文档 provider）与「权限不足」
+        // 是两条完全不同的修法，日志里必须先分清
+        val mediaShape = isMediaStoreVideoUri(uri)
+        Log.w(
+            "WotaPick",
+            "分屏选片失败[$stage]（URI 直读路径）uri=$uri authority=${uri?.authority} id=$id " +
+                "mediaStoreUri=$mediaShape access=${mediaAccessLabel(access)}"
+        )
+        if (needsMediaAccessHint(access)) {
+            accessPrompt = access
+        } else {
+            banner = if (uri != null && !mediaShape) {
+                R.string.compare_pick_foreign_source
+            } else {
+                R.string.compare_pick_failed
+            }
+        }
+    }
+
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        // 每次回程先清旧横幅：原先只写不清，一次失败会把这条文案永久挂在按钮下方，
+        // 之后无论重试、取消还是成功都还看得见，读作「一直失败 / 进不去选片界面」。
+        banner = null
         if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
-        // 坏 Uri / 解析失败一律按没选成处理：parseId 只认 media uri，个别相册会回私有 provider uri，
-        // 那条路回退查 _ID 列（读走 MediaStore 自带权限，不经 uri grant）。
-        // 兜底查询是 binder IPC：回调体在主线程，必须挪进协程并 withContext(IO) 里做
-        // （这段裸 query 不经 repo，clipByIdOnce 的自带 IO 覆盖不到它），横幅仍主线程写
+        // URI 优先（2026-10-26）：回程 URI 直接交仓库解码成 VideoClip 播放，不再 parseId 后按 _ID 反查。
+        // mediaId 只是本应用库内的行号，不再是播放门槛——照片选择器 / 文档 provider / 云端相册给的
+        // Uri 大多本来就 parse 不出数字 id（旧路会误判成「没选成」），这类外来来源也能直接播。
+        // repo.clipByUri 自带 IO 切换，回调体在主线程也不会阻塞；横幅仍主线程写。
+        // 个别相册把结果放 ClipData 而不是 data，两个都取；再没有才判「没选成」。
         val uri = result.data?.data
-        var id = uri?.let { runCatching { ContentUris.parseId(it) }.getOrNull() } ?: 0L
+            ?: result.data?.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
+        val seq = ++pickSeq
         scope.launch {
-            if (id <= 0L && uri != null) {
-                id = withContext(Dispatchers.IO) {
-                    runCatching {
-                        app.contentResolver.query(uri, arrayOf(MediaStore.Video.Media._ID), null, null, null)
-                            ?.use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
-                    }.getOrNull() ?: 0L
-                }
+            if (uri == null) {
+                reportPickFailure(null, 0L, "无回程URI")
+                return@launch
             }
-            if (id <= 0L) {
-                banner = R.string.compare_pick_failed
+            val clip = repo.clipByUri(uri)
+            // 慢 provider 让先后两次选片乱序返回时，只认最新一次的请求
+            if (seq != pickSeq) return@launch
+            if (clip == null) {
+                reportPickFailure(uri, 0L, "读取失败")
             } else {
-                val clip = repo.clipByIdOnce(id)
-                if (clip == null) {
-                    banner = R.string.compare_pick_failed
-                } else {
-                    engine.attach(clip.uri)
-                    clipUri = clip.uri
-                }
+                persistPickReadPermission(app, uri)
+                accessPrompt = null
+                banner = null
+                engine.attach(clip.uri)
+                clipUri = clip.uri
             }
         }
+    }
+
+    // 权限提示是窗口层（AlertDialog 不占布局），放在分支之外：已挂片后续再选失败也能弹
+    accessPrompt?.let { state ->
+        MediaAccessDialog(state = state, onDismiss = { accessPrompt = null })
     }
 
     if (clipUri == null) {
@@ -1937,15 +2051,21 @@ private fun SplitComparePlayer(autoAttachId: Long?, modifier: Modifier = Modifie
                     selected = false,
                     onClick = {
                         // 不加 FLAG_GRANT_READ_URI_PERMISSION：结果 uri 的读授权由相册在 result 里自行授予
-                        picker.launch(Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
+                        banner = null
+                        // 没有 handler（个别 ROM 不注册 ACTION_PICK）时 launch 会抛
+                        // ActivityNotFoundException，不接住就是主线程崩溃；按普通失败提示处理
+                        runCatching {
+                            picker.launch(Intent(Intent.ACTION_PICK, MediaStore.Video.Media.EXTERNAL_CONTENT_URI))
+                        }.onFailure { banner = R.string.compare_pick_failed }
                     }
                 )
-                // 失败提示就地挂在选择按钮下方（本页主职是录制，不另起横幅浮层）
+                // 失败提示就地挂在选择按钮下方（本页主职是录制，不另起横幅浮层）。
+                // 字阶/颜色按正文告警档取：textLo 只准用于非正文（Tokens 的对比度红线）
                 banner?.let {
                     Text(
                         text = stringResource(it),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = WotaColor.textLo
+                        style = MaterialTheme.typography.labelMedium,
+                        color = WotaColor.textMid
                     )
                 }
             }
@@ -2020,6 +2140,15 @@ private fun SplitComparePlayer(autoAttachId: Long?, modifier: Modifier = Modifie
                 },
                 modifier = Modifier.fillMaxWidth()
             )
+            // 播放错误也要能看见：挂片后解码失败/授权中途失效只会「黑屏不动」，
+            // 而上面空态的横幅渲染点已经不再可达——同一枚 banner 在已挂片分支也要画一次
+            banner?.let {
+                Text(
+                    text = stringResource(it),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = WotaColor.textMid
+                )
+            }
         }
     }
 }
@@ -2301,10 +2430,20 @@ private class RecordRunner(
     val ambientLostNotice = MutableStateFlow<Int?>(null)
 
     /**
+     * 音频降噪"要了却没生效"提示（2026-10-26）：与 [ambientLostNotice] 同型同节奏——录制中巡检
+     * 读到引擎置位即推一次，每次录制一条。用户口径：一切自动降档的提示都有必要（这条降的是
+     * 用户对"开着降噪"的预期）。
+     */
+    val denoiseInactiveNotice = MutableStateFlow<Int?>(null)
+
+    /**
      * 同一次录制只提示一次环境音丢失（在录制中巡检里置位）。会话级：[start] 起新录制时复位；
      * 自检重录（attempt++）不复位——用户看到的是"这一次录制"的一条提示，不是每次 attempt 一条。
      */
     private var ambientLostNotified = false
+
+    /** 同一次录制只提示一次「音频降噪未生效」（在录制中巡检里置位，[start] 起新录制时复位） */
+    private var denoiseInactiveNotified = false
 
     /** 起录参数的整束（[SessionArgs]）：start 收一次，自检重录按它整束重放 */
     private class SessionArgs(
@@ -2325,6 +2464,11 @@ private class RecordRunner(
     /** UI 读走环境音丢失提示后清槽（StateFlow 相等去重：清了才收得到下一次同因事件） */
     fun clearAmbientLostNotice() {
         ambientLostNotice.value = null
+    }
+
+    /** UI 读走「降噪未生效」提示后清槽（StateFlow 相等去重：清了才收得到下一次同因事件） */
+    fun clearDenoiseInactiveNotice() {
+        denoiseInactiveNotice.value = null
     }
 
     /**
@@ -2394,6 +2538,7 @@ private class RecordRunner(
             pendingStop = false // 新会话不继承旧意图（上一会话残留的标记在此清账）
             stopRequested = false // 同上：上一会话的停止取消信号不带进新会话
             ambientLostNotified = false // 环境音提示按"一次录制一条"复位（重录 attempt 间不去重）
+            denoiseInactiveNotified = false // 同上：降噪未生效提示也按一次录制一条复位
             activeArcConvert = arcConvert
             activeArcDstFps = if (arcConvert != null) fps else 0
             attempt = 0
@@ -2749,6 +2894,14 @@ private class RecordRunner(
                 ambientLostNotice.value = R.string.cam_ambient_lost_tip
                 Log.w(TAG_UI, "环境音轨丢失（引擎置位）：提示一次，结果文案另有附注")
             }
+            // 音频降噪「要了却没生效」（2026-10-26）：同一拍、同一条提示通道、同一次一条。
+            // 排在环境音丢失之后：那一件是"没有环境音"，比"降噪没生效"更重，先报重的
+            val healthNow = rec.health()
+            if (recording && !denoiseInactiveNotified && healthNow.denoiseInactive) {
+                denoiseInactiveNotified = true
+                denoiseInactiveNotice.value = R.string.denoise_audio_unsupported_tip
+                Log.w(TAG_UI, "音频降噪未生效（引擎置位）：提示一次")
+            }
             if (recording) handler.postDelayed(this, POLL_MS)
         }
     }
@@ -2975,6 +3128,8 @@ private class RecordRunner(
             // sidecar 是否真写出去了：写成功才谈"归位"（提到外层作用域——归位块在前缀改名之后，
             // 必须能看见这个标志，而不是嵌进内层 if 里各管一段）
             var sidecarWritten = false
+            // sidecar 落库通道：file = 共享目录直写（可归位）；mediastore = 兜底（按最终名落库）
+            var sidecarChannel = "none"
             if (path != null) {
                 val drops = glProvider()?.drainArcDrops() ?: emptyList()
                 // 段清单（2026-10-04 裁决）：录制器逐段已写视频样本数 → {segment,first,count}，
@@ -2997,7 +3152,30 @@ private class RecordRunner(
                     path,
                     ArcDropLog(mode = convert.name.lowercase(), dstFps = activeArcDstFps, drops = drops, segments = segs)
                 )
-                Log.i(TAG_UI, "arc drops sidecar ok=$sidecarWritten drops=${drops.size} segs=${segs.size} path=$path")
+                if (sidecarWritten) sidecarChannel = "file"
+                // File 通道失败 ⇒ MediaStore 兜底（2026-10-26 反馈附A）：共享目录的非媒体文件
+                // 直写在 Android 11+ 部分机型被拒（dada/vivo 实测），而视频本体刚走通
+                // MediaStore ⇒ 可写性有现成证明。兜底按**最终公开名**落库（commit 已完成），
+                // 因此不走下面的"归位"（那条只服务 File 通道的 pending 期落盘）。
+                if (!sidecarWritten && path != null) {
+                    val stem = path.substringAfterLast('/').substringBeforeLast('.')
+                    val viaStore = sessionStore?.writeSidecar(
+                        "$stem${ArcDropLog.EXTENSION}",
+                        ArcDropLog(
+                            mode = convert.name.lowercase(), dstFps = activeArcDstFps,
+                            drops = drops, segments = segs
+                        ).encode().toByteArray()
+                    ) != null
+                    if (viaStore) {
+                        sidecarWritten = true
+                        sidecarChannel = "mediastore"
+                    }
+                }
+                Log.i(
+                    TAG_UI,
+                    "arc drops sidecar ok=$sidecarWritten channel=$sidecarChannel " +
+                        "drops=${drops.size} segs=${segs.size} path=$path"
+                )
             }
             // 处理过片名前缀（用户 2026-10-04 定版："XXftoXXf"，源=GL 侧实测源帧率，
             // 容器标称会被强制档标假）：commit 后 update DISPLAY_NAME 连文件改名，
@@ -3044,7 +3222,9 @@ private class RecordRunner(
             //（源实测帧率 == 目标帧率，或拿不到实测值）走不到上面那块 ⇒ 旧代码直接漏搬，
             // sidecar 永久留在 pending 名下（真机每会话一条 `.pending-<id>-….drops.json` 幽灵，
             // 成片从此找不到自己的位次档案）。目标名走 [PendingName.sidecarConvergeTarget] 单一出口。
-            if (sidecarWritten && path != null) {
+            if (sidecarWritten && path != null && sidecarChannel == "file") {
+                // 只服务 File 通道：pending 期落的盘要跟 commit 后的成片名归位。
+                // MediaStore 通道按**最终公开名**直接落库，没有"归位"这一步（也无 pending 可搬）
                 val queriedName = out.parts.firstOrNull()?.uri?.let { queryDisplayName(it) }
                 val target = PendingName.sidecarConvergeTarget(path, queriedName)
                 if (target != null) {
@@ -3159,7 +3339,8 @@ private class RecordRunner(
         // audioTrackPlan 桥取——面板四组合（双开/仅内录/仅环境/全关）原样落两轨，
         // 旧「内录×静音=纯视频」的互斥掐死废除（它只对批 2 单源时代成立）
         val plan = audioTrackPlan(params.audioEnabled.value, captureAudio)
-        return RecordProfile(
+        val profile = RecordProfile(
+            audioDenoise = params.audioDenoise.value,
             width = width,
             height = height,
             fps = fps,
@@ -3187,6 +3368,25 @@ private class RecordRunner(
             fpsNtsc = !params.fps.value.exact,
             captureAudio = AudioTrack.CAPTURE in plan
         )
+        // 起录决议一行（2026-10-26 取证增强）：真机反馈"录出来不对"时，用户只需说一句"录了"，
+        // 这一行就把该问的全答了——用哪个引擎、走自研还是 MediaRecorder、降噪档、渲染模式、
+        // 帧率与是否 ※、音轨组合、是否开抽帧补弧。放在 buildProfile 出口是因为这里是
+        // **所有**决议已经落定、还没交给录制的唯一时点（改任一条都会出现在这一行里）。
+        //
+        // 判读示例：`engine=CODEC` 但 `audioDenoise=OFF` 且 `ambient=false` ⇒ 是内录或高帧率带的，
+        // 不是降噪强制切；`videoDenoise=GPU_BILATERAL` 但 `render=DIRECT` ⇒ 会退回 HAL 快速档。
+        val engine = if (com.wotagei.cam.record.Recorders.useCodecEngine(profile)) "CODEC" else "MR"
+        Log.i(
+            TAG_UI,
+            "起录决议 engine=$engine ${profile.width}x${profile.height}@${profile.fps}" +
+                "(${if (profile.fpsNtsc) "NTSC/※" else "整数"}) render=$renderMode" +
+                " bitrate=${profile.bitrate} codec=${profile.codec}" +
+                " audio[ambient=${profile.audioEnabled} capture=${profile.captureAudio}" +
+                " denoise=${profile.audioDenoise}]" +
+                " videoDenoise=${params.videoDenoise.value}" +
+                " arc=${profile.arcConvert ?: "off"}"
+        )
+        return profile
     }
 
     companion object {
@@ -3263,5 +3463,81 @@ private fun launchCaptureConsent(
         Log.w(TAG_UI, "拉起内录授权框失败：${e.message}")
         capture.onConsentResult(Activity.RESULT_CANCELED, null)
         showTip(app.getString(R.string.audio_capture_cancelled))
+    }
+}
+
+/**
+ * 底栏 Dock **左侧、同一带**的那几枚伴随 chip（2026-10-26 从"码率读数 chip"那块扩成通用的一枚）：
+ * 左侧起依次是「降噪」（可编辑条目，用户可在编辑页把它搬走）与「码率」（固定读数，Dock 外特权）。
+ *
+ * ## 为什么收成一条 Row 而不是各算各的 x
+ * 两枚 chip 都在 Dock 左缘外，各自反推 x 会互相压上（谁也不知道另一枚多宽）。收成一条 Row 后，
+ * "贴 Dock 左缘"这条账只算一次：`x = dockLeftPx − 间隙 − 整条 Row 的实测宽`。
+ *
+ * ## 退让是三档，与旧码率 chip 逐字同源（不是新规矩）
+ * ① 贴 Dock 左缘（装得下）；② 装不下 → 退贴安全区左缘；③ 那样右缘仍越过 Dock 左缘（竖屏窄带）→
+ * 再整条上移一档（`dockStripH + 一枚间隙`）退出这条带——分两步退，第一步保持同带、第二步才是离带。
+ * 横向用 `offset` 反推而**不用** `padding(end=)`：padding 会把剩余宽压成 chip 的测量上限
+ * （竖屏 360dp 那档只剩 ≈64dp，chip 自然宽 ≈90dp 被迫裁字，§58/§73 那族坑）；offset 只平移
+ * 不改测量约束，chip 永远按自然宽量。Row 宽实测两轮收敛（与 topBarH / dockStripH 同一套手法）：
+ * 首帧按退避位画、第二帧贴上 Dock 左缘。
+ *
+ * ## 纵向
+ * `align(BottomStart)` 落在这枚槽 Box 的**内容底**上，而槽的内容底就是卡片（Dock）底 ⇒ 与底板
+ * 可见底边齐平（旧写法在根盒里补的那枚 `padding(bottom = BottomBarOuterPadV)` 正是同一档，
+ * 两者等价）。降噪那枚自己不写 frost：它经 [HudBottomBandEntry] 走 [HudEntryItem]，由那条路
+ * 统一决定"有没有父板"，不在这里再注册一块。
+ */
+@Composable
+private fun BoxScope.BottomBandChips(
+    dockLeftPx: Int,
+    dockStripH: Int,
+    denoiseEntry: HudEntry?,
+    hudCtx: HudCtx,
+    bitrateLabel: String?,
+    pillAnchors: MutableMap<PillKey, IntRect>,
+    onBitrateClick: () -> Unit
+) {
+    if (denoiseEntry == null && bitrateLabel == null) return
+    val density = LocalDensity.current
+    var rowWpx by remember { mutableIntStateOf(0) }
+    val gapPx = with(density) { WotaSpace.s.toPx() }
+    val edgePx = with(density) { HudEdgePad.toPx() }
+    val hugX = dockLeftPx - gapPx - rowWpx
+    val fits = rowWpx > 0 && hugX >= edgePx
+    val x = if (fits) hugX else edgePx
+    val yOffPx = if (!fits && edgePx + rowWpx > dockLeftPx) {
+        with(density) { (dockStripH.dp + WotaSpace.s).toPx() }.roundToInt()
+    } else 0
+    Row(
+        modifier = Modifier
+            .align(Alignment.BottomStart)
+            .offset { IntOffset(x.roundToInt(), -yOffPx) }
+            .onSizeChanged { if (it.width != rowWpx) rowWpx = it.width },
+        horizontalArrangement = Arrangement.spacedBy(WotaSpace.s)
+    ) {
+        if (denoiseEntry != null) {
+            HudBottomBandEntry(
+                entry = denoiseEntry,
+                ctx = hudCtx,
+                // 这颗不参与底栏那套"吸收进录制键"（它不在 Dock 的三格里）⇒ 闸门恒开。
+                // 点按动作从 ctx.onDenoiseClick 走（与 Dock 内那颗同一条 ctx，调用方一处接线）
+                clicksAccepted = true
+            )
+        }
+        if (bitrateLabel != null) {
+            WotaChip(
+                label = bitrateLabel,
+                selected = false,
+                modifier = Modifier
+                    // BITRATE 就近浮层的锚点写入方从 HudEntryItem 换到这颗：不挂的话
+                    // 长按弹层按 IntRect.Zero 钉回屏幕左上角（§69 缺陷族）
+                    .pillAnchorReport(pillAnchors, PillKey.BITRATE),
+                secondary = stringResource(HudItem.BITRATE.labelRes),
+                onClick = onBitrateClick,
+                onLongClick = onBitrateClick,
+                frost = hudFrostPillPlate
+            )
+        }
     }
 }

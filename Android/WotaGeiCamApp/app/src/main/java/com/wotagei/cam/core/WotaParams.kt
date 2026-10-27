@@ -37,6 +37,14 @@ class WotaParams(private val scope: CoroutineScope) {
         size.value = s
     }
     val fps = MutableStateFlow(ParamState(25, exact = true))
+
+    /**
+     * 音频降噪 / 画面降噪（2026-10-26 用户需求：两项默认关）。
+     * 与相机参数放同一条总线：面板即改即生效，落盘由设置持久化层负责（键见 ParamsPersist）。
+     * 画面降噪的实际生效档还要过 [com.wotagei.cam.core.effectiveVideoDenoise]（DIRECT 模式退回 HAL）。
+     */
+    val audioDenoise = MutableStateFlow(com.wotagei.cam.core.AudioDenoise.OFF)
+    val videoDenoise = MutableStateFlow(com.wotagei.cam.core.VideoDenoise.OFF)
     val shutter = MutableStateFlow(ParamState(40_000_000L))          // ns，1/25
     val iso = MutableStateFlow(ParamState(100))
     val aeMode = MutableStateFlow(AeMode.AUTO)
@@ -96,8 +104,9 @@ class WotaParams(private val scope: CoroutineScope) {
         // 画幅先落档：帧率区间是按尺寸查的，顺序反过来会拿旧尺寸的区间去配新尺寸
         applySize(a)
         val targetFps = fps.value.value.coerceAtLeast(1)
-        val highSpeed = targetFps > WotaTiers.HIGH_SPEED_FPS
-        val pick = pickFpsRange(a.fpsRangesFor(size.value, highSpeed), targetFps)
+        // 一档的完整决议交给 core.decideFps（普通表先来、覆盖不了才看高速表）——UI 的可用性/※、
+        // 引擎的下发与会话选择都走同一支，这里只把结果落进总线，不再自己判模态
+        val pick = a.decideFps(size.value, targetFps)?.pick
         fps.value = if (pick == null) ParamState(targetFps, null, enabled = false, exact = false)
         else ParamState(targetFps, pick.lo..pick.hi, true, pick.exact)
 
@@ -193,6 +202,14 @@ class WotaParams(private val scope: CoroutineScope) {
     }
 
     private fun applyWhiteBalance(a: CameraAbility) {
+        // 手动档的能力回弹（2026-10-26 反馈 #6）：存量用户可能在不支持 TRANSFORM_MATRIX 的
+        // 机器上持久化过 MANUAL（变绿+滑杆失效的成因）。能力表到了才发现不支持 ⇒ 弹回 AUTO
+        // （与帧率自动降档同一条"自动变更必须可见"的纪律，弹回原因由 UI 侧提示）。
+        // colorCorrectionModes 空集合 = 隐藏键拿不到（无法判定）⇒ 不回弹，保持既有行为。
+        val manualSupported = a.manualWhiteBalancePossible()
+        if (wbMode.value == WbPreset.MANUAL && !manualSupported) {
+            wbMode.value = WbPreset.AUTO
+        }
         if (a.awbModes.isNotEmpty() && !a.awbModes.contains(wbMode.value.awbMode)) {
             wbMode.value = WbPreset.values()
                 .firstOrNull { it != WbPreset.MANUAL && a.awbModes.contains(it.awbMode) }

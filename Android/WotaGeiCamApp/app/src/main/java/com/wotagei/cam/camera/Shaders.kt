@@ -85,6 +85,183 @@ internal object Shaders {
         }
     """.trimIndent()
 
+    /**
+     * 画面降噪**双边滤波**（2026-10-26 用户需求：WOTA 艺夜间录制、天空暗部噪点多）。
+     *
+     * # 为什么是双边而不是高斯
+     * 夜景暗部噪点是**随机高频**噪声，高斯能把噪声与细节一起抹平（光弧边缘、灯牌文字发虚）；
+     * 双边滤波在空间距离之外再加一条**亮度差权重**：颜色相近的邻域才参与平均，跨越边缘的
+     * 邻域被压低——于是"平坦的夜空被强降噪、弧光边缘保持锐利"，这正是本项目要的形态。
+     *
+     * # 采样与循环（**如实写**：这里没有做静态展开）
+     * 实现是 `for (int i = 0; i < 8; i++)` 遍历一枚 `vec2 o[8]` 局部数组（中心单独算），
+     * 未展开。合法性依据是 GLSL ES 1.00 Appendix A：循环上界是编译期常量、下标是
+     * constant-index-expression（循环计数变量）⇒ 合规，主流驱动都收。
+     * **仍可能被个别驱动拒绝**：那时 [com.wotagei.cam.camera.GlRenderEngine.buildProgram] 会
+     * 退回 `PASS_THROUGH_FS` 并把失败写进日志（画面照旧、降噪静默失效）——排障时先看那行日志，
+     * 别怀疑参数。早期注释曾自称"静态展开、规避循环风险"，与实现不符（2026-10-26 订正）。
+     *
+     * # 两级核（与 [BILATERAL_LITE_FS] 成对）
+     * 本档是**完整核**（8 邻域）；高分辨率/高帧率下按负载自动换用轻量核（4 邻域交叉），
+     * 分档判据在 `core/Denoise.kt` 的 `denoiseKernelLite`（纯函数，UI 与引擎共用）。
+     *
+     * # 参数（uniform）
+     * - `uTexel`：1/相机帧尺寸（UV 空间的一个纹素步长）；帧尺寸变了必须重传，否则降噪半径错。
+     * - `uSigmaR`：亮度差权重的高斯 σ（0..1 归一化亮度域）。**越小越保边**：只让几乎同色的
+     *   邻域参与平均；夜间暗部噪点建议值见 GlRenderEngine（不写死在这里，便于以后做强度档）。
+     *
+     * # 与曲线的关系
+     * 与 [CURVE_FS] 同一条链：[BILATERAL_CURVE_FS] = 先双边再查曲线表。分开两条而不是在
+     * 一条里加 if，理由与 [CURVE_FS] 的注释同源——program 链接失败时的退化路径要各自独立。
+     *
+     * 强制不透明：与 [PASS_THROUGH_FS] 同一个理由（HAL 给 alpha=0 时读出半透明）。
+     */
+    val BILATERAL_FS = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 vUv;
+        uniform samplerExternalOES uFrame;
+        uniform vec2 uTexel;
+        uniform float uSigmaR;
+        vec3 bilateral(vec2 uv) {
+            vec3 c = texture2D(uFrame, uv).rgb;
+            // 亮度差权重：Δ 越大权重越小（高斯核），跨边缘的邻域自然被抑制
+            float inv2s2 = 1.0 / (2.0 * uSigmaR * uSigmaR);
+            vec3 sum = c;
+            float wsum = 1.0;
+            vec2 o[8];
+            o[0] = vec2(-1.0, -1.0); o[1] = vec2(0.0, -1.0); o[2] = vec2(1.0, -1.0);
+            o[3] = vec2(-1.0,  0.0);                          o[4] = vec2(1.0,  0.0);
+            o[5] = vec2(-1.0,  1.0); o[6] = vec2(0.0,  1.0); o[7] = vec2(1.0,  1.0);
+            for (int i = 0; i < 8; i++) {
+                vec3 s = texture2D(uFrame, uv + o[i] * uTexel).rgb;
+                vec3 d = s - c;
+                float w = exp(-dot(d, d) * inv2s2);
+                sum += s * w;
+                wsum += w;
+            }
+            return sum / wsum;
+        }
+        void main() {
+            gl_FragColor = vec4(bilateral(vUv), 1.0);
+        }
+    """.trimIndent()
+
+    /** 双边 + 曲线（顺序：先降噪再查曲线表；分开独立程序，退化路径不互相牵连） */
+    val BILATERAL_CURVE_FS = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 vUv;
+        uniform samplerExternalOES uFrame;
+        uniform sampler2D uCurve;
+        uniform vec2 uTexel;
+        uniform float uSigmaR;
+        vec3 applyCurve(vec3 c) {
+            return vec3(
+                texture2D(uCurve, vec2(c.r, 0.5)).r,
+                texture2D(uCurve, vec2(c.g, 0.5)).g,
+                texture2D(uCurve, vec2(c.b, 0.5)).b);
+        }
+        vec3 bilateral(vec2 uv) {
+            vec3 c = texture2D(uFrame, uv).rgb;
+            float inv2s2 = 1.0 / (2.0 * uSigmaR * uSigmaR);
+            vec3 sum = c;
+            float wsum = 1.0;
+            vec2 o[8];
+            o[0] = vec2(-1.0, -1.0); o[1] = vec2(0.0, -1.0); o[2] = vec2(1.0, -1.0);
+            o[3] = vec2(-1.0,  0.0);                          o[4] = vec2(1.0,  0.0);
+            o[5] = vec2(-1.0,  1.0); o[6] = vec2(0.0,  1.0); o[7] = vec2(1.0,  1.0);
+            for (int i = 0; i < 8; i++) {
+                vec3 s = texture2D(uFrame, uv + o[i] * uTexel).rgb;
+                vec3 d = s - c;
+                float w = exp(-dot(d, d) * inv2s2);
+                sum += s * w;
+                wsum += w;
+            }
+            return sum / wsum;
+        }
+        void main() {
+            gl_FragColor = vec4(applyCurve(bilateral(vUv)), 1.0);
+        }
+    """.trimIndent()
+
+    /**
+     * 画面降噪**轻量档**（4 邻域交叉：左/右/上/下 + 中心 = 5 次采样，完整档是 9 次）。
+     *
+     * 给"本机跑不动完整核"的场景用：分档判据在 `core/Denoise.kt` 的 `denoiseKernelLite`
+     * （按编码面"像素 × 帧率"这个固定负载算，纯函数），4K30 / 1080p120 / 4K60 / 1080p240
+     * 这类组合自动落到这一档。**仍然降噪**，只是空间支持半径小一半、边缘保持略弱——
+     * 不是"关掉降噪"，档位与面板设置都不变。
+     *
+     * 权重公式、uniform 语义、不透明处理与 [BILATERAL_FS] 完全一致，只换邻域集合，
+     * 所以两档之间切换不会改变画面亮度/色相，只改降噪强度。
+     */
+    val BILATERAL_LITE_FS = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 vUv;
+        uniform samplerExternalOES uFrame;
+        uniform vec2 uTexel;
+        uniform float uSigmaR;
+        vec3 bilateral(vec2 uv) {
+            vec3 c = texture2D(uFrame, uv).rgb;
+            float inv2s2 = 1.0 / (2.0 * uSigmaR * uSigmaR);
+            vec3 sum = c;
+            float wsum = 1.0;
+            vec2 o[4];
+            o[0] = vec2(-1.0, 0.0); o[1] = vec2(1.0, 0.0);
+            o[2] = vec2(0.0, -1.0); o[3] = vec2(0.0, 1.0);
+            for (int i = 0; i < 4; i++) {
+                vec3 s = texture2D(uFrame, uv + o[i] * uTexel).rgb;
+                vec3 d = s - c;
+                float w = exp(-dot(d, d) * inv2s2);
+                sum += s * w;
+                wsum += w;
+            }
+            return sum / wsum;
+        }
+        void main() {
+            gl_FragColor = vec4(bilateral(vUv), 1.0);
+        }
+    """.trimIndent()
+
+    /** 轻量核 + 曲线（顺序同 [BILATERAL_CURVE_FS]：先降噪再查曲线表） */
+    val BILATERAL_LITE_CURVE_FS = """
+        #extension GL_OES_EGL_image_external : require
+        precision mediump float;
+        varying vec2 vUv;
+        uniform samplerExternalOES uFrame;
+        uniform sampler2D uCurve;
+        uniform vec2 uTexel;
+        uniform float uSigmaR;
+        vec3 applyCurve(vec3 c) {
+            return vec3(
+                texture2D(uCurve, vec2(c.r, 0.5)).r,
+                texture2D(uCurve, vec2(c.g, 0.5)).g,
+                texture2D(uCurve, vec2(c.b, 0.5)).b);
+        }
+        vec3 bilateral(vec2 uv) {
+            vec3 c = texture2D(uFrame, uv).rgb;
+            float inv2s2 = 1.0 / (2.0 * uSigmaR * uSigmaR);
+            vec3 sum = c;
+            float wsum = 1.0;
+            vec2 o[4];
+            o[0] = vec2(-1.0, 0.0); o[1] = vec2(1.0, 0.0);
+            o[2] = vec2(0.0, -1.0); o[3] = vec2(0.0, 1.0);
+            for (int i = 0; i < 4; i++) {
+                vec3 s = texture2D(uFrame, uv + o[i] * uTexel).rgb;
+                vec3 d = s - c;
+                float w = exp(-dot(d, d) * inv2s2);
+                sum += s * w;
+                wsum += w;
+            }
+            return sum / wsum;
+        }
+        void main() {
+            gl_FragColor = vec4(applyCurve(bilateral(vUv)), 1.0);
+        }
+    """.trimIndent()
+
     // region 光弧修复（用户需求第 7 项：v2 抽帧+补弧，不改任何既有 pass）
 
     /**

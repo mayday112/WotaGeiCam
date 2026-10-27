@@ -89,10 +89,24 @@ class RequestApplierTest {
     }
 
     @Test
-    fun highSpeedUsesFixedRangeDirectly() {
-        val pick = RequestApplier.pickFps(emptyList(), 120, highSpeed = true)
-        assertNotNull(pick)
-        assertEquals(FpsPick(120, 120, true), pick)
+    fun highSpeedOnlyUsesDeclaredRanges() {
+        // 2026-10-26 修正：高速档**只在机器声明过的区间里选**，绝不自己造 [f,f]。
+        // 旧实现 return FpsPick(target, target, true) ⇒ 50/60 首次被路由进高速会话后发出
+        // 机器没声明过的 [50,50] ⇒ createHighSpeedRequestList 拒收 ⇒ 掉进无退路的降档分支。
+        val hs = listOf(
+            RangeI(30, 120), RangeI(60, 120), RangeI(120, 120),
+            RangeI(30, 240), RangeI(60, 240), RangeI(240, 240)
+        )
+        assertEquals("120 有原生固定档 ⇒ 精确", FpsPick(120, 120, true), RequestApplier.pickFps(hs, 120, true))
+        assertEquals("60 取 lo==60 里上界最小的 [60,120]", FpsPick(60, 120, false), RequestApplier.pickFps(hs, 60, true))
+        assertEquals("50 退到覆盖它的 [30,120]", FpsPick(30, 120, false), RequestApplier.pickFps(hs, 50, true))
+        assertNull("表里没有覆盖它的区间 ⇒ null（交给失败路径降级，不硬发）",
+            RequestApplier.pickFps(listOf(RangeI(120, 120), RangeI(240, 240)), 60, true))
+        assertNull("空表 ⇒ null", RequestApplier.pickFps(emptyList(), 120, true))
+        // 普通档口径不变（固定优先 / 其次"包含且上界最大"）
+        val normal = listOf(RangeI(24, 24), RangeI(30, 30), RangeI(5, 30))
+        assertEquals(FpsPick(24, 24, true), RequestApplier.pickFps(normal, 24, false))
+        assertFalse(RequestApplier.pickFps(normal, 25, false)!!.exact)
     }
 
     // -------------------------------------------------- 色温 → gains
@@ -256,5 +270,75 @@ class RequestApplierTest {
         )
         assertEquals(false, plan.oisOn)
         assertEquals(false, plan.eisOn)
+    }
+
+    // -------------------------------------------------- 帧周期/快门基准 = 目标档位（2026-10-26）
+
+    /** 与 EvCrashGuardTest 同型的最小 State/Snapshot 便捷构造 */
+    private fun stateHs(): RequestApplier.State = RequestApplier.State(
+        activeArray = com.wotagei.cam.core.Rect(0, 0, 4000, 3000),
+        isoMin = 100, isoMax = 16000,
+        exposureMinNs = 1_000_000L, exposureMaxNs = 667_847_000L,
+        evMinSteps = -4, evMaxSteps = 4,
+        fpsRanges = listOf(RangeI(30, 120), RangeI(60, 120), RangeI(120, 120)),
+        maxRegionsAf = 1, maxRegionsAe = 1,
+        manualFocusMaxDiopter = 10f, zoomMin = 1f, zoomMax = 8f,
+        useZoomRatio = false, flashAvailable = true, oisAvailable = true, eisAvailable = true,
+        highSpeed = true, eisBlockedBySize = false
+    )
+
+    private fun snapHs(target: Int) = RequestApplier.Snapshot(
+        aeMode = com.wotagei.cam.core.AeMode.MANUAL, iso = 800, shutterNs = 20_000_000L, evSteps = 0,
+        fps = FpsPick(30, 120, false), afMode = com.wotagei.cam.core.AfMode.CONTINUOUS_VIDEO,
+        afModeOverride = null, focusDiopter = 0f, zoom = 1f,
+        wbPreset = com.wotagei.cam.core.WbPreset.AUTO, kelvin = 5500, tint = 0,
+        flashOverride = null, flash = Flash.OFF, stabilize = Stabilize.OFF,
+        afRegions = null, aeRegions = null, afTrigger = null,
+        fpsTarget = target
+    )
+
+    @Test
+    fun framePeriodBasisIsTargetTierNotRangeLowerBound() {
+        // vivo 50 → [30,120]：lo=30 若作基准会放行 33.3ms 帧周期（>50fps 的 20ms）＝死档；
+        // 基准必须是目标 50。曝光 20ms 与 1/50 同域 ⇒ 不被钳
+        val plan = RequestApplier.exposurePlan(stateHs(), snapHs(target = 50))
+        assertEquals(1_000_000_000L / 50, plan.frameDurationNs)
+        assertEquals("曝光 20ms < 1/50 帧周期 ⇒ 原样", 20_000_000L, plan.exposureNs)
+    }
+
+    @Test
+    fun shutterLadderCeilingFollowsTargetTierOnVariableHighSpeedRange() {
+        // 1/30（33.3ms）在 50fps 档必须被钳回 1/50（20ms）——这是 UI 梯与引擎共同的基准
+        val clamped = RequestApplier.clampShutterNs(33 * ns + 333_333L, fps = 50, exposureMinNs = 1, exposureMaxNs = 1_000 * ns)
+        assertEquals(1_000_000_000L / 50, clamped)
+    }
+
+    @Test
+    fun exactNormalTierKeepsLegacyBehavior() {
+        // 回归锚：r10 的原案 [24,30] 选 24（lo==目标）⇒ 41.67ms 帧周期，1/24 长曝光保留
+        val s = RequestApplier.State(
+            activeArray = com.wotagei.cam.core.Rect(0, 0, 4000, 3000),
+            isoMin = 100, isoMax = 16000,
+            exposureMinNs = 1_000_000L, exposureMaxNs = 667_847_000L,
+            evMinSteps = -4, evMaxSteps = 4,
+            fpsRanges = listOf(RangeI(24, 30)),
+            maxRegionsAf = 1, maxRegionsAe = 1,
+            manualFocusMaxDiopter = 10f, zoomMin = 1f, zoomMax = 8f,
+            useZoomRatio = false, flashAvailable = true, oisAvailable = true, eisAvailable = true,
+            highSpeed = false, eisBlockedBySize = false
+        )
+        val snap = RequestApplier.Snapshot(
+            aeMode = com.wotagei.cam.core.AeMode.MANUAL, iso = 800,
+            shutterNs = 1_000_000_000L / 24, evSteps = 0,
+            fps = FpsPick(24, 30, false), afMode = com.wotagei.cam.core.AfMode.CONTINUOUS_VIDEO,
+            afModeOverride = null, focusDiopter = 0f, zoom = 1f,
+            wbPreset = com.wotagei.cam.core.WbPreset.AUTO, kelvin = 5500, tint = 0,
+            flashOverride = null, flash = Flash.OFF, stabilize = Stabilize.OFF,
+            afRegions = null, aeRegions = null, afTrigger = null,
+            fpsTarget = 24
+        )
+        val plan = RequestApplier.exposurePlan(s, snap)
+        assertEquals("1/24 强制档在 [24,30] 上保留（r10 意图不变）", 1_000_000_000L / 24, plan.exposureNs)
+        assertEquals(1_000_000_000L / 24, plan.frameDurationNs)
     }
 }
