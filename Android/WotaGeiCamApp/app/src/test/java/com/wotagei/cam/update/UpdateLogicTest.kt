@@ -279,7 +279,7 @@ class UpdateLogicTest {
         )
         // 直连下载 URL 拼接
         assertEquals(
-            "https://github.com/himetuki/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
+            "https://github.com/mayday112/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
             UpdateConfig.directDownloadUrl("v0.0.8-r01", "v0.0.8-r01-universal-release-Android.apk")
         )
     }
@@ -375,7 +375,7 @@ class UpdateLogicTest {
         // 段 3 无 size → null（下载时用 Content-Length）
         assertNull(avail.sizeBytes)
         assertEquals(
-            "https://github.com/himetuki/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
+            "https://github.com/mayday112/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
             avail.downloadUrl
         )
     }

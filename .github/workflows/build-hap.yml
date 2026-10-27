@@ -27,8 +27,9 @@
 name: Build HarmonyOS HAP
 
 on:
-  push:
-    tags: ["v*"]
+  # fork 版仅发布安卓：已关闭 v* 标签自动触发，需要时在 Actions 页手动运行
+  # push:
+  #   tags: ["v*"]
   workflow_dispatch:
 
 permissions:

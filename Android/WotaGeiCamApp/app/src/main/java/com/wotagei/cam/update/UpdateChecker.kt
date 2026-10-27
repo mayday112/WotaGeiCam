@@ -18,13 +18,13 @@ package com.wotagei.cam.update
 /** 仓库与镜像常量（顺序即 fallback 优先级，用户点名的镜像链） */
 object UpdateConfig {
     /** 段 1：GitHub API latest release（免登录，公开仓库） */
-    const val REPO_API_LATEST = "https://api.github.com/repos/himetuki/WotaGeiCam/releases/latest"
+    const val REPO_API_LATEST = "https://api.github.com/repos/mayday112/WotaGeiCam/releases/latest"
 
     /** 段 3：releases/latest 页面（302 → /releases/tag/<tag>） */
-    const val RELEASES_LATEST_PAGE = "https://github.com/himetuki/WotaGeiCam/releases/latest"
+    const val RELEASES_LATEST_PAGE = "https://github.com/mayday112/WotaGeiCam/releases/latest"
 
     /** 下载直连前缀（releases/download/<tag>/<asset>） */
-    const val DOWNLOAD_BASE = "https://github.com/himetuki/WotaGeiCam/releases/download"
+    const val DOWNLOAD_BASE = "https://github.com/mayday112/WotaGeiCam/releases/download"
 
     /**
      * 镜像前缀（前缀 + 完整原始 URL）。用户点名的 `toolwa.com/github` 被排除：它是 HTTP 明文
