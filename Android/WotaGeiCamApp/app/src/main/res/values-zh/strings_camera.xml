@@ -139,6 +139,17 @@
     <string name="cam_refline_count">已选 %1$d 种</string>
     <string name="cam_refline_all">全选</string>
     <string name="cam_refline_clear">清空</string>
+    <string name="cam_refline_grid_3x3">三分法网格</string>
+    <string name="cam_refline_diagonal">对角线</string>
+    <string name="cam_refline_crosshair">十字准线</string>
+    <string name="cam_refline_broadcast_safe">广播安全框</string>
+    <string name="cam_refline_safe_area">安全区域</string>
+    <string name="cam_refline_grid">网格</string>
+    <string name="cam_refline_center_mark">中心标记</string>
+    <string name="cam_refline_horizon">水平线</string>
+    <string name="cam_refline_red_top">上红线</string>
+    <string name="cam_refline_red_mid">中红线</string>
+    <string name="cam_refline_red_bottom">下红线</string>
 
     <!-- 屏幕监看面板 -->
     <string name="cam_monitor_title">屏幕监看</string>

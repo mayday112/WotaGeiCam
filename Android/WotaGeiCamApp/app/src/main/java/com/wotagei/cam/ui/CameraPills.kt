@@ -833,7 +833,7 @@ private fun RefLinePill(anchor: IntRect, params: WotaParams, editable: Boolean, 
             enabled = editable
         )
         PillToggles(
-            options = types.mapIndexed { i, t -> PillOption(i, t.label) },
+            options = types.mapIndexed { i, t -> PillOption(i, stringResource(t.labelRes)) },
             isOn = { RefLineType.isOn(mask, types[it.value]) },
             columns = 2,
             label = stringResource(R.string.cam_refline_count, RefLineType.typesOf(mask).size),
