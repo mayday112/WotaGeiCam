@@ -1033,7 +1033,7 @@ private fun BlockRefline(prefs: SharedPreferences) {
             RefLineType.ALL.forEach { type ->
                 val on = defaultRefLines and type.bit != 0
                 ChipCell(
-                    text = type.label,
+                    text = stringResource(type.labelRes),
                     selected = on,
                     onClick = {
                         val next = if (on) defaultRefLines and type.bit.inv() else defaultRefLines or type.bit

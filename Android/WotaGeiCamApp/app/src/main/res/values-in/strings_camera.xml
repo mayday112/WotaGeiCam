@@ -131,6 +131,17 @@
     <string name="cam_refline_count">%1$d jenis dipilih</string>
     <string name="cam_refline_all">Pilih Semua</string>
     <string name="cam_refline_clear">Kosongkan</string>
+    <string name="cam_refline_grid_3x3">Kisi 3x3</string>
+    <string name="cam_refline_diagonal">Diagonal</string>
+    <string name="cam_refline_crosshair">Garis Bidik</string>
+    <string name="cam_refline_broadcast_safe">Batas Aman Siaran</string>
+    <string name="cam_refline_safe_area">Area Aman</string>
+    <string name="cam_refline_grid">Kisi</string>
+    <string name="cam_refline_center_mark">Titik Tengah</string>
+    <string name="cam_refline_horizon">Garis Horizon</string>
+    <string name="cam_refline_red_top">Garis Merah Atas</string>
+    <string name="cam_refline_red_mid">Garis Merah Tengah</string>
+    <string name="cam_refline_red_bottom">Garis Merah Bawah</string>
 
     <!-- Panel Monitor Layar -->
     <string name="cam_monitor_title">Monitor Layar</string>

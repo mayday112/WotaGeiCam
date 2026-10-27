@@ -131,6 +131,17 @@
     <string name="cam_refline_count">%1$d selected</string>
     <string name="cam_refline_all">Select All</string>
     <string name="cam_refline_clear">Clear</string>
+    <string name="cam_refline_grid_3x3">Rule of Thirds</string>
+    <string name="cam_refline_diagonal">Diagonal</string>
+    <string name="cam_refline_crosshair">Crosshair</string>
+    <string name="cam_refline_broadcast_safe">Broadcast Safe</string>
+    <string name="cam_refline_safe_area">Safe Area</string>
+    <string name="cam_refline_grid">Grid</string>
+    <string name="cam_refline_center_mark">Center Mark</string>
+    <string name="cam_refline_horizon">Horizon Line</string>
+    <string name="cam_refline_red_top">Top Red Line</string>
+    <string name="cam_refline_red_mid">Mid Red Line</string>
+    <string name="cam_refline_red_bottom">Bottom Red Line</string>
 
     <!-- Monitor Panel -->
     <string name="cam_monitor_title">Screen Monitor</string>

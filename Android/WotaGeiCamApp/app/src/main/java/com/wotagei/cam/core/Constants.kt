@@ -108,11 +108,18 @@ object ArcMergeDeadband {
 }
 
 /** 需求参考线 11 档，位掩码可组合 */
-enum class RefLineType(val bit: Int, val label: String) {
-    GRID_3X3(1, "三分法网格"), DIAGONAL(2, "对角线"), CROSSHAIR(4, "十字准线"),
-    BROADCAST_SAFE(8, "广播安全框"), SAFE_AREA(16, "安全区域"), GRID(32, "网格"),
-    CENTER_MARK(64, "中心标记"), HORIZON_LINE(128, "水平线"),
-    RED_TOP(256, "上红线"), RED_MID(512, "中红线"), RED_BOTTOM(1024, "下红线");
+enum class RefLineType(val bit: Int, val labelRes: Int) {
+    GRID_3X3(1, com.wotagei.cam.R.string.cam_refline_grid_3x3),
+    DIAGONAL(2, com.wotagei.cam.R.string.cam_refline_diagonal),
+    CROSSHAIR(4, com.wotagei.cam.R.string.cam_refline_crosshair),
+    BROADCAST_SAFE(8, com.wotagei.cam.R.string.cam_refline_broadcast_safe),
+    SAFE_AREA(16, com.wotagei.cam.R.string.cam_refline_safe_area),
+    GRID(32, com.wotagei.cam.R.string.cam_refline_grid),
+    CENTER_MARK(64, com.wotagei.cam.R.string.cam_refline_center_mark),
+    HORIZON_LINE(128, com.wotagei.cam.R.string.cam_refline_horizon),
+    RED_TOP(256, com.wotagei.cam.R.string.cam_refline_red_top),
+    RED_MID(512, com.wotagei.cam.R.string.cam_refline_red_mid),
+    RED_BOTTOM(1024, com.wotagei.cam.R.string.cam_refline_red_bottom);
 
     companion object {
         val ALL: List<RefLineType> = values().toList()
