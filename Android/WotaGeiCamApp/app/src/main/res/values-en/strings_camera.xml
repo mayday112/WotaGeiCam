@@ -37,8 +37,8 @@
     <string name="cam_p_af">Focus Mode</string>
     <string name="cam_p_mf">Manual Focus</string>
     <string name="cam_p_wb">White Balance</string>
-    <string name="cam_wb_gl_fallback">This device does not declare manual white balance gain support; handled by image algorithm instead: temperature/tint act as offsets relative to auto WB</string>
-    <string name="cam_wb_gl_fallback_toast">Manual WB gain is not supported by hardware; switched to image algorithm processing</string>
+    <string name="cam_wb_gl_fallback">Device camera does not accept manual WB gain (unsupported by HAL, or runtime check detected gain was ignored); handled by image algorithm instead: color temp/tint act as offsets relative to auto WB</string>
+    <string name="cam_wb_gl_fallback_toast">Camera does not accept manual WB gain; switched to image algorithm processing</string>
     <string name="cam_p_kelvin">Color Temp</string>
     <string name="cam_p_tint">Tint</string>
     <string name="cam_p_lens">Lens</string>
@@ -244,7 +244,10 @@
     <string name="cam_glow_title">Glow Effect</string>
     <string name="cam_glow_note">Glow is baked into the recorded video; parameter changes take effect on the next frame</string>
     <string name="cam_glow_color">Glow Color</string>
-    <string name="cam_glow_same_color">Tap wheel center = follow lightstick original color; picking a color tints the overall glow</string>
+    <string name="cam_glow_same_color">Glow color: Original Pixel Color = bright regions glow in their original color; Color Wheel Only = all bright regions glow in the chosen color. Double-tap wheel to reset (white); tap center for neutral</string>
+    <string name="cam_glow_color_pixel">Original Pixel Color</string>
+    <string name="cam_glow_color_wheel">Color Wheel Only</string>
+    <string name="cam_glow_threshold_hint">100% = Only the brightest pixels in the frame will glow</string>
     <string name="cam_glow_on">On</string>
     <string name="cam_glow_off">Off</string>
     <string name="cam_glow_threshold">Threshold</string>

@@ -37,8 +37,8 @@
     <string name="cam_p_af">Mode Fokus</string>
     <string name="cam_p_mf">Fokus Manual</string>
     <string name="cam_p_wb">White Balance</string>
-    <string name="cam_wb_gl_fallback">Perangkat ini tidak mendukung gain white balance manual; dialihkan ke algoritma gambar: suhu/rona menjadi offset relatif terhadap WB otomatis</string>
-    <string name="cam_wb_gl_fallback_toast">Gain WB manual tidak didukung perangkat; dialihkan ke pemrosesan algoritma gambar</string>
+    <string name="cam_wb_gl_fallback">Kamera perangkat tidak menerima gain WB manual (tidak didukung HAL, atau terdeteksi gain diabaikan); dialihkan ke pemrosesan algoritma gambar: suhu/rona menjadi offset relatif terhadap WB otomatis</string>
+    <string name="cam_wb_gl_fallback_toast">Kamera tidak menerima gain WB manual; dialihkan ke algoritma gambar</string>
     <string name="cam_p_kelvin">Suhu Warna</string>
     <string name="cam_p_tint">Corak Warna (Tint)</string>
     <string name="cam_p_lens">Lensa</string>
@@ -244,7 +244,10 @@
     <string name="cam_glow_title">Efek Pendar (Glow)</string>
     <string name="cam_glow_note">Efek pendar masuk ke hasil rekaman (dibake ke piksel); perubahan parameter berlaku di frame berikutnya</string>
     <string name="cam_glow_color">Warna Pendar</string>
-    <string name="cam_glow_same_color">Ketuk tengah roda warna = ikuti warna asli lightstick; memilih warna akan memberi rona pada pendar</string>
+    <string name="cam_glow_same_color">Warna pendar: Warna Asli Piksel = bagian terang memancarkan warna aslinya; Hanya Roda Warna = seluruh bagian terang diseragamkan ke warna pilihan. Ketuk 2x roda warna untuk reset (putih); ketuk tengah untuk netral</string>
+    <string name="cam_glow_color_pixel">Warna Asli Piksel</string>
+    <string name="cam_glow_color_wheel">Hanya Roda Warna</string>
+    <string name="cam_glow_threshold_hint">100% = Hanya piksel paling terang di layar yang berpendar</string>
     <string name="cam_glow_on">Aktif</string>
     <string name="cam_glow_off">Nonaktif</string>
     <string name="cam_glow_threshold">Ambang Kecerahan</string>

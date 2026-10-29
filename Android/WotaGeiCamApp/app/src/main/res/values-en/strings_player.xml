@@ -112,6 +112,15 @@
     <string name="player_clip_scene_sep"> + </string>
     <string name="player_clip_scene_summary">Re-encodes video, applying: %1$s</string>
     <string name="player_clip_scene_curve_note">. Curves were already baked in during recording and will not be applied twice</string>
+    <string name="player_clip_cfg_title">Export Effect Settings</string>
+    <string name="player_clip_cfg_note">Changes made here apply to this export only, without altering app defaults</string>
+    <string name="player_clip_cfg_glow">Glow</string>
+    <string name="player_clip_cfg_denoise">Denoise</string>
+    <string name="player_clip_cfg_on">Apply</string>
+    <string name="player_clip_cfg_off">Do Not Apply</string>
+    <string name="player_clip_cfg_threshold">Glow Brightness Threshold</string>
+    <string name="player_clip_cfg_gain">Glow Gain</string>
+    <string name="player_clip_cfg_blend">Glow Blend</string>
 
     <!-- Audio Track Selection -->
     <string name="player_track_env">Ambient</string>

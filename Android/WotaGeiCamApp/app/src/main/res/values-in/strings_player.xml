@@ -111,6 +111,15 @@
     <string name="player_clip_scene_sep"> + </string>
     <string name="player_clip_scene_summary">Encode ulang, menerapkan: %1$s</string>
     <string name="player_clip_scene_curve_note">. Kurva sudah menyatu saat perekaman dan tidak dirender ulang di sini</string>
+    <string name="player_clip_cfg_title">Konfigurasi Efek Ekspor</string>
+    <string name="player_clip_cfg_note">Perubahan di sini hanya berlaku untuk ekspor ini, tanpa mengubah pengaturan default</string>
+    <string name="player_clip_cfg_glow">Pendar (Glow)</string>
+    <string name="player_clip_cfg_denoise">Reduksi Bising (Denoise)</string>
+    <string name="player_clip_cfg_on">Terapkan</string>
+    <string name="player_clip_cfg_off">Jangan Terapkan</string>
+    <string name="player_clip_cfg_threshold">Ambang Kecerahan Pendar</string>
+    <string name="player_clip_cfg_gain">Intensitas Pendar</string>
+    <string name="player_clip_cfg_blend">Pencampuran Pendar (Blend)</string>
 
     <!-- Pemilihan Trek Audio -->
     <string name="player_track_env">Suara Sekitar</string>
