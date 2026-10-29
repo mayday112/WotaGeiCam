@@ -16,6 +16,29 @@ data class ParamState<T : Comparable<T>>(
 )
 
 /**
+ * 上屏渲染比例（2026-10-27 用户需求；docs/plan/24 R3 §2.3）：**只作用于 drawWindowPass 的离屏 RT**，
+ * 与相机流 / `setDefaultBufferSize` / 编码面 / 相机会话 / Glow 链 / 霜链尺寸**无关**。
+ *
+ * `divisor = N` ⇒ 上屏 RT = 等比区 / N（floor，两维都 ≥128px 才可用），然后放大 blit 回窗口面。
+ * 默认 [ORIG]：那条路与改前逐字相同（不建 RT、不 blit）。
+ *
+ * 名字刻意叫 `DisplayScale`（不是 PreviewScale/Resolution）：语义是"上屏那一路的渲染比例"，
+ * 防止后人再把它接回相机流（R1 的 `setDefaultBufferSize(w/N,h/N)` 已被证伪并作废）。
+ */
+enum class DisplayScale(val divisor: Int) {
+    ORIG(1),
+    HALF(2),
+    QUARTER(4),
+    EIGHTH(8),
+    SIXTEENTH(16);
+
+    companion object {
+        val ALL: List<DisplayScale> = values().toList()
+        fun fromDivisor(divisor: Int): DisplayScale = ALL.firstOrNull { it.divisor == divisor } ?: ORIG
+    }
+}
+
+/**
  * 参数总线：每个可调项一个 StateFlow，UI 只读流、camera 层只读快照。
  * 切镜头调用 [applyAbility] 重算范围并钳制当前值。
  */
@@ -39,12 +62,55 @@ class WotaParams(private val scope: CoroutineScope) {
     val fps = MutableStateFlow(ParamState(25, exact = true))
 
     /**
+     * 最近一次 [applyAbility] 的能力快照：换帧率要按**新档位**重算快门/ISO 的可选域
+     * （快门上限吃 1/帧率档），否则 60fps→24fps 后快门滑杆还停在 1/60 上限
+     * （Issue #1 Bug3：「快门滑条丢失、无法慢于 1/60」）。@Volatile——引擎线程回写、UI 线程换档。
+     */
+    @Volatile
+    private var lastAbility: CameraAbility? = null
+
+    /**
+     * 换帧率的**唯一写入口**（docs/plan/28 §4.4 方案 A）：写值 + 立即按新档位重算曝光域，
+     * range 与 value 同一拍收口。四个写入点（画幅弹窗 / 帧率弹窗 / 设置页默认档 / 引擎退档回写）
+     * 都必须走这里；绕开它直写 `fps.value` 会让快门可选域停在旧档位上——UI 显示的域与
+     * 下发侧 `clampShutterNs` 各说各话（反向就是「UI 摆着 1/24、实际按 1/60 录」的假读数）。
+     * 没能力快照时（冷启套默认档，相机还没开）只写值，域等 [applyAbility] 再算。
+     */
+    fun setFps(next: ParamState<Int>) {
+        fps.value = next
+        lastAbility?.let { applyExposure(it, next.value) }
+    }
+
+    /**
      * 音频降噪 / 画面降噪（2026-10-26 用户需求：两项默认关）。
      * 与相机参数放同一条总线：面板即改即生效，落盘由设置持久化层负责（键见 ParamsPersist）。
      * 画面降噪的实际生效档还要过 [com.wotagei.cam.core.effectiveVideoDenoise]（DIRECT 模式退回 HAL）。
      */
     val audioDenoise = MutableStateFlow(com.wotagei.cam.core.AudioDenoise.OFF)
     val videoDenoise = MutableStateFlow(com.wotagei.cam.core.VideoDenoise.OFF)
+
+    /**
+     * Glow（荧光棒光晕，2026-10-27 用户需求；docs/plan/24 R3）。
+     *
+     * 整份参数走**一个** StateFlow：形状参数都是 uniform 级改动，UI 每拍写、引擎下一帧生效
+     * （`GlowProvider.setGlowParams` 不触发重画——录制中拖滑杆不会往成片塞重复帧）。
+     * 落盘由 [com.wotagei.cam.ui.ParamsPersist] 的复合键负责（`encodeGlow`/`decodeGlow`）。
+     */
+    val glowParams = MutableStateFlow(GlowParams.DEFAULT)
+
+    /**
+     * 上屏渲染比例（24 §2.3）：出厂 = 原片。**不重建相机会话**（结构签名里没有它），
+     * 换引擎时由 UI 那条长键补发（与 Glow 同一条纪律）。
+     */
+    val displayScale = MutableStateFlow(DisplayScale.ORIG)
+
+    // 站位指示线（2026-10-27）：会话级（v1 不落盘——默认 4 线/中距/黄已是典型四人位，
+    // 持久化等交互真机复验后随反馈补，避免首版把没调过的默认值写进用户存储）。
+    // 【交互定版 2026-10-27 二轮】**没有独立开关**：线的开/关只由线数驱动
+    // （0 = 关）——浮层控件层被误关不会连累线消失（用户实测反馈的痛点）。
+    val markerCount = MutableStateFlow(com.wotagei.cam.core.MarkerLines.DEFAULT_COUNT)
+    val markerSpread = MutableStateFlow(com.wotagei.cam.core.MarkerLines.DEFAULT_SPREAD)
+    val markerColor = MutableStateFlow(com.wotagei.cam.core.MarkerLineColor.YELLOW)
     val shutter = MutableStateFlow(ParamState(40_000_000L))          // ns，1/25
     val iso = MutableStateFlow(ParamState(100))
     val aeMode = MutableStateFlow(AeMode.AUTO)
@@ -64,9 +130,28 @@ class WotaParams(private val scope: CoroutineScope) {
     val focusLockPoint = MutableStateFlow<TapPoint?>(null)
 
     val zoom = MutableStateFlow(ParamState(1f))
+    /**
+     * 运行期探测到的「HAL 不采纳手动白平衡增益」闩锁（2026-10-28）：
+     * 静态能力表给不出答案时（`colorCorrectionModes` 空集 = 未声明，只能乐观当支持），
+     * 由引擎在结果回调里比对"请求增益 vs 回报增益"，连续多拍对不上就置真。
+     * 置真后 [wbApply] 改走画面算法，请求侧也不再发 AWB_MODE_OFF（否则整屏发绿）。
+     * 会话态：相机重开/切镜头由 [applyAbility] 清掉（能力表换了就得重新协商）。
+     */
+    val wbHalRejected = MutableStateFlow(false)
+
+    /**
+     * 运行时帧率坍塌提示（2026-10-28 用户6/7 反馈；null = 无提示）。
+     * 帧率决议保证的是**下发值合法**，保证不了实际到帧率——变量档 `[5,30]` 暗场掉 5fps、
+     * 固定档被 HAL 在结果侧放宽（`[24,24]`→`[15,24]`）都发生过。引擎按 ~1s 一拍采样
+     * 实际到帧率喂 [com.wotagei.cam.core.LowFpsWatch]，持续低帧经这里发提示，
+     * HUD 警告行如实告知「画面为什么卡」。判定与滞回全在 core（JVM 单测）。
+     */
+    val lowFpsHint = MutableStateFlow<LowFpsHint?>(null)
+
     val wbMode = MutableStateFlow(WbPreset.AUTO)
     val kelvin = MutableStateFlow(ParamState(5500))
     val tint = MutableStateFlow(ParamState(0))
+
     val flash = MutableStateFlow(Flash.OFF)
     val stabilize = MutableStateFlow(Stabilize.OFF)
     val bitrate = MutableStateFlow(10_000_000)
@@ -93,6 +178,14 @@ class WotaParams(private val scope: CoroutineScope) {
 
     /** RGB 曲线：只走 GPU 渲染链（DIRECT 无片元 pass），恒等即关闭 */
     val curve = MutableStateFlow(CurveStack.IDENTITY)
+
+    /**
+     * 色调四滑条（高光/阴影/黑点/白点，29 §4 F4；2026-10-28）：与曲线同级是 scene layer，
+     * 烘进同一条 LUT（预览+成片），`gl.setCurve(stack, tone)` 一处消费。恒等时 LUT 跳过
+     * （跳过判据 = stack 恒等 **且** tone 恒等，`GlRenderEngine.setCurve` 一处收口）。
+     * 持久化走独立键 KEY_TONE（ParamsPersist），**不**并进 CurveStack 的编解码。
+     */
+    val tone = MutableStateFlow(ToneParams.IDENTITY)
     val refLines = MutableStateFlow(0)                                // RefLineType 位掩码
     val levelEnabled = MutableStateFlow(true)
 
@@ -101,6 +194,9 @@ class WotaParams(private val scope: CoroutineScope) {
      * 顺序有依赖——快门上限要用帧率（≤1/fps），故帧率先算。
      */
     fun applyAbility(a: CameraAbility) {
+        lastAbility = a
+        // 换镜头 = 换了一套 3A 实现：上一颗头上"增益不被采纳"的结论不许沿用
+        wbHalRejected.value = false
         // 画幅先落档：帧率区间是按尺寸查的，顺序反过来会拿旧尺寸的区间去配新尺寸
         applySize(a)
         val targetFps = fps.value.value.coerceAtLeast(1)
@@ -202,12 +298,25 @@ class WotaParams(private val scope: CoroutineScope) {
     }
 
     private fun applyWhiteBalance(a: CameraAbility) {
-        // 手动档的能力回弹（2026-10-26 反馈 #6）：存量用户可能在不支持 TRANSFORM_MATRIX 的
-        // 机器上持久化过 MANUAL（变绿+滑杆失效的成因）。能力表到了才发现不支持 ⇒ 弹回 AUTO
-        // （与帧率自动降档同一条"自动变更必须可见"的纪律，弹回原因由 UI 侧提示）。
-        // colorCorrectionModes 空集合 = 隐藏键拿不到（无法判定）⇒ 不回弹，保持既有行为。
         val manualSupported = a.manualWhiteBalancePossible()
-        if (wbMode.value == WbPreset.MANUAL && !manualSupported) {
+        // 落地路径的单一裁决点：HAL 能采纳增益就走 HAL，否则退回画面算法（WbPlan 是纯函数）
+        val plan = wbApply()
+        // 落地路径必须可归因：用户报"手动白平衡没反应/发绿"时，一行日志就能区分
+        // "HAL 采纳了增益" / "改由画面算法" / "两条都不通已回弹"
+        com.wotagei.cam.diag.Diag.i(
+            "WotaWb",
+            "落地 mode=${wbMode.value.name} halSupported=$manualSupported" +
+                " byHal=${plan.byHal} byGl=${plan.byGl}" +
+                " render=${renderMode.value}" +
+                " gains=${plan.gains?.joinToString(",") { String.format(java.util.Locale.US, "%.3f", it) }}"
+        )
+
+        // 手动档的能力回弹（2026-10-26 反馈 #6，2026-10-28 收窄）：**只有一条路都走不通**才弹回自动。
+        // - HAL 不采纳增益但画面算法可用（GPU 管线）⇒ 保留手动档，改由 GL 乘相对增益；
+        // - HAL 不采纳增益且当前是 DIRECT（没有 GL）⇒ 确实做不到，弹回 AUTO 并留提示
+        //   （与帧率自动降档同一条"自动变更必须可见"的纪律）。
+        // colorCorrectionModes 空集合 = 隐藏键拿不到（无法判定）⇒ manualWhiteBalancePossible 为真，不回弹。
+        if (wbMode.value == WbPreset.MANUAL && !manualSupported && !plan.byGl) {
             wbMode.value = WbPreset.AUTO
         }
         if (a.awbModes.isNotEmpty() && !a.awbModes.contains(wbMode.value.awbMode)) {
@@ -224,6 +333,30 @@ class WotaParams(private val scope: CoroutineScope) {
             clamped(tint.value.value, WotaTiers.TINT_MIN, WotaTiers.TINT_MAX),
             WotaTiers.TINT_MIN..WotaTiers.TINT_MAX
         )
+    }
+
+    /**
+     * 白平衡落地路径的**唯一裁决点**（纯计算、不缓存 —— 请求侧、画面侧、UI 提示都读这一份，
+     * 免得"读落盘/读能力/读档位"三处各算一遍算出三种答案）。
+     *
+     * DIRECT 渲染没有 GL 场景层 ⇒ 画面算法这条腿不存在：此时 byGl 按 false 出，
+     * 调用方据此把手动档回弹自动（见 [applyWhiteBalance]）。
+     */
+    fun wbApply(): com.wotagei.cam.core.WbApply {
+        val raw = com.wotagei.cam.core.wbApplyPlan(
+            manual = wbMode.value == WbPreset.MANUAL,
+            // 落地路径只看**正向声明**（2026-10-28 WIKO 取证）：HAL 没明确列出 TRANSFORM_MATRIX 时
+            // 增益不可信——WIKO 会把请求原样回声在结果里（"采纳=是"），画面却四档无差别。
+            // 另外运行期抓到"不采纳"（[wbHalRejected]）也一律改走画面算法。
+            halSupportsGains = (lastAbility?.halDeclaresTransformMatrix() ?: false) &&
+                !wbHalRejected.value,
+            kelvin = kelvin.value.value,
+            tint = tint.value.value
+        )
+        if (raw.byGl && renderMode.value != RenderMode.GPU) {
+            return raw.copy(byGl = false, gains = null, noticeNeeded = false)
+        }
+        return raw
     }
 
     /** 落档到当前镜头能力：只按「用户要的那档」求解，见 [resolveSizeFor] */

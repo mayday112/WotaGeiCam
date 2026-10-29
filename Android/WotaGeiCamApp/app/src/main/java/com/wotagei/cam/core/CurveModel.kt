@@ -118,15 +118,29 @@ data class CurveStack(
         else -> copy(master = curve)
     }
 
-    /** 单通道求值：先白后本色，顺序不能换（白曲线是全局对比度，本色是通道增益） */
-    fun evaluate(channel: Int, x: Float): Float {
-        val afterMaster = master.evaluate(x)
-        return when (channel) {
+    /**
+     * 单通道求值：先色调、再白、后本色，顺序不能换（色调是场景层，白曲线是全局对比度，本色是通道增益）。
+     *
+     * [wbGain] 是**画面算法白平衡**的相对增益（[com.wotagei.cam.core.WbApply.gains]）：
+     * 乘在整条链的**最后**（显示域逐通道缩放）。物理上白平衡该在曲线之前，但走算法兜底时
+     * HAL 已经做了自动白平衡、我们要的是一个"相对偏移"，乘在出口等价且只影响色不改亮度；
+     * 1.0 = 不参与（自动档/预设档逐字节不变）。
+     */
+    fun evaluate(
+        channel: Int,
+        x: Float,
+        tone: ToneParams = ToneParams.IDENTITY,
+        wbGain: Float = 1f
+    ): Float {
+        val toned = if (tone.isIdentity) x else tone.apply(x)
+        val afterMaster = master.evaluate(toned)
+        val curved = when (channel) {
             ColorCurve.CHANNEL_RED -> red.evaluate(afterMaster)
             ColorCurve.CHANNEL_GREEN -> green.evaluate(afterMaster)
             ColorCurve.CHANNEL_BLUE -> blue.evaluate(afterMaster)
             else -> afterMaster
         }
+        return if (wbGain == 1f) curved else (curved * wbGain).coerceIn(0f, 1f)
     }
 
     /**
@@ -136,13 +150,20 @@ data class CurveStack(
      * （见 `Shaders.CURVE_DECL` 的 `applyCurve`）。若按平面三段（R‖G‖B）产出，
      * GPU 把乱序字节当交错读，每通道变成三轮 0→255 锯齿 ⇒ 花图。
      */
-    fun bake(size: Int = ColorCurve.TABLE_SIZE): FloatArray {
+    fun bake(
+        tone: ToneParams = ToneParams.IDENTITY,
+        size: Int = ColorCurve.TABLE_SIZE,
+        wbGains: FloatArray? = null
+    ): FloatArray {
+        val gr = wbGains?.getOrNull(0) ?: 1f
+        val gg = wbGains?.getOrNull(1) ?: 1f
+        val gb = wbGains?.getOrNull(2) ?: 1f
         val out = FloatArray(size * 3)
         for (i in 0 until size) {
             val v = i.toFloat() / (size - 1)
-            out[3 * i] = evaluate(ColorCurve.CHANNEL_RED, v)
-            out[3 * i + 1] = evaluate(ColorCurve.CHANNEL_GREEN, v)
-            out[3 * i + 2] = evaluate(ColorCurve.CHANNEL_BLUE, v)
+            out[3 * i] = evaluate(ColorCurve.CHANNEL_RED, v, tone, gr)
+            out[3 * i + 1] = evaluate(ColorCurve.CHANNEL_GREEN, v, tone, gg)
+            out[3 * i + 2] = evaluate(ColorCurve.CHANNEL_BLUE, v, tone, gb)
         }
         return out
     }
@@ -152,9 +173,14 @@ data class CurveStack(
      * （唯一消费点是 `GlRenderEngine.ensureCurveTexture`，契约以那边的上传/采样语义为准，两边不许各写一遍）。
      * 必须走 UNSIGNED_BYTE：GLES 2.0 里 `GL_RGB + GL_FLOAT` 不是合法组合格式，
      * 只有 `GL_LUMINANCE`/`GL_ALPHA` 才允许浮点，直接传 FloatBuffer 会在部分 ROM 上出黑屏。
+     * [tone] 默认恒等：**tone=0 时与改前逐字节一致**（29 §4.5 守卫钉住）。
      */
-    fun bakeBytes(size: Int = ColorCurve.TABLE_SIZE): ByteArray {
-        val f = bake(size)
+    fun bakeBytes(
+        tone: ToneParams = ToneParams.IDENTITY,
+        size: Int = ColorCurve.TABLE_SIZE,
+        wbGains: FloatArray? = null
+    ): ByteArray {
+        val f = bake(tone, size, wbGains)
         return ByteArray(f.size) { i -> ((f[i] * 255f) + 0.5f).toInt().coerceIn(0, 255).toByte() }
     }
 
@@ -207,12 +233,24 @@ object CurveEdit {
     }
 
     /** 最近的点；超出 [HIT_RADIUS] 返回 -1（表示点的是空白，应新增控制点） */
-    fun hitTest(points: List<ColorCurve.Point>, x: Float, y: Float): Int {
+    fun hitTest(points: List<ColorCurve.Point>, x: Float, y: Float): Int =
+        hitTestPx(points, x, y, HIT_RADIUS, HIT_RADIUS)
+
+    /**
+     * 像素域命中（29 §3.2-1，2026-10-28）：[rx]/[ry] 是**归一化半径**（调用方按
+     * radiusPx ÷ 画布宽/高换算——x/y 各自换算，正方形画布下二者相等）。
+     * 归一化常数 [HIT_RADIUS] 在面板放大后相对手指变小（120dp 画布 ≈8.4dp），
+     * 是「左下/右上端点抓不住」的根因之一；像素域半径随面板放大同步变大。
+     */
+    fun hitTestPx(points: List<ColorCurve.Point>, x: Float, y: Float, rx: Float, ry: Float): Int {
+        if (rx <= 0f || ry <= 0f) return -1
         var best = -1
         var bestDist = Float.MAX_VALUE
         points.forEachIndexed { i, p ->
-            val d = kotlin.math.hypot((p.x - x).toDouble(), (p.y - y).toDouble())
-            if (d <= HIT_RADIUS && d < bestDist) {
+            val dx = (p.x - x) / rx
+            val dy = (p.y - y) / ry
+            val d = kotlin.math.hypot(dx.toDouble(), dy.toDouble())
+            if (d <= 1.0 && d < bestDist) {
                 bestDist = d.toFloat()
                 best = i
             }

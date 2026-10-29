@@ -87,3 +87,9 @@ desktop.ini
 
 # ===== 会话临时取证（截图/UI 树 dump，不入版本库）=====
 /.tmp/
+
+# ===== 依赖锁与本机临时产物（不入版本库）=====
+/docs/remained/
+/HarmonyOS/**/*-lock.json5
+/HarmonyOS/**/*.localbak*
+/.*.json

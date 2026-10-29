@@ -294,6 +294,9 @@ internal fun HudEntry.pillKey(): PillKey? = pill?.let { p ->
         CamPill.MONITOR -> PillKey.MONITOR
         CamPill.FLASH -> PillKey.FLASH
         CamPill.DENOISE -> PillKey.DENOISE
+        CamPill.GLOW -> PillKey.GLOW
+        // TONE 有就近面板（同 Glow/监看一族）；曲线开整块面板才回 null
+        CamPill.TONE -> PillKey.TONE
         CamPill.CURVE -> null
         CamPill.LEVEL, CamPill.VOLUME -> null
     }
@@ -547,6 +550,16 @@ data class HudCtx(
     val denoiseLabel: String,
     val denoiseActive: Boolean,
     val onDenoiseClick: () -> Unit,
+    /** Glow 胶囊：读数文本（控件名「光晕」）、"开着"标记、能力闸（DIRECT 下在场但禁用）与点按 */
+    val glowLabel: String,
+    val glowActive: Boolean,
+    val glowUsable: Boolean,
+    val onGlowClick: () -> Unit,
+    /** TONE 胶囊（29 §4.4）：读数文本（控件名「色调」）、"生效中"标记（tone 非恒等且 GPU）、能力闸与点按 */
+    val toneLabel: String,
+    val toneActive: Boolean,
+    val toneUsable: Boolean,
+    val onToneClick: () -> Unit,
     val flash: Flash,
     val lensLabel: String,
     val btConnected: Boolean,
@@ -746,11 +759,16 @@ fun HudEntryItem(
                 tier, ctx.stabLabel, ctx.stabActive, anchor.then(modifier),
                 gatedClick(clicksAccepted, ctx.onStabClick), frost
             )
+            // 参考线（2026-10-28 用户口径）：圆形钮从 38dp 收到 30dp（与顶栏那排同款 size/glyph 令牌），
+            // 实测高 76px→60px ⇒ 竖 Dock 里从占 2 档降到 1 档，四周空白随之消失、整条 Dock 省出 1 档。
+            // 命中盒 30dp 仍 ≥ 图标钮最小可点档（顶栏 8 枚同尺寸已在真机长期使用）
             CamPill.REFLINE -> WotaIconButton(
                 image = Icons.Filled.GridOn,
                 description = stringResource(R.string.cam_p_refline),
                 selected = ctx.refLineOn,
                 modifier = anchor.then(modifier),
+                size = 30.dp,
+                glyph = 18.dp,
                 frost = frost,
                 onClick = ctx.onRefLineClick
             )
@@ -767,6 +785,19 @@ fun HudEntryItem(
             CamPill.DENOISE -> TierChip(
                 tier, ctx.denoiseLabel, ctx.denoiseActive, anchor.then(modifier),
                 gatedClick(clicksAccepted, ctx.onDenoiseClick), frost
+            )
+            // Glow（2026-10-27）：scene layer，读数恒取控件名；DIRECT 下**在场但禁用**
+            // （alpha 0.38，对齐对焦那颗：不藏控件、不摆洞，点了由调用方给解释）
+            CamPill.GLOW -> TierChip(
+                tier, ctx.glowLabel, ctx.glowActive,
+                anchor.then(modifier).alpha(if (ctx.glowUsable) 1f else 0.38f),
+                gatedClick(clicksAccepted, ctx.onGlowClick), frost
+            )
+            // TONE（29 §4.4）：scene layer，读数恒取控件名；DIRECT 下在场但禁用（与 Glow 同口径）
+            CamPill.TONE -> TierChip(
+                tier, ctx.toneLabel, ctx.toneActive,
+                anchor.then(modifier).alpha(if (ctx.toneUsable) 1f else 0.38f),
+                gatedClick(clicksAccepted, ctx.onToneClick), frost
             )
             CamPill.FLASH -> WotaIconButton(
                 image = flashIcon(ctx.flash),
@@ -1545,18 +1576,24 @@ internal fun VolumeLeds(db: Float, card: Boolean = true) {
  *
  * 返回顺序 = 行序 = 优先级，**逐字保持改前那道 `when` 的分支顺序**（高帧率 > 缺麦克风 > LEGACY >
  * DIRECT 特效），不做降序重排——改优先级是另一件裁决，不在本条改动范围内。
+ * 2026-10-28 审查加固新增两行，**追加**在固定行之后（不插入既有序）：换段预提示（segNearCap）
+ * 与「近似档+手动曝光」预告知（approxManual）——它们是状态行不是降级行，排在最后以不抢降级文案。
  */
 internal fun warnRows(
     deviceFailedHighFps: Boolean,
     audioDegraded: Boolean,
     legacy: Boolean,
     effect: FrameEffect,
-    renderMode: RenderMode
+    renderMode: RenderMode,
+    segNearCap: Boolean = false,
+    approxManual: Boolean = false
 ): List<Int> = buildList {
     if (deviceFailedHighFps) add(R.string.cam_state_high_fps)
     if (audioDegraded) add(R.string.no_audio_record_tip)
     if (legacy) add(R.string.capability_limited_tip)
     if (effect != FrameEffect.NONE && renderMode == RenderMode.DIRECT) add(R.string.cam_direct_no_effect)
+    if (segNearCap) add(R.string.cam_state_seg_near_cap)
+    if (approxManual) add(R.string.cam_state_approx_manual)
 }
 
 /**
@@ -1580,6 +1617,9 @@ fun BoxScope.HudTopChrome(
     deviceFailedHighFps: Boolean,
     effect: FrameEffect,
     renderMode: RenderMode,
+    lowFpsNote: String?,
+    segNearCap: Boolean = false,
+    approxManual: Boolean = false,
     onSettingsClick: () -> Unit,
     onHeightChanged: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -1627,13 +1667,17 @@ fun BoxScope.HudTopChrome(
             audioDegraded = audioDegraded,
             legacy = legacy,
             effect = effect,
-            renderMode = renderMode
+            renderMode = renderMode,
+            segNearCap = segNearCap,
+            approxManual = approxManual
         )
         // 这枚分叉是「无告警时整块不组合」的唯一保证，**别删**：Column 的 padding 在零子元素时
         // 照样参与测量，拆掉它会量出一枚 20×2dp 的隐形盒——干净态下 topBarH 静默 +2dp、
         // 竖 Dock 上界与 HintBar 整体下移 2dp，用户看不出但整条实测链偏了。
         // （WarnRowsRenderGuardTest 判据 3 钉着这枚分叉，删了当场红）
-        if (warns.isNotEmpty()) {
+        // lowFpsNote（帧率坍塌守卫，2026-10-28）同住这条分叉：它带运行时数值没法进 warnRows
+        // 的 List<Int> 口径，作为第 5 行排在固定行之后，同一样式同一 warn 色。
+        if (warns.isNotEmpty() || lowFpsNote != null) {
             Column(
                 Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -1642,6 +1686,18 @@ fun BoxScope.HudTopChrome(
                 warns.forEach { res ->
                     Text(
                         text = stringResource(res),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = WotaColor.warn,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .wotaCard(WotaShape.pill)
+                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                    )
+                }
+                if (lowFpsNote != null) {
+                    Text(
+                        text = lowFpsNote,
                         style = MaterialTheme.typography.labelSmall,
                         color = WotaColor.warn,
                         maxLines = 1,

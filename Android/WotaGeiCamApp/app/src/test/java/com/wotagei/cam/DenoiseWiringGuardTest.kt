@@ -72,22 +72,24 @@ class DenoiseWiringGuardTest {
             assertEquals(m, effectiveVideoDenoise(m, false))
         }
         // "有没有改变出图"的判据：OFF 恒 false；GPU 双边退回 HAL 后仍是"有降噪"（不是装了个空开关）
-        assertEquals(false, videoDenoiseActive(VideoDenoise.OFF, true, false))
-        assertEquals(false, videoDenoiseActive(VideoDenoise.OFF, false, false))
-        assertEquals(true, videoDenoiseActive(VideoDenoise.HAL_FAST, false, false))
-        assertEquals(true, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, true, false))
+        assertEquals(false, videoDenoiseActive(VideoDenoise.OFF, true))
+        assertEquals(false, videoDenoiseActive(VideoDenoise.OFF, false))
+        assertEquals(true, videoDenoiseActive(VideoDenoise.HAL_FAST, false))
+        assertEquals(true, videoDenoiseActive(VideoDenoise.HAL_HIGH_QUALITY, true))
+        assertEquals(true, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, true))
         assertEquals(
             "退回 HAL 后仍算有降噪——否则那颗胶囊的'生效中'标记会跟着渲染模式乱闪",
-            true, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, false, false)
+            true, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, false)
         )
-        // 监看叠加（斑马纹/峰值）开着时 GPU 双边那条支路不存在 ⇒ 不许亮"生效中"（2026-10-26）
+        // 2026-10-27（25 号计划 B3 改口）：成片恒按所选档降噪，判据不再看监看叠加态 ⇒
+        // 双槽之后斑马/峰值只影响预览，胶囊必须照旧亮"生效中"（旧口径会灭，界面就说谎了）
         assertEquals(
-            "叠加层开着时不降噪，胶囊必须灭",
-            false, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, true, true)
+            "监看叠加只影响预览，成片照降 ⇒ GPU 双边恒算生效",
+            true, videoDenoiseActive(VideoDenoise.GPU_BILATERAL, true)
         )
         assertEquals(
-            "HAL 档与叠加层无关，照旧算生效",
-            true, videoDenoiseActive(VideoDenoise.HAL_FAST, false, true)
+            "HAL 档同样与监看叠加无关",
+            true, videoDenoiseActive(VideoDenoise.HAL_FAST, false)
         )
     }
 
@@ -303,18 +305,34 @@ class DenoiseWiringGuardTest {
         assertTrue("双边程序必须真的在着色器表里", gl.contains("BILATERAL_FS"))
         assertTrue("曲线+双边那条支路也要有", gl.contains("BILATERAL_CURVE_FS"))
         assertTrue("轻量核也要在着色器表里（按负载自动降档用）", gl.contains("BILATERAL_LITE_FS"))
-        val body = KotlinSourceScan.bodyOf(gl, "buildProgram")
+        // 2026-10-27（25 号计划 B2 双槽）：降噪闸搬进 ProgramKey 的纯函数——
+        // "双边只作用于 effect=NONE（斑马纹与峰值对焦是监看叠加层，不降噪）"的唯一真源 = displayProgramKey
+        val keySrc = codeOnly(KotlinSourceScan.mainSourceText("camera/ProgramKey.kt"))
+        val displayKey = KotlinSourceScan.bodyOf(keySrc, "displayProgramKey")
         assertTrue(
-            "双边只作用于 effect=NONE（直通/曲线）——斑马纹与峰值对焦是监看叠加层，对它降噪等于对判读工具本身处理",
-            body.contains("if (effect == FrameEffect.NONE) denoiseLevel else 0")
+            "上屏键必须在 effect≠NONE 时把降噪压到 0（displayProgramKey 是这条口径的唯一真源）",
+            displayKey.contains("FrameEffect.NONE") && displayKey.contains("DENOISE_LEVEL_OFF")
+        )
+        // 成片槽只认 movieProgramKey（effect 恒 NONE）；降噪维度随键参与"要不要重建"
+        val movieSlot = KotlinSourceScan.bodyOf(gl, "syncMovieSlot")
+        assertTrue(
+            "成片槽必须从 movieProgramKey 取键（成片键不认识监看叠加）",
+            movieSlot.contains("movieProgramKey(")
         )
         assertTrue(
-            "降噪档必须参与'要不要重建 program'的判据（否则切档不生效）",
-            KotlinSourceScan.bodyOf(gl, "syncEffect").contains("denoiseLevel == programDenoiseLevel")
+            "成片槽的降噪维度必须来自 denoiseLevelNow()（硬编码 0 会让降噪静默失效，而键看着还" +
+                "参与重建）",
+            movieSlot.contains("denoiseLevelNow()")
         )
         assertTrue(
-            "轻量核编不出来时要退回完整核（denoiseApplied = DENOISE_FULL），而不是直接关掉降噪",
-            body.contains("denoiseApplied = DENOISE_FULL")
+            "上屏槽必须从 displayProgramKey 取键（降噪维度的闸在键函数里）",
+            KotlinSourceScan.bodyOf(gl, "syncDisplaySlot").contains("displayProgramKey(")
+        )
+        // 轻量核编不出来时要退回完整核（而不是直接关降噪）= 回退阶梯的 denoise 2→1→0。
+        // 阶梯只有一份实现（ProgramKey.nextFallback），ProgramKeyTest 逐步钉着；这里钉"真的用了它"
+        assertTrue(
+            "回退阶梯必须走 nextFallback（先退曲线、再退降噪档：轻量核→完整核→无降噪）",
+            KotlinSourceScan.bodyOf(gl, "buildProgram").contains("nextFallback(")
         )
     }
 

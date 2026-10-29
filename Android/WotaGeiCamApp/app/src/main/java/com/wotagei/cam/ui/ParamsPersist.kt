@@ -4,15 +4,21 @@ import android.content.SharedPreferences
 import com.wotagei.cam.core.AeMode
 import com.wotagei.cam.core.ArcMergeDeadband
 import com.wotagei.cam.core.AfMode
+import com.wotagei.cam.core.DisplayScale
 import com.wotagei.cam.core.Flash
 import com.wotagei.cam.core.FrameEffect
+import com.wotagei.cam.core.GlowParams
 import com.wotagei.cam.core.LensType
+import com.wotagei.cam.core.MarkerLineColor
+import com.wotagei.cam.core.MarkerLines
 import com.wotagei.cam.core.PeakingColor
 import com.wotagei.cam.core.Size
 import com.wotagei.cam.core.Stabilize
 import com.wotagei.cam.core.WbPreset
 import com.wotagei.cam.core.WotaParams
 import com.wotagei.cam.core.WotaTiers
+import com.wotagei.cam.core.decodeGlow
+import com.wotagei.cam.core.encodeGlow
 
 /**
  * 录制页参数持久化（用户反馈第 1 条；2026-10-16 用户拍板口径）：
@@ -21,7 +27,8 @@ import com.wotagei.cam.core.WotaTiers
  * 语义 = **键即启动档位**（上次用过就是下次启动值）——与设置页默认档共用同一套键，
  * 不新造"默认 vs 上次"两套概念（拍板 Q1：共用）。[WotaSettings] 里那 19 个新键与
  * 5 个存量键（`default_fps`/`default_shutter_ns`/`default_bitrate`/`default_ref_lines`/
- * `level_enabled`）共同构成入档白名单 [KEYS]（24 项）。
+ * `level_enabled`）、2026-10-26 的降噪两项、2026-10-27 的站位线两项、Glow 一份与上屏档共同构成
+ * 入档白名单 [KEYS]（30 项）。
  *
  * 两条链：
  * - **冷启恢复**：[restore] 读键 → 坏值回默认 → 写总线（`copy(value=)`，不碰 range/enabled/exact，
@@ -36,7 +43,10 @@ import com.wotagei.cam.core.WotaTiers
  * - `audioEnabled`（音源）：**不持久化**（拍板 R3）——录制页音源双开关（内录/环境音）任何路径
  *   都不写 prefs、不跨进程恢复（否则开过内录的用户每次启动都要重新申请投屏授权）；
  * - `focusPoint`：瞬时点按态，冷启不应钉死对焦框；
- * - `curve`/`arc_convert_mode`：已有各自专属的直写链，避免第二写入方。
+ * - `curve`/`arc_convert_mode`：已有各自专属的直写链，避免第二写入方；
+ * - `markerCount`（站位线线数）：**刻意不入档**（2026-10-27 用户裁决）——"启动时取景器能
+ *   干净无线"，线数每次从 0 起步；间距与颜色照常入档（[WotaSettings.KEY_DEFAULT_MARKER_SPREAD]
+ *   / [WotaSettings.KEY_DEFAULT_MARKER_COLOR]）。
  */
 object ParamsPersist {
 
@@ -67,7 +77,18 @@ object ParamsPersist {
         WotaSettings.KEY_DEFAULT_LENS,
         WotaSettings.KEY_DEFAULT_ARC_MERGE_DEADBAND,
         WotaSettings.KEY_DENOISE_AUDIO,
-        WotaSettings.KEY_DENOISE_VIDEO
+        WotaSettings.KEY_DENOISE_VIDEO,
+        // 2026-10-27：站位线的间距与颜色入档；**线数刻意不入档**（用户口径：启动时取景器
+        // 要干净无线 ⇒ 线数恒从 0 起步，见 restore 末尾那条注释与 KeyTable 守卫）
+        WotaSettings.KEY_DEFAULT_MARKER_SPREAD,
+        WotaSettings.KEY_DEFAULT_MARKER_COLOR,
+        // 2026-10-27：Glow 整份参数入档（复合串键，见 WotaSettings.KEY_GLOW 的注释）
+        WotaSettings.KEY_GLOW,
+        // 2026-10-28：色调四滑条入档（复合串键 KEY_TONE；**不**并进 KEY_CURVE_STACK——
+        // 那会改曲线持久格式，老用户串会解坏，29 §4.3）
+        WotaSettings.KEY_TONE,
+        // 2026-10-27：上屏渲染比例（枚举名；只改窗口 pass，不重建会话）
+        WotaSettings.KEY_DISPLAY_SCALE
     )
 
     /**
@@ -76,10 +97,14 @@ object ParamsPersist {
      * 手改 prefs 的脏数据最多让它落到出厂默认或产品域边界。
      */
     fun restore(prefs: SharedPreferences, params: WotaParams) {
-        // ① 帧率：产品档位区间钳（与 applyDefaults 同一口径）
-        params.fps.value = params.fps.value.copy(
-            value = prefs.getInt(WotaSettings.KEY_DEFAULT_FPS, 25)
-                .coerceIn(WotaTiers.FPS.first(), WotaTiers.FPS.last())
+        // ① 帧率：产品档位区间钳（与 applyDefaults 同一口径）。走 setFps 单一写入者（28 §4.4）：
+        //    冷启恢复时能力快照还没建（applyAbility 未跑），行为与直写等价；留单一入口是为了
+        //    「所有 fps 写入点都过 setFps」这条守卫不被这处漏成例外
+        params.setFps(
+            params.fps.value.copy(
+                value = prefs.getInt(WotaSettings.KEY_DEFAULT_FPS, 25)
+                    .coerceIn(WotaTiers.FPS.first(), WotaTiers.FPS.last())
+            )
         )
         // ② 快门（ns）：>0 才套；坏值跳过 = 维持 applyDefaults 刚无条件套上的出厂默认
         //    （本函数自身不做钳制；最终设备域由后续 applyAbility 收口）
@@ -102,6 +127,13 @@ object ParamsPersist {
         params.ev.value = params.ev.value.copy(value = prefs.getInt(WotaSettings.KEY_DEFAULT_EV, 0))
         // ⑨ 白平衡三件套（awbModes 闸门由 applyWhiteBalance 管；色温/色调是产品滑杆域）
         params.wbMode.value = enumOrDefault(prefs, WotaSettings.KEY_DEFAULT_WB_PRESET, WbPreset.AUTO)
+        // 白平衡落地路径要可归因（2026-10-28）：恢复值 + 实际落地（HAL/画面算法）各留一行，
+        // 用户报"手动白平衡没反应/发绿"时不必再靠猜
+        com.wotagei.cam.diag.Diag.i(
+            "WotaWb",
+            "冷启恢复 wb: raw=${prefs.getString(WotaSettings.KEY_DEFAULT_WB_PRESET, null)}" +
+                " -> ${params.wbMode.value.name} kelvin=${prefs.getInt(WotaSettings.KEY_DEFAULT_WB_KELVIN, 5500)}"
+        )
         params.kelvin.value = params.kelvin.value.copy(value = prefs.getInt(WotaSettings.KEY_DEFAULT_WB_KELVIN, 5500))
         params.tint.value = params.tint.value.copy(value = prefs.getInt(WotaSettings.KEY_DEFAULT_WB_TINT, 0))
         // ⑩ 变焦：>0 才套
@@ -136,6 +168,23 @@ object ParamsPersist {
         // ⑰ 降噪两项（2026-10-26）：坏串/缺键一律回 OFF（默认关是产品口径，见 core/Denoise）
         params.audioDenoise.value = WotaSettings.audioDenoise(prefs)
         params.videoDenoise.value = WotaSettings.videoDenoise(prefs)
+        // ⑱ 站位线（2026-10-27）：**只恢复间距与颜色，线数不恢复**——用户口径「启动时取景器
+        //    能干净无线」，线数恒停在出厂 0（= 关），由用户当场用 +/− 调；间距越界钳回产品域，
+        //    颜色坏串回黄（与 MarkerLineColor.fromOrdinal 兜底同一取向）
+        params.markerSpread.value =
+            MarkerLines.clampSpread(prefs.getFloat(WotaSettings.KEY_DEFAULT_MARKER_SPREAD, MarkerLines.DEFAULT_SPREAD))
+        params.markerColor.value = enumOrDefault(
+            prefs, WotaSettings.KEY_DEFAULT_MARKER_COLOR, MarkerLineColor.YELLOW
+        )
+        // ⑳ Glow：整份参数一个复合串键；坏串整份回出厂（decodeGlow 内部已 sanitize）
+        params.glowParams.value = decodeGlow(prefs.getString(WotaSettings.KEY_GLOW, null))
+        // ㉑ 上屏档：枚举名；坏串回原片。**不在这里推可用性**——窗口尺寸要到出帧才知道，
+        //    "这一档本机可不可用"由 UI 的灰显 + 引擎的回落信号负责（读数与实际一致的口径见 24 §2.3）
+        params.displayScale.value = enumOrDefault(
+            prefs, WotaSettings.KEY_DISPLAY_SCALE, DisplayScale.ORIG
+        )
+        // ㉒ 色调（29 §4.3，2026-10-28）：复合串一个键；坏串整份回恒等（decode 内部已 sanitize）
+        params.tone.value = com.wotagei.cam.core.ToneParams.decode(prefs.getString(WotaSettings.KEY_TONE, null))
     }
 
     /** LOCK 归一（Q5）：写 `default_ae_mode` 时 LOCK 一律存/恢复为 AUTO。 */
@@ -203,6 +252,11 @@ class ParamsPersistSession(private val prefs: SharedPreferences, private val par
     private var shBitrate = params.bitrate.value
     private var shDenoiseAudio = params.audioDenoise.value
     private var shDenoiseVideo = params.videoDenoise.value
+    private var shMarkerSpread = params.markerSpread.value
+    private var shMarkerColor = params.markerColor.value
+    private var shGlow = params.glowParams.value
+    private var shTone = params.tone.value
+    private var shDisplayScale = params.displayScale.value
     private var shRefLines = params.refLines.value
     private var shLevel = params.levelEnabled.value
 
@@ -234,6 +288,13 @@ class ParamsPersistSession(private val prefs: SharedPreferences, private val par
         val level = params.levelEnabled.value
         val denoiseAudio = params.audioDenoise.value
         val denoiseVideo = params.videoDenoise.value
+        // 站位线只落间距与颜色：线数不进白名单（用户口径"启动时取景器干净无线"），
+        // 所以这里**故意不读 params.markerCount**
+        val markerSpread = params.markerSpread.value
+        val markerColor = params.markerColor.value
+        val glow = params.glowParams.value
+        val tone = params.tone.value
+        val displayScale = params.displayScale.value
 
         val editor = prefs.edit()
         var dirty = false
@@ -242,6 +303,13 @@ class ParamsPersistSession(private val prefs: SharedPreferences, private val par
         if (bitrate != shBitrate) { editor.putInt(WotaSettings.KEY_DEFAULT_BITRATE, bitrate); dirty = true }
         if (denoiseAudio != shDenoiseAudio) { editor.putString(WotaSettings.KEY_DENOISE_AUDIO, denoiseAudio.key); dirty = true }
         if (denoiseVideo != shDenoiseVideo) { editor.putString(WotaSettings.KEY_DENOISE_VIDEO, denoiseVideo.key); dirty = true }
+        if (markerSpread != shMarkerSpread) { editor.putFloat(WotaSettings.KEY_DEFAULT_MARKER_SPREAD, markerSpread); dirty = true }
+        if (markerColor != shMarkerColor) { editor.putString(WotaSettings.KEY_DEFAULT_MARKER_COLOR, markerColor.name); dirty = true }
+        if (glow != shGlow) { editor.putString(WotaSettings.KEY_GLOW, encodeGlow(glow)); dirty = true }
+        if (tone != shTone) { editor.putString(WotaSettings.KEY_TONE, com.wotagei.cam.core.ToneParams.encode(tone)); dirty = true }
+        if (displayScale != shDisplayScale) {
+            editor.putString(WotaSettings.KEY_DISPLAY_SCALE, displayScale.name); dirty = true
+        }
         if (refLines != shRefLines) { editor.putInt(WotaSettings.KEY_DEFAULT_REF_LINES, refLines); dirty = true }
         if (level != shLevel) { editor.putBoolean(WotaSettings.KEY_LEVEL_ENABLED, level); dirty = true }
         if (iso != shIso) { editor.putInt(WotaSettings.KEY_DEFAULT_ISO, iso); dirty = true }
@@ -294,6 +362,11 @@ class ParamsPersistSession(private val prefs: SharedPreferences, private val par
             shBitrate = bitrate
             shDenoiseAudio = denoiseAudio
             shDenoiseVideo = denoiseVideo
+            shMarkerSpread = markerSpread
+            shMarkerColor = markerColor
+            shGlow = glow
+            shTone = tone
+            shDisplayScale = displayScale
             shRefLines = refLines
             shLevel = level
         }

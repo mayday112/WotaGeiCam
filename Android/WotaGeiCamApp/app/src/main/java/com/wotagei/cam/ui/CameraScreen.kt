@@ -60,10 +60,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.RotateLeft
+import androidx.compose.material.icons.outlined.ViewWeek
 import androidx.compose.material.icons.outlined.Splitscreen
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,22 +88,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size as GeoSize
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -106,8 +119,12 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -127,9 +144,14 @@ import com.wotagei.cam.camera.concurrentCameraIdsWith
 import com.wotagei.cam.core.AeMode
 import com.wotagei.cam.core.hasAdjustableFocus
 import com.wotagei.cam.core.forcedShutterOutOfRange
+import com.wotagei.cam.core.segmentCapApproached
 import com.wotagei.cam.core.AfMode
 import com.wotagei.cam.core.FrameEffect
+import com.wotagei.cam.core.DisplayScale
+import com.wotagei.cam.core.displayScaleReadoutLabel
 import com.wotagei.cam.core.CamPill
+import com.wotagei.cam.core.MarkerLineColor
+import com.wotagei.cam.core.MarkerLines
 import com.wotagei.cam.core.HudItem
 import com.wotagei.cam.core.LensType
 import com.wotagei.cam.core.MediaAccessState
@@ -202,7 +224,9 @@ import com.wotagei.cam.record.streamHealthVerdict
 import com.wotagei.cam.ui.anim.LocalMotion
 import com.wotagei.cam.ui.anim.MergeDebugBadge
 import com.wotagei.cam.ui.design.WotaChip
+import com.wotagei.cam.ui.design.LocalPreviewOverlaysOn
 import com.wotagei.cam.ui.design.WotaColor
+import com.wotagei.cam.ui.design.WotaType
 import com.wotagei.cam.ui.design.WotaHit
 import com.wotagei.cam.ui.design.WotaIconButton
 import com.wotagei.cam.ui.design.WotaSpace
@@ -221,6 +245,7 @@ import com.wotagei.cam.ui.theme.WotaSurface
 import com.wotagei.cam.ui.theme.WotaText
 import com.wotagei.cam.ui.theme.WotaWarn
 import com.wotagei.cam.ui.widget.CameraSurface
+import com.wotagei.cam.ui.widget.MarkerLineOverlay
 import com.wotagei.cam.ui.widget.RefLineOverlay
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -279,11 +304,14 @@ fun CameraScreen(
     val shutter by params.shutter.observed()
     val iso by params.iso.observed()
     val ev by params.ev.observed()
+    // 帧率坍塌守卫（2026-10-28 用户6/7）：持续低帧时顶栏告警行如实告知「画面为什么卡」
+    val lowFpsHint by params.lowFpsHint.observed()
     val aeMode by params.aeMode.observed()
     val wbMode by params.wbMode.observed()
     val stabilize by params.stabilize.observed()
     val afMode by params.afMode.observed()
     val kelvin by params.kelvin.observed()
+    val tint by params.tint.observed()
     val zoom by params.zoom.observed()
     val flash by params.flash.observed()
     val frameEffect by params.frameEffect.observed()
@@ -292,12 +320,39 @@ fun CameraScreen(
     val peakingStrength by params.peakingStrength.observed()
     val peakingColor by params.peakingColor.observed()
     val curveStack by params.curve.observed()
+    // 色调（29 §4.3，2026-10-28）：烘进同一条 LUT，随长键下发（换引擎同曲线一样补发）
+    val toneParams by params.tone.observed()
     val bitrate by params.bitrate.observed()
     val refLines by params.refLines.observed()
     val levelEnabled by params.levelEnabled.observed()
     val arcMergeDeadband by params.arcMergeDeadband.observed()
     /** 画面降噪档（2026-10-26）：实际生效档由 core.effectiveVideoDenoise 与本页 renderMode 共同裁决 */
     val videoDenoise by params.videoDenoise.observed()
+    /**
+     * 音频降噪档（2026-10-27）：与画面降噪一起算"降噪是否生效中"。必须在组合里**收集**而不是
+     * 读 `.value`——后者不订阅变化，且触发 lint `StateFlowValueCalledInComposition`。
+     */
+    val audioDenoise by params.audioDenoise.observed()
+    /**
+     * Glow 参数（2026-10-27）：整份参数一个流。滑杆拖动时每拍只写总线，落盘走 [persist].flush()。
+     * 长键 LaunchedEffect 会把它下发给 `GlowProvider`（不触发重画，见 setGlowParams 的注释）。
+     */
+    val glowParams by params.glowParams.observed()
+    /** 上屏渲染比例（2026-10-27）：只影响窗口 pass 的离屏 RT；换引擎由下面那条长键补发 */
+    val displayScale by params.displayScale.observed()
+    // 站位指示线（2026-10-27 二轮定版）：**线的开/关只由线数驱动**（0 = 关），没有独立开关——
+    // 点按圆钮出的浮层控件被误点（点外部即关）也不会连累线消失，这是用户点名要的行为。
+    // markerControlsOpen 是纯 UI 态：+/线数/- 与间距滑杆那层透明浮层的开/关。
+    val markerCount by params.markerCount.observed()
+    val markerSpread by params.markerSpread.observed()
+    val markerColor by params.markerColor.observed()
+    var markerControlsOpen by remember { mutableStateOf(false) }
+    var markerColorPop by remember { mutableStateOf(false) }
+    // 浮层落点（2026-10-27 三轮）：实测的**圆钮**矩形 = 锚点，实测的**右 Dock 槽**矩形 = 右侧保留区。
+    // 都取窗口坐标（boundsInWindow），与 PopupPositionProvider 的坐标口径一致；
+    // 用户两次点名落点问题（先"别漂画面中间"，再"别压右 Dock"），所以这里不写任何手算常量。
+    var markerAnchorRect by remember { mutableStateOf<Rect?>(null) }
+    var rightDockSlotRect by remember { mutableStateOf<Rect?>(null) }
     // 常驻 HUD 与震动开关是纯 UI 设置，直接读 prefs：走参数总线会被 applyDefaultsOnce 的
     // 「进程内只套一次」挡住，在设置页改完回录制页看不到效果
     val settingsPrefs = remember(app) { WotaSettings.of(app) }
@@ -346,6 +401,8 @@ fun CameraScreen(
     val recStatus by runner.status.observed()
     val recElapsed by runner.elapsedMs.observed()
     val recDb by runner.volumeDb.observed()
+    // 换段预提示（2026-10-28 审查加固）：pollTask 按真实写入字节置位，录制结束自动清
+    val segNearCap by runner.segNearCap.observed()
     val recording = recStatus == RecordStatus.START || recStatus == RecordStatus.PREPARE ||
         recStatus == RecordStatus.STOPPING
 
@@ -617,17 +674,29 @@ fun CameraScreen(
         onDispose { directSink.onStreamSizeChanged = null }
     }
 
+    // ---- Glow 参数下发（2026-10-27）：**独立 effect**，键 = (activeSink, glowParams)。
+    // 为什么不能并进下面那条长键：那条的键一变就跑**整条 effect**（重发 effect/zebra/peaking/curve/
+    // 降噪…），而 Glow 形状参数是拖滑杆时每 tick 都变的 —— 并进去等于每 tick 把整条 effect 链重跑
+    // 一遍（真机上是白掉帧 + 无谓的 uniform 重传）。独立之后一次改动只做一次 setGlowParams。
+    // 键含 activeSink：换引擎（GPU↔DIRECT、换会话）时照样补发；DIRECT 也走这条（DirectSink 只存值）。
+    // 位置在长键 **之前**、且不经 `glEngine ?: return`：DIRECT 下 glEngine 恒 null，走那里就到不了 DirectSink。
+    LaunchedEffect(activeSink, glowParams) {
+        (activeSink as? com.wotagei.cam.camera.GlowProvider)?.setGlowParams(glowParams)
+    }
+
+
     // ---- GPU 特效档位实时下发；DIRECT 强制无特效（03 文档 §1）
     LaunchedEffect(
         glEngine, renderMode, frameEffect, zebraThreshold, zebraDensity, peakingStrength, peakingColor, curveStack,
-        arcMergeDeadband, videoDenoise
+        arcMergeDeadband, videoDenoise, displayScale, toneParams
     ) {
         val gl = glEngine ?: return@LaunchedEffect
         gl.setEffect(if (renderMode == RenderMode.DIRECT) FrameEffect.NONE else frameEffect)
         gl.setZebraParameters(zebraThreshold, zebraDensity)
         gl.setPeakingParameters(peakingStrength, peakingColor)
-        // 换渲染模式会 new 一个新引擎：曲线要在同一处补发，否则切回 GPU 就丢调色
-        gl.setCurve(curveStack)
+        // 换渲染模式会 new 一个新引擎：曲线要在同一处补发，否则切回 GPU 就丢调色。
+        // 色调（29 §4.3）与曲线共走 setCurve：同一张 LUT 的两个输入
+        gl.setCurve(curveStack, toneParams)
         // 补弧「并入门槛」同理：只下发给当前引擎的本段 uniform，下一段 setArcConvert 仍回落到
         // 参数总线发布的快照（真源在 WotaParams.setArcMergeDeadband）——这里不改打戳/抽帧节奏
         gl.setArcMergeDeadband(arcMergeDeadband)
@@ -637,6 +706,32 @@ fun CameraScreen(
             com.wotagei.cam.core.effectiveVideoDenoise(videoDenoise, renderMode == RenderMode.GPU) ==
                 com.wotagei.cam.core.VideoDenoise.GPU_BILATERAL
         )
+        // 上屏档（24 §2.3）：不重建相机会话，只在 GL 线程换窗口 pass 的 RT 尺寸；换引擎必须补发
+        // （否则切一次渲染模式再回来，上屏档静默回落到原片）
+        gl.setDisplayScale(displayScale)
+    }
+
+    // 直方图采样开关（2026-10-27）：仅曲线弹窗可见 + GPU 档才采。独立 effect——键表必须含
+    // sheet（弹窗开关本身就要触发），不能蹭上面那条长键表（它的键全是"值变化才重发"的参数）
+    LaunchedEffect(glEngine, sheet, renderMode) {
+        glEngine?.setHistogramEnabled(sheet == Sheet.CURVE && renderMode == RenderMode.GPU)
+    }
+
+    // 上屏降档回落（24 §〇.1-4「自动变化必须可见」）：引擎说这一档不可用 ⇒ 档位改回原片 + 提示一次。
+    // 键含 glEngine：换引擎后旧实例的 flow 不再收，新实例的照收。
+    LaunchedEffect(glEngine) {
+        val engine = glEngine ?: return@LaunchedEffect
+        engine.displayScaleFallback.collect { fellBack ->
+            if (!fellBack) return@collect
+            // 按 24 §2.3 落到**最近可用档**（16 不可用 → 8/4/2，兜底原片），再把档位写回总线
+            // （读数与实际一致；禁止"显示 4、实际按原片跑"）。等比区此刻量不到 ⇒ 直接原片。
+            val content = engine.contentRect()
+            params.displayScale.value = com.wotagei.cam.core.nearestDisplayScale(
+                content.width(), content.height(), params.displayScale.value
+            )
+            showTip(app.getString(R.string.cam_display_scale_fallback))
+            engine.displayScaleFallback.value = false
+        }
     }
 
     // ---- 方向：显示角喂给两条 sink，sink 内部再叠自己读到的缓冲矩阵旋转分量（见 camera/PreviewOrientation）
@@ -646,6 +741,28 @@ fun CameraScreen(
             ?: ui.lenses.firstOrNull { it.type == lens }
     }
     val ability = slot?.ability
+
+    // ---- 画面算法白平衡（2026-10-28）：HAL 不采纳 COLOR_CORRECTION_GAINS 的机型上，手动色温/色调
+    // 改由场景层 LUT 乘相对增益落地。**独立 effect**：拖色温滑杆时每 tick 都在变，并进下面那条长键
+    // 会把 effect/zebra/peaking/curve/降噪 整条链重跑一遍（同 Glow 的分键理由）。
+    // 增益 null = 不参与（自动/预设档，以及能走 HAL 的机型）。
+    val wbApply = remember(wbMode, kelvin.value, tint.value, ability?.manualWhiteBalancePossible(), renderMode) {
+        params.wbApply()
+    }
+    LaunchedEffect(glEngine, wbApply.gains?.contentHashCode()) {
+        glEngine?.setWbGains(wbApply.gains)
+    }
+    // 手动白平衡转画面算法（2026-10-28 用户需求）：本机没声明手动白平衡增益支持时，色温/色调
+    // 改由场景层乘相对增益落地——这是一次**自动变更**，必须看得见（同帧率/降噪降档的规矩）。
+    // 每次进页最多一条：用户切来切去不刷屏，弹层里还有常驻说明。
+    var wbFallbackTipShown by remember { mutableStateOf(false) }
+    LaunchedEffect(wbApply.byGl) {
+        if (wbApply.byGl && !wbFallbackTipShown) {
+            wbFallbackTipShown = true
+            showTip(app.getString(R.string.cam_wb_gl_fallback_toast))
+        }
+    }
+
     // #44：定焦镜头上「对焦」这件事整体没有意义 —— 胶囊入口与点按对焦一起收掉
     val focusUsable = ability?.hasAdjustableFocus() ?: true
     // ---- 对焦锁定（用户反馈第 2 条）：锁定锚点取最近一次点按处（无则画面中心，供胶囊「锁定对焦」
@@ -1162,6 +1279,18 @@ fun CameraScreen(
                     showLevelLine = levelEnabled,
                     modifier = Modifier.matchParentSize()
                 )
+                // 站位指示线（2026-10-27）：与参考线同一 View 叠加通道——**不进录像画面**
+                // （录制采集相机/GL 面，View 层结构上进不了编码器），录制中也可用。
+                // 门控 = **线数 > 0**（二轮定版：没有独立开关，0 = 关；浮层控件被误关不连累线）
+                if (markerCount > 0) {
+                    MarkerLineOverlay(
+                        count = markerCount,
+                        spread = markerSpread,
+                        color = markerColor,
+                        aspect = previewAspect,
+                        modifier = Modifier.matchParentSize()
+                    )
+                }
                 FocusBox(
                     // 锁定期的数据源切换成锁定锚点（缺省画面中心，与引擎同一口径）；未锁路径一字不动
                     point = if (focusLocked) (focusLockPoint ?: TapPoint(0.5f, 0.5f)) else focusPoint,
@@ -1257,13 +1386,21 @@ fun CameraScreen(
         // 降噪胶囊读数（2026-10-26）：短名与"生效中"标记。短名恒取**控件名**（与 防抖/对焦/监看
         // 同一条口径：读数颗的字面量是"它是什么"，而"开没开"由 TierChip 的选中态上色承担）。
         // 不在这里改成"当前档短名"：底栏左带最窄只有 ≈64dp（竖屏 360dp 那一档），
-        // 一串「系统降噪·GPU 双边」会把那颗 chip 撑到顶掉整个 Dock 左带
+        // 一串「系统降噪·GPU 双边」会把那颗 chip 撑到顶掉整个 Dock 左带。
+        // 2026-10-27（双槽改口）：成片恒按所选档降噪 ⇒ 判据不再看监看叠加态；
+        // 两个档位都在组合里收集（`videoDenoise`/`audioDenoise`），组合期不读 `.value`
         denoiseLabel = stringResource(R.string.cam_pill_denoise),
-        denoiseActive = com.wotagei.cam.core.videoDenoiseActive(
-            params.videoDenoise.value, renderMode == RenderMode.GPU,
-            monitorEffectOn = frameEffect != FrameEffect.NONE
-        ) ||
-            params.audioDenoise.value != com.wotagei.cam.core.AudioDenoise.OFF,
+        denoiseActive = com.wotagei.cam.core.videoDenoiseActive(videoDenoise, renderMode == RenderMode.GPU) ||
+            audioDenoise != com.wotagei.cam.core.AudioDenoise.OFF,
+        // Glow（2026-10-27）：读数恒取控件名（与降噪/防抖同口径），"开着"由选中态承担；
+        // DIRECT 下相机帧不进 GL 管线 ⇒ 在场但禁用（半透明 + 点了给解释）
+        glowLabel = stringResource(R.string.cam_pill_glow),
+        glowActive = glowParams.enabled && renderMode == RenderMode.GPU,
+        glowUsable = renderMode == RenderMode.GPU,
+        // TONE（29 §4.4）：读数恒取控件名；"生效中" = tone 非恒等且 GPU；DIRECT 下在场但禁用
+        toneLabel = stringResource(R.string.cam_pill_tone),
+        toneActive = toneParams.isIdentity.not() && renderMode == RenderMode.GPU,
+        toneUsable = renderMode == RenderMode.GPU,
         flash = flash,
         // 六项第 7 条：镜头入口从顶栏搬到底栏那颗，标签读当前镜头名
         lensLabel = stringResource(lensLabelRes(slot?.type ?: lens)),
@@ -1331,6 +1468,14 @@ fun CameraScreen(
             if (canFlash) pop = PillKey.FLASH else showTip(app.getString(R.string.cam_flash_unsupported))
         },
         onDenoiseClick = { pop = PillKey.DENOISE },
+        onGlowClick = {
+            if (renderMode == RenderMode.GPU) pop = PillKey.GLOW
+            else showTip(app.getString(R.string.cam_monitor_need_gpu))
+        },
+        onToneClick = {
+            if (renderMode == RenderMode.GPU) pop = PillKey.TONE
+            else showTip(app.getString(R.string.cam_monitor_need_gpu))
+        },
         onCurveClick = {
             openSheet(Sheet.CURVE)
             // 小弹窗没有副标题位：CPU 渲染档曲线不可拖，进弹窗第一时间用提示条说清
@@ -1425,7 +1570,14 @@ fun CameraScreen(
                 }
         ) {
             previewStage(Modifier.fillMaxSize())
-            CompositionLocalProvider(LocalPreviewCoords provides previewCoords) {
+            // 参考线/站位线是**预览层的 Compose 叠加**：开霜时 HUD 卡片会让出实底（霜板在 GL 层，
+            // 比叠加层更下），线就会看起来压在控件上（2026-10-28 用户报障，真机截图取证）。
+            // 叠加层在画 ⇒ 通知 HUD 卡片改回近乎不透明实底，把线挡在控件之下（设计侧判据见
+            // LocalPreviewOverlaysOn 的 KDoc）；关掉即恢复霜观感。
+            CompositionLocalProvider(
+                LocalPreviewCoords provides previewCoords,
+                LocalPreviewOverlaysOn provides (refLines != 0 || markerCount > 0)
+            ) {
                 Box(
                     Modifier
                         .matchParentSize()
@@ -1444,6 +1596,20 @@ fun CameraScreen(
                         deviceFailedHighFps = ui.device == DeviceStatus.OPEN_FAILED_HIGH_FPS,
                         effect = frameEffect,
                         renderMode = renderMode,
+                        // 取景器不在（重开中/已关）时不显示：会话关闭后结果回调停了，总线里
+                        // 可能残留上一场的提示，跟着设备状态机走才不会"回取景页先看半截旧告警"
+                        lowFpsNote = if (ui.device == DeviceStatus.OPEN_SUCCEED) {
+                            lowFpsHint?.let {
+                                stringResource(R.string.cam_state_low_fps, it.achievedFps, it.targetFps)
+                            }
+                        } else {
+                            null
+                        },
+                        segNearCap = segNearCap && recording,
+                        // 近似档+手动曝光组合预告知（2026-10-28 审查加固）：※ 档的区间下界不受
+                        // App 控制，暗光下 HAL 可以合法下探——r03 时代这一组合正是帧率坍塌主力，
+                        // 修复后残余面仍存在，按"预想所有问题"口径在取景态就告知
+                        approxManual = !fps.exact && fps.enabled && aeMode == AeMode.MANUAL,
                         onSettingsClick = { if (recording) lockTip() else onOpenSettings() },
                         onHeightChanged = { if (topBarH != it) topBarH = it }
                     )
@@ -1461,6 +1627,163 @@ fun CameraScreen(
                             // （HudEdgePad/TopRowGap 是 HudTopChrome 那排自己的令牌，不新造间距数字）
                             .padding(end = HudEdgePad + WotaHit.iconButton + TopRowGap, top = TopTopPad)
                     )
+                    // 站位指示线圆钮（2026-10-27 二轮定版）：分屏钮**左侧**、同款圆形（同一
+                    // size/glyph 令牌）。点按 = 开/关**透明浮层控件**（+/线数/- 与滑杆）；
+                    // 长按 = 选色弹窗。线的显隐只由线数驱动（0 = 关）——浮层被误点关闭
+                    // （点外部）不会连累线消失。与分屏的录制锁不同：站位线是 View 叠加层
+                    // 不进成片，**录制中照常可用**。
+                    WotaIconButton(
+                        image = Icons.Outlined.ViewWeek,
+                        description = stringResource(R.string.cam_marker),
+                        selected = markerControlsOpen,
+                        onClick = {
+                            // 两个浮层互斥：点圆钮只翻控件层，选色窗顺手收掉
+                            markerControlsOpen = !markerControlsOpen
+                            if (markerControlsOpen) markerColorPop = false
+                            // 取证日志（用户口径：日志多解释）：点按是否真的落到开关上、
+                            // 以及紧随其后的 dismiss 是用户点外部还是同一手势被系统当外部触摸
+                            Log.i(TAG_UI, "marker 控件层 toggle open=$markerControlsOpen")
+                        },
+                        onLongClick = {
+                            markerColorPop = true
+                            markerControlsOpen = false
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(
+                                end = HudEdgePad + (WotaHit.iconButton + TopRowGap) * 2,
+                                top = TopTopPad
+                            )
+                            // 锚点实测（含分屏缩放等变换）：浮层按这枚矩形贴到圆钮正下方
+                            .onGloballyPositioned {
+                                val r = it.boundsInWindow()
+                                if (markerAnchorRect != r) markerAnchorRect = r
+                            }
+                    )
+                    if (markerControlsOpen) {
+                        // 浮层控件（用户点名「无弹窗式控件」「完全透明背景」）：+/线数/- 一行 +
+                        // 间距滑杆一行，均水平；**无卡片背景**——控件直接浮在预览上（半透明白圆钮 +
+                        // 白字带阴影，亮暗场景都可辨）。落点见 [MarkerPopupPosition]：
+                        // 贴着圆钮右下、右缘不越过右 Dock 左缘（三轮反馈：不要再漂到画面中间）。
+                        Popup(
+                            popupPositionProvider = MarkerPopupPosition(
+                                anchor = markerAnchorRect,
+                                rightKeepOutPx = rightDockSlotRect?.left?.roundToInt(),
+                                gapPx = with(hudDensity) { WotaSpace.xs.roundToPx() },
+                                marginPx = with(hudDensity) { HudEdgePad.roundToPx() }
+                            ),
+                            onDismissRequest = {
+                                markerControlsOpen = false
+                                Log.i(TAG_UI, "marker 控件层 dismiss(点外部/失焦)")
+                            },
+                            properties = PopupProperties(focusable = true)
+                        ) {
+                            // 取证：控件层真的组合了才算"点开了"；组合后立刻 dispose 说明
+                            // 开合在同一手势里被系统判成外部触摸（日志里能看见成对出现）
+                            DisposableEffect(Unit) {
+                                Log.i(TAG_UI, "marker 控件层 compose")
+                                onDispose { Log.i(TAG_UI, "marker 控件层 dispose") }
+                            }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(WotaSpace.s)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(WotaSpace.m)
+                                ) {
+                                    MarkerClusterButton(
+                                        image = Icons.Outlined.Remove,
+                                        description = stringResource(R.string.cam_marker_remove),
+                                        onClick = {
+                                            params.markerCount.value =
+                                                MarkerLines.clampCount(markerCount - 1)
+                                        }
+                                    )
+                                    Text(
+                                        text = markerCount.toString(),
+                                        style = MaterialTheme.typography.titleLarge.copy(
+                                            shadow = Shadow(
+                                                color = Color.Black,
+                                                offset = Offset(1f, 1f),
+                                                blurRadius = 3f
+                                            )
+                                        ),
+                                        color = Color.White,
+                                        modifier = Modifier.padding(horizontal = WotaSpace.s)
+                                    )
+                                    MarkerClusterButton(
+                                        image = Icons.Outlined.Add,
+                                        description = stringResource(R.string.cam_marker_add),
+                                        onClick = {
+                                            params.markerCount.value =
+                                                MarkerLines.clampCount(markerCount + 1)
+                                        }
+                                    )
+                                }
+                                // 间距滑杆 = 调「整组展开宽度」：等距线随之变疏/变密（方向一致），
+                                // 任意 (线数, spread) 组合都保证全部线落在预览宽内（MarkerLines 头注）
+                                Slider(
+                                    value = markerSpread,
+                                    onValueChange = {
+                                        params.markerSpread.value = MarkerLines.clampSpread(it)
+                                    },
+                                    // 松手落盘（2026-10-27）：间距入档，和 PillSlider 同一套"完成点写盘"
+                                    // 纪律——拖拽中途不写盘，避免每帧 commit
+                                    onValueChangeFinished = { persist.flush() },
+                                    valueRange = MarkerLines.MIN_SPREAD..MarkerLines.MAX_SPREAD,
+                                    modifier = Modifier.width(220.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (markerColorPop) {
+                        // 选色弹窗（圆钮长按）：只选色——线数/间距按用户口径留在透明浮层里，
+                        // 不入此窗。落点与控件层同一套（[MarkerPopupPosition]）：贴圆钮右下、
+                        // 右缘不越过右 Dock。点窗外即关（focusable）。
+                        Popup(
+                            popupPositionProvider = MarkerPopupPosition(
+                                anchor = markerAnchorRect,
+                                rightKeepOutPx = rightDockSlotRect?.left?.roundToInt(),
+                                gapPx = with(hudDensity) { WotaSpace.xs.roundToPx() },
+                                marginPx = with(hudDensity) { HudEdgePad.roundToPx() }
+                            ),
+                            onDismissRequest = { markerColorPop = false },
+                            properties = PopupProperties(focusable = true)
+                        ) {
+                            Row(
+                                Modifier
+                                    .wotaCard()
+                                    .padding(WotaSpace.s),
+                                horizontalArrangement = Arrangement.spacedBy(WotaSpace.s),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                MarkerLineColor.ALL.forEach { c ->
+                                    val selected = c == markerColor
+                                    Box(
+                                        Modifier
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(c.argb.toULong() shl 32))
+                                            .let {
+                                                if (selected) it.border(
+                                                    2.dp, WotaColor.textHi, CircleShape
+                                                ) else it
+                                            }
+                                            .clickable {
+                                                params.markerColor.value = c
+                                                markerColorPop = false
+                                                // 选色是离散完成点：当场落盘（颜色入档，线数不入档）
+                                                persist.flush()
+                                            }
+                                            .semantics {
+                                                contentDescription = context.getString(c.labelRes)
+                                            }
+                                    )
+                                }
+                            }
+                        }
+                    }
                     // #73 取证钩子生效时的标识：顶栏正中一枚胶囊，写明钉住的进度与时长倍率。
                     // 钩子关着（release / debug / 没带 adb extra）时它**根本不组合**，所以截图里看见它
                     // 就等于这张是钩子态，不会把钉住的中间帧当成正常渲染写进验收结论。
@@ -1543,6 +1866,12 @@ fun CameraScreen(
                         area = rightArea,
                         shiftXPx = { dockSlide.value * ((hudRootView.width - (zoneRects[HudZone.RIGHT] ?: IntRect.Zero).left.coerceAtLeast(0)) + hudEdgePadPx) },
                         nativeTopMinDp = 0,   // 同上：非顶栏容器不读这条下限
+                        // 站位线浮层的右侧保留区：槽的**左缘**（含卡片内边距，比卡片左缘更保守）。
+                        // 用实测而不是手算——右 Dock 的宽度随 HUD 条目变化，写死就会在换设备后又压上去。
+                        modifier = Modifier.onGloballyPositioned {
+                            val r = it.boundsInWindow()
+                            if (rightDockSlotRect != r) rightDockSlotRect = r
+                        },
                         onCardRect = { putCardRect(HudZone.RIGHT, it) }
                     ) {
                         HudDockZone(
@@ -1634,7 +1963,8 @@ fun CameraScreen(
                 gpuMode = renderMode == RenderMode.GPU,
                 onDismiss = { sheet = Sheet.NONE },
                 visible = sheet == Sheet.CURVE,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier.matchParentSize(),
+                histogramProvider = { (activeSink as? GlRenderEngine)?.histogramSnapshot }
             )
             // 录制中会话会因换输出面而重建，预览瞬间回到 START，此时不能盖遮罩。
             // 遮罩本身改成淡入淡出：镜头切换 / 会话重建时它原来是「啪地盖上、啪地撤掉」，
@@ -1676,6 +2006,16 @@ fun CameraScreen(
                 onLensClick = { showTip(app.getString(R.string.cam_split_lens_soon)) },
                 autoAttachId = practiceLeftId
             )
+        }
+
+        // 画幅胶囊下方读数（24 R3 钉子 3）：无背景 + 半透明灰 + 红描边，仅 GPU 显示。
+        // 锚点用 SIZE 胶囊布局期回报的窗口矩形（与 pillAnchorReport 同一坐标系），不改 HUD 布局/不占格；
+        // DIRECT 无独立预览分辨率参数、分屏态锚点不随 graphicsLayer 变换回报，两态都不显示。
+        if (renderMode == RenderMode.GPU && !splitOn) {
+            val sizeAnchor = pillAnchors[PillKey.SIZE]
+            if (sizeAnchor != null && sizeAnchor.width > 0 && sizeAnchor.height > 0) {
+                DisplayScaleReadout(displayScale, sizeAnchor)
+            }
         }
 
         // 就近胶囊与提示条是**全局浮层**（各自独立 Popup 窗口），挂在压图层之外：窗口不参与父层
@@ -1745,10 +2085,19 @@ fun CameraScreen(
             bt = bt,
             capture = capture,
             onEnableCapture = enableCapture,
-            // HAL 两档逐档判可用 ⇒ 传集合（不是"有没有任意模式"）；斑马纹/峰值开着时 GPU 双边不生效，
-            // 面板要如实说明（胶囊的"生效中"标记走 core.videoDenoiseActive 的同一条口径）
+            // HAL 两档逐档判可用 ⇒ 传集合（不是"有没有任意模式"）。
+            // 斑马纹/峰值开着时**预览**不叠降噪（成片照降，2026-10-27 双槽改口），面板要如实说明；
+            // 胶囊的"生效中"标记走 core.videoDenoiseActive（不再看监看态）
             halNoiseReductionModes = slot?.ability?.noiseReductionModes.orEmpty(),
             monitorEffectOn = frameEffect != FrameEffect.NONE,
+            // 上屏档的分母 = 取景器等比区实测尺寸（还没出帧时为 null ⇒ 非原片档灰显）
+            previewContentSize = {
+                glEngine?.contentRect()?.let { it.width() to it.height() }
+            },
+            // Glow 状态行（分档/停用/夹取/DIRECT）：两个 sink 都实现 GlowProvider，DIRECT 回 available=false
+            glowStatusProvider = {
+                (activeSink as? com.wotagei.cam.camera.GlowProvider)?.glowStatus()
+            },
             )
         }
         // 提示必须与胶囊同一层甚至更高：胶囊是独立窗口，写在主窗口里的提示会被它整个盖住，
@@ -2417,6 +2766,15 @@ private class RecordRunner(
     val result = MutableStateFlow<RecordResult?>(null)
 
     /**
+     * 换段预提示（2026-10-28 审查加固）：当前段已写字节 ≥ 单段上限 85% 时置真。
+     * 50Mbps 档约 9.3 分钟就到 3.5GiB，10 分钟以上的录制必然踩一次换段腿——提前告知，
+     * 用户看到换段瞬间的短促停顿不会当成 bug。数据源是 [RecorderHealth.outputBytes]
+     * （两引擎都能报真实字节），不是码率估算；-1（量不到）恒 false。
+     * 分段轮转后 outputBytes 回落到新段的小值 ⇒ 提示自然消退，换段后自动重新武装。
+     */
+    val segNearCap = MutableStateFlow(false)
+
+    /**
      * 自检触发的自动重录文案（资源 id）。UI 侧 collect 后走既有 hint 通道，读走即清——
      * StateFlow 对相等值去重，不清的话同一次会话里的第二次重录置同一 id 再也不会发出来。
      */
@@ -2794,11 +3152,17 @@ private class RecordRunner(
     private val pollTask: Runnable = object : Runnable {
         override fun run() {
             val rec = recorder
-            if (!polling || rec == null) return
+            if (!polling || rec == null) {
+                // 停录/轮询结束必须清掉换段预提示，否则下一场录制前顶栏还挂着上一场的旧行
+                if (segNearCap.value) segNearCap.value = false
+                return
+            }
             // 取引擎当前 attempt 的真实时长——重录跳回 00:00 是**有意为之**（2026-10-14 用户裁决）：
             // 被弃段不进成片，显示值必须与最终成片时长同口径，不掺任何跨 attempt 基线
             elapsedMs.value = rec.elapsedMs
             volumeDb.value = AudioProbe.dbOf(rec.amplitude())
+            // 换段预提示：真实写入字节（不是估算）对上限；分段轮转后自然回落重新武装
+            segNearCap.value = segmentCapApproached(rec.health().outputBytes)
             maybeAutoStop()
             if (status.value == RecordStatus.START) handler.postDelayed(this, POLL_MS)
         }
@@ -3131,6 +3495,7 @@ private class RecordRunner(
             var sidecarWritten = false
             // sidecar 落库通道：file = 共享目录直写（可归位）；mediastore = 兜底（按最终名落库）
             var sidecarChannel = "none"
+            var sidecarStorePending: ArcDropLog? = null // File 通道失败时的兜底挂起件
             if (path != null) {
                 val drops = glProvider()?.drainArcDrops() ?: emptyList()
                 // 段清单（2026-10-04 裁决）：录制器逐段已写视频样本数 → {segment,first,count}，
@@ -3149,33 +3514,22 @@ private class RecordRunner(
                         lostMs = out.segLostMs.getOrNull(part.partIndex) ?: 0L
                     )
                 }
-                sidecarWritten = ArcDropLog.writeTo(
-                    path,
-                    ArcDropLog(mode = convert.name.lowercase(), dstFps = activeArcDstFps, drops = drops, segments = segs)
+                val log = ArcDropLog(
+                    mode = convert.name.lowercase(), dstFps = activeArcDstFps,
+                    drops = drops, segments = segs
                 )
+                sidecarWritten = ArcDropLog.writeTo(path, log)
                 if (sidecarWritten) sidecarChannel = "file"
-                // File 通道失败 ⇒ MediaStore 兜底（2026-10-26 反馈附A）：共享目录的非媒体文件
-                // 直写在 Android 11+ 部分机型被拒（dada/vivo 实测），而视频本体刚走通
-                // MediaStore ⇒ 可写性有现成证明。兜底按**最终公开名**落库（commit 已完成），
-                // 因此不走下面的"归位"（那条只服务 File 通道的 pending 期落盘）。
-                if (!sidecarWritten && path != null) {
-                    val stem = path.substringAfterLast('/').substringBeforeLast('.')
-                    val viaStore = sessionStore?.writeSidecar(
-                        "$stem${ArcDropLog.EXTENSION}",
-                        ArcDropLog(
-                            mode = convert.name.lowercase(), dstFps = activeArcDstFps,
-                            drops = drops, segments = segs
-                        ).encode().toByteArray()
-                    ) != null
-                    if (viaStore) {
-                        sidecarWritten = true
-                        sidecarChannel = "mediastore"
-                    }
-                }
+                // File 通道失败 ⇒ MediaStore 兜底**挂起**（2026-10-26 反馈附A）：共享目录的非媒体
+                // 文件直写在 Android 11+ 部分机型被拒（dada/vivo 实测）。不能在这里写——
+                // 【本轮复审修掉的缺陷】兜底名必须与成片**最终公开名**一致（含前缀改名与
+                // pending 复原之后），用 pending 脏名落库 = `readFrom` 永远找不到 + 前导点是
+                // 隐藏文件；所以挂到下面前缀改名/归位全部完成之后再落库。
+                if (!sidecarWritten) sidecarStorePending = log
                 Log.i(
                     TAG_UI,
-                    "arc drops sidecar ok=$sidecarWritten channel=$sidecarChannel " +
-                        "drops=${drops.size} segs=${segs.size} path=$path"
+                    "arc drops sidecar(file) ok=$sidecarWritten drops=${drops.size} " +
+                        "segs=${segs.size} path=$path"
                 )
             }
             // 处理过片名前缀（用户 2026-10-04 定版："XXftoXXf"，源=GL 侧实测源帧率，
@@ -3231,6 +3585,23 @@ private class RecordRunner(
                 if (target != null) {
                     Log.i(TAG_UI, "arc sidecar 归位 ok=${ArcDropLog.renameFor(path, target)} -> $target")
                 }
+            }
+            // MediaStore 兜底落库（反馈附A）：必须在**前缀改名与归位全部完成之后**——
+            // 名字要跟成片的最终公开名（含前缀、剥净 pending 段）逐字一致，
+            // 否则 ArcDropLog.readFrom 对不上号（上一提交用 pending 脏名的缺陷已修）。
+            val storeLog = sidecarStorePending
+            if (storeLog != null && path != null) {
+                val queried = out.parts.firstOrNull()?.uri?.let { queryDisplayName(it) }
+                val videoName = (PendingName.sidecarConvergeTarget(path, queried) ?: path)
+                    .substringAfterLast('/')
+                val displayName = videoName.substringBeforeLast('.') + ArcDropLog.EXTENSION
+                val viaStore = sessionStore?.writeSidecar(displayName, storeLog.encode().toByteArray()) != null
+                // 不回写 sidecarWritten/sidecarChannel：这两个标记唯一的下游是上面那段
+                // File 通道归位（已在本次改名之后走完），此处再赋值是死写（编译器告警）
+                Log.i(
+                    TAG_UI,
+                    "arc sidecar(mediastore) ok=$viaStore name=$displayName"
+                )
             }
         }
         // AOSP 顺序：先 stop 编码器，再把编码面从会话里摘掉
@@ -3540,5 +3911,107 @@ private fun BoxScope.BottomBandChips(
                 frost = hudFrostPillPlate
             )
         }
+    }
+}
+
+/**
+ * 站位线浮层的定位（2026-10-27 三轮）：**贴着圆钮右下**，不漂画面中间、也不压右 Dock。
+ *
+ * 三条约束都来自实测矩形（[anchor] = 圆钮、[rightKeepOutPx] = 右 Dock 槽左缘），
+ * 纯算术部分在 [com.wotagei.cam.core.popupBelowRight]（JVM 单测钉住）：
+ * 1. 右缘对齐锚点右缘（圆钮在顶栏右端 ⇒ 浮层整块落在顶栏那列之下）；
+ * 2. 右缘同时不得越过右 Dock 槽左缘（Dock 宽度随 HUD 条目变，实测才跟得住）；
+ * 3. 整块内容钳在窗口内，至少留 [marginPx]。
+ *
+ * 还没量到锚点时退回左上角（下一帧就会被实测值修正），不会闪到屏幕中央。
+ */
+private class MarkerPopupPosition(
+    private val anchor: Rect?,
+    private val rightKeepOutPx: Int?,
+    private val gapPx: Int,
+    private val marginPx: Int
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize
+    ): IntOffset {
+        val a = anchor ?: return IntOffset(marginPx, marginPx)
+        val rightLimit = minOf(a.right.roundToInt(), rightKeepOutPx ?: Int.MAX_VALUE)
+        val (x, y) = com.wotagei.cam.core.popupBelowRight(
+            rightLimitPx = rightLimit,
+            anchorBottomPx = a.bottom.roundToInt(),
+            popupWidthPx = popupContentSize.width,
+            popupHeightPx = popupContentSize.height,
+            windowWidthPx = windowSize.width,
+            windowHeightPx = windowSize.height,
+            gapPx = gapPx,
+            marginPx = marginPx
+        )
+        return IntOffset(x, y)
+    }
+}
+
+/**
+ * 站位线透明浮层里的 +/− 圆钮（2026-10-27 二轮）。
+ *
+ * 为什么不用 [com.wotagei.cam.ui.design.WotaIconButton]：那颗自带 `wotaHudCard` 卡片底
+ * （玻璃/实底），而用户点名这层控件要「完全透明背景、类似浮动控件无弹窗」——只有按钮
+ * 自己是半透明白圆，四周不铺任何卡片。图标与点按语义与前者一致，故只做局部小件。
+ */
+@Composable
+private fun MarkerClusterButton(
+    image: ImageVector,
+    description: String,
+    onClick: () -> Unit
+) {
+    Box(
+        Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.35f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            image,
+            contentDescription = description,
+            tint = Color.White,
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+/**
+ * 画幅胶囊下方「预览：<档位值>」读数（docs/plan/24 R3 §2.4 / 决策钉子 3）。
+ *
+ * - **位置**：SIZE 胶囊布局期回报的窗口矩形正下方（同一坐标系），不改 HUD 布局、不占格；
+ * - **样式**：无背景、半透明灰字、红描边（两层 Text：底层红描边、顶层半透明灰填充）；
+ * - **仅 GPU**：调用方用 `renderMode == GPU` 门控；DIRECT 没有独立预览分辨率参数，不显示。
+ */
+@Composable
+private fun DisplayScaleReadout(scale: DisplayScale, anchor: IntRect) {
+    val label = displayScaleReadoutLabel(scale, stringResource(R.string.cam_display_scale_orig))
+    val text = stringResource(R.string.cam_display_scale_readout, label)
+    val density = LocalDensity.current
+    val gap = with(density) { 4.dp.roundToPx() }
+    val outline = with(density) { 1.2.dp.toPx() }
+    // 2026-10-28 用户口径：再透一些、再小一些（她点名这块读数抢画面）。
+    // 字号 11sp→9sp、填充白 40%→30%、描边红从全亮降到 55%——仍可读，但不与画面争。
+    val style = WotaType.label.copy(fontSize = 9.sp, lineHeight = 12.sp)
+    Box(Modifier.offset { IntOffset(anchor.left, anchor.bottom + gap) }) {
+        Text(
+            text = text,
+            color = WotaColor.rec.copy(alpha = 0.55f),
+            style = style.copy(drawStyle = Stroke(width = outline)),
+            maxLines = 1
+        )
+        Text(
+            text = text,
+            color = WotaColor.textLo.copy(alpha = 0.75f),
+            style = style,
+            maxLines = 1
+        )
     }
 }

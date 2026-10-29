@@ -29,6 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -40,15 +42,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -66,7 +73,9 @@ import com.wotagei.cam.ui.anim.LocalMotion
 import com.wotagei.cam.ui.design.WotaColor
 import com.wotagei.cam.ui.design.WotaShape
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -93,10 +102,17 @@ fun CurvePopup(
     gpuMode: Boolean,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
-    visible: Boolean = true
+    visible: Boolean = true,
+    /**
+     * 直方图快照源（2026-10-27：曲线框背景直方图，调曲线参考用）。null/缺省 = 无直方图
+     * （DIRECT 档无 GL 帧，本就不提供）。GL 侧 4Hz 采样，这里 150ms 轮询进重组状态。
+     */
+    histogramProvider: (() -> IntArray?)? = null
 ) {
     val context = LocalContext.current
     val prefs = remember(context) { WotaSettings.of(context) }
+    // 抓点/插点/长按删除的确认震动（29 §3.2-4）：Compose 自带 HapticFeedback，无权限
+    val haptics = LocalHapticFeedback.current
     val stack by params.curve.observed()
     val motion = LocalMotion.current
     val channelNames = listOf(
@@ -120,9 +136,21 @@ fun CurvePopup(
     // ＝用户报的「曲线变化与节点呈现不跟手」，2026-10-25）
     var canvasGesture by remember { mutableStateOf(false) }
     // 面板等比缩放（右缘拖拽，2026-10-25）：1f = 默认最小尺寸（原设计档），只许放大不许
-    // 缩小；扇面「重置」同时复位到 1f。会话级不落盘——「默认最小值」语义即每次进入回到最小。
-    var panelScale by remember { mutableStateOf(1f) }
+    // 缩小；扇面「重置」同时复位。**29 §1.2 F1（2026-10-28）改存实际边长 dp**：scale 是
+    // 相对 baseSide 的比值，跨屏幕/转屏 baseSide 会变，存 scale 会漂移；把手拖拽改的是
+    // savedSide，**抬手才落盘一次**（不逐帧写 prefs），重置写回 200。
+    var savedSide by remember { mutableStateOf(WotaSettings.curvePanelSideDp(prefs)) }
     var panelPx by remember { mutableStateOf(IntSize.Zero) }
+
+    // 直方图快照轮询（弹窗可见才轮询；GL 侧 4Hz 采样，这里 150ms 拉一次进状态）
+    var histogram by remember { mutableStateOf<IntArray?>(null) }
+    LaunchedEffect(visible, histogramProvider) {
+        while (visible) {
+            histogram = histogramProvider?.invoke()
+            kotlinx.coroutines.delay(150)
+        }
+        histogram = null
+    }
 
     // 以总线现值做底、只替换本通道：其它通道在拖动期间可能被改过，不能用手里的旧 stack 合
     fun commit(next: List<ColorCurve.Point>, persist: Boolean) {
@@ -187,7 +215,12 @@ fun CurvePopup(
                         maxHeight - PanelPad.dp * 2 - PopupMargin.dp
                     ).coerceAtLeast(MinCurveSide.dp)
                     val baseSide = maxOf(MinCurveSide.dp, minOf(CurveSide.dp, maxSide))
-                    val side = (baseSide * panelScale).coerceAtMost(maxSide)
+                    // 持久边长（dp）带组合期可用区二次钳（29 §1.2）：prefs 值比当前窗口大
+                    // （换小屏/分屏）缩回可用区、比最小值小抬回最小；dot/线宽随 side/baseSide
+                    // 等比放大，与旧 panelScale 语义逐字相同
+                    val side = com.wotagei.cam.core.CurvePanelSize
+                        .clamp(savedSide, maxSide.value, MinCurveSide.toFloat()).dp
+                    val panelScale = if (baseSide > 0.dp) side / baseSide else 1f
                     // 面板卡 = [扇钮左槽 | 曲线框]：通道钮有了自己的格子，闭合态与曲线绘图区零重叠
                     // （用户 2026-10-04 投诉"通道切换按钮与曲线框重叠"的落点）；面板底/描边让弹窗读起来
                     // 是一枚完整的浮层而不是贴屏的裸框，屏缘再留 PanelBreath 呼吸。
@@ -217,12 +250,13 @@ fun CurvePopup(
                             }
                             .padding(PanelPad.dp)
                     ) {
-                        // 曲线框：左让出扇钮槽位与缝，先声明居下层
+                        // 曲线框：左让出扇钮槽位与缝，先声明居下层。
+                        // clip 刻意**不**放这层（29 §3.2-1）：命中区外扩层是它的兄弟，
+                        // 这层的 clip 会把画布外 12dp 的角部触点裁掉
                         Box(
                             Modifier
                                 .padding(start = (CENTER_SIZE + FanGap).dp)
                                 .size(side)
-                                .clip(RoundedCornerShape(WotaShape.menu))
                         ) {
                             CurveCanvas(
                                 points = points,
@@ -231,19 +265,58 @@ fun CurvePopup(
                                 enabled = gpuMode,
                                 animateJump = !canvasGesture,
                                 scale = panelScale,
-                                modifier = Modifier.matchParentSize()
+                                histogram = histogram,
+                                channel = channel,
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .clip(RoundedCornerShape(WotaShape.menu))
                             )
+                            // 输入/输出读数（29 §2.2-4 / §3.2-5）：选中控制点时显示 (x·255, y·255)，
+                            // 未选中不占位；拖动随 points 实时更新——回答「该往哪个方向调」
+                            if (selected >= 0 && selected < points.size) {
+                                val p = points[selected]
+                                Text(
+                                    stringResource(
+                                        R.string.cam_curve_io_readout,
+                                        (p.x * 255f).roundToInt(),
+                                        (p.y * 255f).roundToInt()
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = WotaColor.textHi,
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                )
+                            }
+                            // 命中区（29 §3.2-1）：比画布四边各外扩 [HitExtend]dp 的透明层——
+                            // 端点正好在画布四角，触点一半落在画布外会被面板吞噬层吃掉，
+                            // 「左下/右上端点抓不住」。layout 外扩 + 负偏移放置；手势内先把
+                            // 越界落点 clamp 回画布再判命中。画布圆角 clip 移到了 CurveCanvas
+                            // 自己的 modifier 上（只裁绘制），不裁这层命中区
                             Box(
                                 Modifier
-                                    .matchParentSize()
+                                    .layout { measurable, constraints ->
+                                        val p = HitExtend.dp.roundToPx()
+                                        val placeable = measurable.measure(
+                                            constraints.copy(
+                                                minWidth = constraints.maxWidth + 2 * p,
+                                                maxWidth = constraints.maxWidth + 2 * p,
+                                                minHeight = constraints.maxHeight + 2 * p,
+                                                maxHeight = constraints.maxHeight + 2 * p
+                                            )
+                                        )
+                                        layout(placeable.width, placeable.height) { placeable.place(-p, -p) }
+                                    }
                                     // key **必须含 channel**：手势闭包捕获的 points/selected/commit
                                     // 都绑定在 remember(channel) 的 state 实例上，channel 换了而监听
                                     // 不重启，拖动会写进旧通道的旧 state——总线被写（画面变）而画布
                                     // 不动（显示绑的是新 state），正是用户报的「能调、画面变、曲线不动」
                                     // （59931ab 把 channel 从 key 里去掉引入，2026-10-04 真机复现归因）。
                                     // 代价是换通道瞬间的一次按压会被重启吞掉——点通道钮与画布操作
-                                    // 本就不同指不同时，这个代价远小于写错通道
-                                    .pointerInput(channel, gpuMode) {
+                                    // 本就不同指不同时，这个代价远小于写错通道。
+                                    // panelScale 入 key：命中半径随面板缩放（放大是给手指大的人服务的），
+                                    // 29 §3.2-1；缩放只在拖把手时变化，与画布手势不同指不同时
+                                    .pointerInput(channel, gpuMode, panelScale) {
                                         if (!gpuMode) return@pointerInput
                                         awaitEachGesture {
                                             val down = awaitFirstDown(requireUnconsumed = false)
@@ -253,57 +326,88 @@ fun CurvePopup(
                                             // 画布上就会把整扇收掉，体感是"卫星钮吞了我的操作"；收扇只由
                                             // 中心钮再点与选完自动收回承担
                                             down.consume()
-                                        if (size.width <= 0 || size.height <= 0) return@awaitEachGesture
-                                        var working = livePoints.value
-                                        val gx = down.position.x / size.width
-                                        val gy = 1f - down.position.y / size.height
-                                        var index = CurveEdit.hitTest(working, gx, gy)
-                                        if (index < 0) {
-                                            val added = CurveEdit.inserted(working, gx, gy)
-                                            if (added != null) {
-                                                working = added.first
-                                                index = added.second
-                                            }
-                                        }
-                                        // 已到控制点上限且没点到现有点：本次手势什么都不做
-                                        if (index >= 0) {
-                                            canvasGesture = true
-                                            val deletable = index > 0 && index < working.size - 1
-                                            val secondTap = selected == index && deletable
-                                            selected = index
-                                            commit(working, persist = false)
-                                            var dragging = true
-                                            var moved = false
-                                            while (dragging) {
-                                                val change = awaitPointerEvent()
-                                                    .changes.firstOrNull { it.id == down.id } ?: break
-                                                dragging = change.pressed
-                                                if (!moved &&
-                                                    change.positionChange().getDistance() >
-                                                    viewConfiguration.touchSlop
-                                                ) moved = true
-                                                if (moved) {
-                                                    working = CurveEdit.moved(
-                                                        working, index,
-                                                        change.position.x / size.width,
-                                                        1f - change.position.y / size.height
-                                                    )
-                                                    commit(working, persist = false)
+                                            if (size.width <= 0 || size.height <= 0) return@awaitEachGesture
+                                            val ext = HitExtend.dp.toPx()
+                                            val canvasW = (size.width - 2 * ext).coerceAtLeast(1f)
+                                            val canvasH = (size.height - 2 * ext).coerceAtLeast(1f)
+                                            // 端点角部扩展：画布外 ≤HitExtend 的落点先 clamp 进画布（29 §3.2-1）
+                                            val cx = (down.position.x - ext).coerceIn(0f, canvasW)
+                                            val cy = (down.position.y - ext).coerceIn(0f, canvasH)
+                                            val gx = cx / canvasW
+                                            val gy = 1f - cy / canvasH
+                                            // 命中半径走像素域（29 §3.2-1）：20dp×面板缩放，下限 14dp
+                                            val radiusPx = maxOf(HitRadiusMin.dp.toPx(), HitRadius.dp.toPx() * panelScale)
+                                            var working = livePoints.value
+                                            var index = CurveEdit.hitTestPx(
+                                                working, gx, gy,
+                                                radiusPx / canvasW, radiusPx / canvasH
+                                            )
+                                            if (index < 0) {
+                                                val added = CurveEdit.inserted(working, gx, gy)
+                                                if (added != null) {
+                                                    working = added.first
+                                                    index = added.second
+                                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                                 }
-                                                change.consume()
                                             }
-                                            if (secondTap && !moved) {
-                                                // 二次点按同一点＝删点：原「删除控制点」动作钮的就地化
-                                                commit(CurveEdit.removed(livePoints.value, index), persist = true)
-                                                selected = -1
-                                            } else {
-                                                commit(working, persist = true)
+                                            // 已到控制点上限且没点到现有点：本次手势什么都不做
+                                            if (index >= 0) {
+                                                canvasGesture = true
+                                                val deletable = index > 0 && index < working.size - 1
+                                                val secondTap = selected == index && deletable
+                                                selected = index
+                                                // 抓到点的确认震动（29 §3.2-4）
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                commit(working, persist = false)
+                                                var dragging = true
+                                                var moved = false
+                                                var deleted = false
+                                                while (dragging) {
+                                                    // 长按删除（29 §3.2-3，已裁决）：未移动且长按到时 →
+                                                    // 删中间点 + 震动，手势即止；端点不可删走普通等待
+                                                    val change = if (!moved && deletable) {
+                                                        withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                                            awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                                        }
+                                                    } else {
+                                                        awaitPointerEvent().changes.firstOrNull { it.id == down.id }
+                                                    }
+                                                    if (change == null && !moved) {
+                                                        // 超时 = 长按成立：删点（端点走不进这支）
+                                                        commit(CurveEdit.removed(livePoints.value, index), persist = true)
+                                                        selected = -1
+                                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        deleted = true
+                                                        break
+                                                    }
+                                                    if (change == null) break
+                                                    dragging = change.pressed
+                                                    if (!moved &&
+                                                        change.positionChange().getDistance() >
+                                                        viewConfiguration.touchSlop
+                                                    ) moved = true
+                                                    if (moved) {
+                                                        working = CurveEdit.moved(
+                                                            working, index,
+                                                            (change.position.x - ext).coerceIn(0f, canvasW) / canvasW,
+                                                            1f - (change.position.y - ext).coerceIn(0f, canvasH) / canvasH
+                                                        )
+                                                        commit(working, persist = false)
+                                                    }
+                                                    change.consume()
+                                                }
+                                                when {
+                                                    deleted -> Unit
+                                                    // 二次点按改为「取消选中」（29 §3.2-3：与长按删除冲突，
+                                                    // 快双击误删是 F3 的摩擦点之一）
+                                                    secondTap && !moved -> selected = -1
+                                                    else -> commit(working, persist = true)
+                                                }
+                                                canvasGesture = false
                                             }
-                                            canvasGesture = false
                                         }
                                     }
-                                }
-                        )
+                            )
                         }
                         // 扇钮：居上层，住面板左槽（48dp 恰好占满），垂直居中于画布行；
                         // 展开朝右扫进画布区的三枚因此盖在曲线框上可见
@@ -326,7 +430,9 @@ fun CurvePopup(
                                 },
                                 onReset = {
                                     resetAll()
-                                    panelScale = 1f
+                                    // 重置连边长一起回设计档并落盘（29 §1.2：重置写回 200）
+                                    savedSide = com.wotagei.cam.core.CurvePanelSize.DEFAULT_SIDE_DP
+                                    WotaSettings.setCurvePanelSideDp(prefs, savedSide)
                                     fanOpen = false
                                 }
                             )
@@ -334,7 +440,8 @@ fun CurvePopup(
                     }
                     // 右缘等比缩放把手（2026-10-25）：面板**外缘**的命中条（不占画布触区；
                     // 面板 Box 有 clip，clip 区外的子级收不到触点，所以必须是面板的兄弟），
-                    // 横向拖拽 1:1 换算 panelScale 增量；下限 1f = 默认最小尺寸，上限 = 可用区。
+                    // 横向拖拽 1:1 换算边长增量（px→dp 走 scope density）；下限 = 最小尺寸，
+                    // 上限 = 可用区。**抬手才落盘一次**（29 §1.3 守卫：不许逐帧写 prefs）。
                     // 无 a11y 等价操作——画布拖点本身亦无（与既有口径一致）
                     val handleHeight = with(LocalDensity.current) { panelPx.height.toDp() }
                     Box(
@@ -347,17 +454,22 @@ fun CurvePopup(
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
                                     down.consume()
-                                    val startScale = panelScale
+                                    val startSide = savedSide
                                     val startX = down.position.x
-                                    val maxScale = if (baseSide > 0.dp) maxSide.value / baseSide.value else 1f
+                                    val pxPerDp = density
                                     while (true) {
                                         val change = awaitPointerEvent()
                                             .changes.firstOrNull { it.id == down.id } ?: break
-                                        panelScale = (startScale + (change.position.x - startX) / baseSide.toPx())
-                                            .coerceIn(1f, maxScale)
+                                        savedSide = com.wotagei.cam.core.CurvePanelSize.clamp(
+                                            startSide + (change.position.x - startX) / pxPerDp,
+                                            maxSide.value,
+                                            MinCurveSide.toFloat()
+                                        )
                                         change.consume()
                                         if (!change.pressed) break
                                     }
+                                    // 抬手（含拖到外面取消按压的路径）才写盘：一次手势一次
+                                    WotaSettings.setCurvePanelSideDp(prefs, savedSide)
                                 }
                             },
                         contentAlignment = Alignment.CenterEnd
@@ -396,6 +508,13 @@ private const val FAN_RADIUS = 64f
 /** 曲线框设计边长与下限；200dp 同时是右缘缩放的**默认最小值** */
 private const val CurveSide = 200
 private const val MinCurveSide = 120
+
+/** 抓点命中半径（29 §3.2-1，像素域）：20dp×面板缩放，下限 14dp——归一化常数在面板放大后相对手指变小 */
+private const val HitRadius = 20
+private const val HitRadiusMin = 14
+
+/** 端点角部扩展（29 §3.2-1）：命中区比画布四边各外扩的 dp；越界落点先 clamp 回画布再判命中 */
+private const val HitExtend = 12
 
 /** 右缘缩放把手的命中条宽（dp），贴面板右缘外侧 */
 private const val ResizeHit = 22
@@ -632,6 +751,26 @@ private fun channelColor(channel: Int): Color = when (channel) {
     else -> WotaColor.textHi
 }
 
+/** 直方图按通道取哪一组：R/G/B 各自的组，master 取亮度 Y（29 §2.2-2） */
+private fun histogramBase(channel: Int): Int = when (channel) {
+    ColorCurve.CHANNEL_RED -> 0
+    ColorCurve.CHANNEL_GREEN -> com.wotagei.cam.core.HistogramMath.BINS
+    ColorCurve.CHANNEL_BLUE -> 2 * com.wotagei.cam.core.HistogramMath.BINS
+    else -> com.wotagei.cam.core.HistogramMath.LUMA_BASE
+}
+
+/**
+ * 「背景色趋势」（29 §2.2-3）：按通道着色的横向渐变（暗端通道色 → 高端补色），
+ * 透明度 0.2 在 0.18–0.25 档内；master 用中性灰阶（不引入色偏）。色标沿用
+ * [channelColor]，不新增色板。
+ */
+private fun trendColors(channel: Int): List<Color> = when (channel) {
+    ColorCurve.CHANNEL_RED -> listOf(Color(0x33EF6A5A), Color(0x3350C8D8))
+    ColorCurve.CHANNEL_GREEN -> listOf(Color(0x336FCE8F), Color(0x33D66AA0))
+    ColorCurve.CHANNEL_BLUE -> listOf(Color(0x335FA8E8), Color(0x33D8C050))
+    else -> listOf(Color(0x33111111), Color(0x33EEEEEE))
+}
+
 /** 折线直接用 [ColorCurve.table] 采样：画出来的就是真正上传给 GPU 的那张表 */
 @Composable
 private fun CurveCanvas(
@@ -641,6 +780,8 @@ private fun CurveCanvas(
     enabled: Boolean,
     animateJump: Boolean,
     scale: Float,
+    histogram: IntArray? = null,
+    channel: Int = ColorCurve.CHANNEL_MASTER,
     modifier: Modifier = Modifier
 ) {
     val target = remember(points) { ColorCurve(points).table(64) }
@@ -684,6 +825,31 @@ private fun CurveCanvas(
         val dot = 6.5.dp.toPx() * scale
         val dotSel = 9.dp.toPx() * scale
         drawRect(WotaColor.bg)
+        // 背景色趋势（29 §2.2-3）：按通道着色的横向渐变条铺在画布底部，画在网格/曲线之下
+        val trendStrip = 8.dp.toPx()
+        drawRect(
+            Brush.horizontalGradient(trendColors(channel)),
+            topLeft = Offset(0f, h - trendStrip),
+            size = Size(w, trendStrip)
+        )
+        // 直方图背景（2026-10-27 起；29 §2.2 改**按通道**）：只画当前通道那一组——
+        // master 用亮度 Y（中性白），R/G/B 各用自己的通道色，不再三色混排；
+        // 随画布尺寸缩放（条宽 = w/64，条高 = 归一计数 × h）。口径 = 曲线输出后的画面。
+        if (histogram != null) {
+            val heights = com.wotagei.cam.core.HistogramMath.normalizedHeights(histogram)
+            val barW = w / com.wotagei.cam.core.HistogramMath.BINS
+            val base = histogramBase(channel)
+            val tint = channelColor(channel).copy(alpha = 0.30f)
+            for (i in 0 until com.wotagei.cam.core.HistogramMath.BINS) {
+                val hgt = heights[base + i]
+                if (hgt <= 0f) continue
+                drawRect(
+                    tint,
+                    topLeft = Offset(w * i / com.wotagei.cam.core.HistogramMath.BINS, h * (1f - hgt)),
+                    size = androidx.compose.ui.geometry.Size(barW + 0.5f, h * hgt)
+                )
+            }
+        }
         val grid = WotaColor.acrylicBorder.copy(alpha = 0.15f * dim)
         for (i in 1..2) {
             val t = i / 3f
@@ -701,11 +867,23 @@ private fun CurveCanvas(
         drawPath(path, strokeColor, style = Stroke(width = 2.dp.toPx() * scale))
         points.forEachIndexed { i, p ->
             val c = Offset(w * p.x, h * (1f - p.y))
-            val r = if (i == selected) dotSel else dot
-            // 空心点：实心点在亮画面上会和曲线糊成一团
-            drawCircle(if (i == selected) dotColor else WotaColor.textHi, radius = r, center = c)
-            drawCircle(WotaColor.bg, radius = r - 2.5.dp.toPx(), center = c)
-            if (i == selected) drawCircle(dotColor, radius = r - 2.5.dp.toPx(), center = c)
+            val endpoint = i == 0 || i == points.size - 1
+            // 选中 1.2 倍放大；端点略大（29 §3.2-2：端点要与中间点可区分）
+            val r = when {
+                i == selected -> dotSel * 1.2f
+                endpoint -> dot * 1.15f
+                else -> dot
+            }
+            if (endpoint) {
+                // 端点双层环：外环通道色 + 内芯背景色（29 §3.2-2），与中间点的空心样式区分
+                drawCircle(dotColor, radius = r, center = c)
+                drawCircle(WotaColor.bg, radius = r * 0.62f, center = c)
+            } else {
+                // 空心点：实心点在亮画面上会和曲线糊成一团
+                drawCircle(if (i == selected) dotColor else WotaColor.textHi, radius = r, center = c)
+                drawCircle(WotaColor.bg, radius = r - 2.5.dp.toPx(), center = c)
+                if (i == selected) drawCircle(dotColor, radius = r - 2.5.dp.toPx(), center = c)
+            }
         }
     }
 }

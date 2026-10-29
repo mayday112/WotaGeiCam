@@ -1293,6 +1293,16 @@ private fun editorCtx(
         curveOn = false,
         denoiseLabel = stringResource(R.string.cam_pill_denoise),
         denoiseActive = false,
+        // 编辑页不接相机/引擎：Glow 恒"不可用"（半透明禁用观感），点按无动作
+        glowLabel = stringResource(R.string.cam_pill_glow),
+        glowActive = false,
+        glowUsable = false,
+        onGlowClick = { },
+        // TONE 同 Glow：编辑页不接引擎，恒"不可用"，点按无动作
+        toneLabel = stringResource(R.string.cam_pill_tone),
+        toneActive = false,
+        toneUsable = false,
+        onToneClick = { },
         flash = Flash.OFF,
         lensLabel = stringResource(lensLabelRes(LensType.WIDE)),
         btConnected = false,

@@ -23,16 +23,22 @@ import com.wotagei.cam.core.Flash
 import com.wotagei.cam.core.FpsPick
 import com.wotagei.cam.core.LensSlot
 import com.wotagei.cam.core.LensType
+import com.wotagei.cam.core.LowFpsHint
+import com.wotagei.cam.core.LowFpsWatch
 import com.wotagei.cam.core.ParamState
 import com.wotagei.cam.core.RangeI
 import com.wotagei.cam.core.RenderMode
+import com.wotagei.cam.core.WbTelemetry
 import com.wotagei.cam.core.Size
 import com.wotagei.cam.core.TapPoint
 import com.wotagei.cam.core.WotaParams
 import com.wotagei.cam.core.WotaTiers
 import com.wotagei.cam.record.FrameLedger
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executor
 
 /** 设备状态机（失败按原因细分四类） */
@@ -103,6 +110,9 @@ class Camera2Engine(
         /** 占用/内部错误后的自动重开 */
         /** AE/AF 状态遥测的拍点间隔（反馈 #1/#7 方案F）：1s 一拍，d 级 */
         private const val AE_AF_TELEMETRY_MS = 1_000L
+
+        /** 帧率守卫的独立采样拍（2026-10-28 审查补盲区）：与遥测节拍同量级，1s 一拍 */
+        private const val LOW_FPS_SAMPLE_PERIOD_MS = 1_000L
 
         /**
          * 手动白平衡运行时探测的判负上限（反馈 #6）：保活拍点 500ms × 4 = 2s 内 HAL 一直
@@ -344,6 +354,7 @@ class Camera2Engine(
      * （乱序是 preview 泄漏与 ANR 的常见根因）
      */
     fun close() {
+        lowFpsSampler.cancel()
         collectJobs.forEach { it.cancel() }
         collectJobs.clear()
         // 先在调用方线程同步封口：置假后所有 post 的入队/执行守卫即刻生效，close 返回后旧引擎
@@ -834,6 +845,9 @@ class Camera2Engine(
             wbPreset = wbMode.value,
             kelvin = kelvin.value.value,
             tint = tint.value.value,
+            // 兜底同理：能力表说增益不被采纳、但 GPU 管线在 ⇒ 请求侧保持自动白平衡，
+            // 色温/色调交给画面算法（见 WotaParams.publishWbPlan）
+            wbByGl = wbByGlNow(),
             flashOverride = if (flashResetStage) Flash.OFF else null,
             flash = flash.value,
             stabilize = stabilize.value,
@@ -870,9 +884,13 @@ class Camera2Engine(
                 builderAeManual = manualNow
                 Log.i(TAG, "AE 档翻转 → 重建 repeating builder（manual=$manualNow），清 SENSOR 三键残留")
             }
-            // builder 可能刚被重建：重新取（prepareBuilder 失败时 reqBuilder 不动，沿用旧值）
-            applyParams(reqBuilder ?: builder, state)
-            val request = builder.build()
+            // builder 可能刚被重建：apply 与 build 都必须落在新 builder 上——
+            // 【2026-10-27 复审修掉的 P1】重建后若仍 build 旧 builder，翻转那一次下发的是
+            // 带 SENSOR 三键残值的旧请求（闪动修复在翻转瞬间静默失效，且 AUTO 档此后
+            // 没有别的下发时机会自愈）。prepareBuilder 失败时 reqBuilder 不动 = 沿用旧值。
+            val effectiveBuilder = reqBuilder ?: builder
+            applyParams(effectiveBuilder, state)
+            val request = effectiveBuilder.build()
             val hs = highSpeedSession
             val normal = session
             if (hs != null) hs.setRepeatingBurst(hs.createHighSpeedRequestList(request), frameCountCallback, workHandler)
@@ -952,8 +970,11 @@ class Camera2Engine(
             request: CaptureRequest,
             result: TotalCaptureResult
         ) {
+            camResultCount++
             logAeAfTelemetry(result)
-            if (!RequestApplier.isManualWhiteBalance(params.wbMode.value)) {
+            val manual = RequestApplier.isManualWhiteBalance(params.wbMode.value)
+            logWbTelemetry(result, manual)
+            if (!manual) {
                 wbProbeFails = 0
                 return
             }
@@ -982,8 +1003,14 @@ class Camera2Engine(
                 )
                 if (wbProbeFails >= WB_PROBE_MAX_FAILS) {
                     wbProbeFails = 0
-                    params.wbMode.value = com.wotagei.cam.core.WbPreset.AUTO
-                    Log.w(TAG, "本机不支持手动白平衡（增益不被采纳），已弹回自动——反馈 #6 的运行时处置")
+                    // 2026-10-28：不再把手动档弹回自动——"HAL 不采纳增益"不再是死路，
+                    // 而是切换到画面算法的信号（WIKO 实测：AWB_MODE_OFF 生效、增益被丢，
+                    // 画面只剩传感器原色发绿）。闩锁由 wbApply 统一裁决。
+                    // 只在**翻真的那一次**留日志：这一拍每 2s 一轮，不封口会刷屏。
+                    if (!params.wbHalRejected.value) {
+                        Log.w(TAG, "本机 HAL 不采纳手动白平衡增益（模式回声不是 TRANSFORM_MATRIX）⇒ 改走画面算法")
+                        params.wbHalRejected.value = true
+                    }
                 }
             }
         }
@@ -1002,6 +1029,23 @@ class Camera2Engine(
      */
     private var lastAeAfTelemetryMs = 0L
 
+    // ---- 运行时帧率坍塌守卫（2026-10-28 用户6/7；判定逻辑在 core.LowFpsWatch，JVM 单测）----
+    // 到帧率最诚实的源头就是 capture result 的到达节奏（成片卡不卡的物理成因）。
+    // 计数在结果回调累加；采样由 [lowFpsSampler] 的**独立 1s 定时拍**驱动——不挂在结果回调上：
+    // HAL 完全断流（零回调）时结果路径整体停摆，挂在结果上的采样也会跟着失声，守卫对
+    // "一颗帧都不来"的病态反而哑火（2026-10-28 审查补盲区）。定时拍读计数即可把零到达
+    // 如实喂成 0fps。取景/录制全程运行；设备不在 OPEN_SUCCEED 时采样函数自己清提示。
+    private var camResultCount = 0L
+    private var camRateLastMs = 0L
+    private var lowFpsWatch: LowFpsWatch? = null
+
+    private val lowFpsSampler: Job = scope.launch {
+        while (isActive) {
+            delay(LOW_FPS_SAMPLE_PERIOD_MS)
+            sampleCameraRate(SystemClock.elapsedRealtime())
+        }
+    }
+
     private fun logAeAfTelemetry(result: TotalCaptureResult) {
         val now = SystemClock.elapsedRealtime()
         if (now - lastAeAfTelemetryMs < AE_AF_TELEMETRY_MS) return
@@ -1018,6 +1062,140 @@ class Camera2Engine(
                 " lensFocus=${runCatching { result.get(android.hardware.camera2.CaptureResult.LENS_FOCUS_DISTANCE) }.getOrNull()}"
         )
     }
+
+    /**
+     * 一拍实测到帧率喂给守卫；状态翻转才写总线（StateFlow 同值天然去重，这里省的是装帧）。
+     * 会话没开成功时不判也不留旧提示——取景器都不在，"帧率低"无从谈起。
+     * 换档（目标变了）换新守卫：旧账的宽限/连续/触发态对新档位全是噪音。
+     */
+    private fun sampleCameraRate(now: Long) {
+        val last = camRateLastMs
+        camRateLastMs = now
+        val count = camResultCount
+        camResultCount = 0
+        if (deviceStatus != DeviceStatus.OPEN_SUCCEED) {
+            lowFpsWatch = null
+            if (params.lowFpsHint.value != null) params.lowFpsHint.value = null
+            return
+        }
+        val target = params.fps.value.value
+        if (target <= 0) return
+        val watch = lowFpsWatch?.takeIf { it.targets(target) } ?: LowFpsWatch(target).also { lowFpsWatch = it }
+        if (last == 0L) return  // 首拍只立基准（这段窗口跨了会话建立，速率不可信）
+        val measured = count * 1000f / (now - last).coerceAtLeast(1L)
+        val alarm = watch.onSample(now, measured)
+        val hint = if (alarm) {
+            LowFpsHint(targetFps = target, achievedFps = measured.roundToInt().coerceAtLeast(1))
+        } else {
+            null
+        }
+        if (params.lowFpsHint.value != hint) {
+            Log.i(TAG, "帧率守卫：target=${target}fps 实测=${"%.1f".format(measured)}fps ⇒ ${if (alarm) "提示" else "解除"}")
+            params.lowFpsHint.value = hint
+        }
+    }
+
+    // ------------------------------------------------- 白平衡取证遥测（28 §2.4 批次 1）
+
+    /** AUTO 档快照节流：1s 一拍（与 3A 遥测同节奏），d 级——详细档才输出，常态零刷屏 */
+    private val WB_AUTO_TELEMETRY_MS = 1_000L
+
+    /** MANUAL 档对比节流：2s 一拍，i 级——用户停留手动档才有输出，且这是 B3 前最重要的取证行 */
+    /**
+     * 这一拍手动白平衡是否走画面算法（= 请求侧必须留自动白平衡）。
+     * 判据与 [com.wotagei.cam.core.wbApplyPlan] 同源：手动档 + 能力表说增益不被采纳 + GPU 管线在。
+     */
+    private fun wbByGlNow(): Boolean =
+        params.wbMode.value == com.wotagei.cam.core.WbPreset.MANUAL &&
+            params.renderMode.value == com.wotagei.cam.core.RenderMode.GPU &&
+            // 与 WotaParams.wbApply 同口径：只有 HAL **明确声明** TRANSFORM_MATRIX 才走 HAL
+            ability?.halDeclaresTransformMatrix() != true
+
+    /** 增益采纳判据的相对容差（见 logWbTelemetry）：HAL 量化/归一化不算未采纳 */
+    private val WB_ADOPT_TOL = 0.15f
+
+    /** 连续多少拍对不上就判定「本机不采纳手动增益」（≈2s，与 500ms 保活拍同频） */
+    private val WB_ADOPT_MAX_FAILS = 4
+
+    /** 连续不合格拍数（引擎线程独占写） */
+    private var wbAdoptFails = 0
+
+    private val WB_MANUAL_TELEMETRY_MS = 2_000L
+
+    private var lastWbAutoTelemetryMs = 0L
+    private var lastWbManualTelemetryMs = 0L
+
+    /**
+     * 白平衡取证遥测（28 §2.4；判读表见 core/WbTelemetry 的 KDoc）：
+     * - AUTO：回报 gains / CCM / AWB 状态——「中性增益在哪、R1 是否成立」的实据；
+     * - MANUAL：请求 gains（下发侧纯口径 [RequestApplier.manualGains]）vs 回报 gains + 采纳判据
+     *   ——「HAL 是否覆盖增益」的实据（TRANSFORM_MATRIX 回报对不代表增益被采纳）。
+     * 所有键 runCatching 读取；格式化交给 [WbTelemetry]（JVM 单测覆盖）。
+     */
+    private fun logWbTelemetry(result: TotalCaptureResult, manual: Boolean) {
+        val now = SystemClock.elapsedRealtime()
+        if (manual) {
+            if (wbByGlNow()) {
+                // 已改走画面算法：请求侧捕的是 AWB，本来就没有我们的增益，不再比对
+                wbAdoptFails = 0
+                return
+            }
+            if (now - lastWbManualTelemetryMs < WB_MANUAL_TELEMETRY_MS) return
+            lastWbManualTelemetryMs = now
+            val request = RequestApplier.manualGains(params.kelvin.value.value, params.tint.value.value)
+            val reported = gainsOf(result)
+            // 采纳判据用**相对容差**（0.15）：量化/归一化不算未采纳，HAL 整套丢掉增益才算
+            val adopted = WbTelemetry.gainsAdopted(request, reported, tol = WB_ADOPT_TOL)
+            if (!adopted) {
+                wbAdoptFails++
+                if (wbAdoptFails >= WB_ADOPT_MAX_FAILS && !params.wbHalRejected.value) {
+                    // 连续多拍"请求了却没回报" ⇒ 本机 HAL 不采纳手动增益（WIKO：AWB_MODE_OFF 照做、
+                    // gains 丢弃，画面只剩传感器原色发绿）。改由画面算法接管 + 运行时提示。
+                    Log.w(
+                        TAG,
+                        "本机 HAL 不采纳手动白平衡增益（连续 $wbAdoptFails 拍请求与回报对不上）⇒ 改走画面算法"
+                    )
+                    params.wbHalRejected.value = true
+                    markDirty()
+                }
+            } else {
+                wbAdoptFails = 0
+            }
+            Log.i(
+                TAG,
+                "WB遥测[manual] 请求=${WbTelemetry.formatGains(request)} 回报=${WbTelemetry.formatGains(reported)}" +
+                    " 采纳=${if (adopted) "是" else "否（HAL 覆盖/未采纳）"}" +
+                    " ccm=${WbTelemetry.formatTransform9(transform9Of(result))}" +
+                    " awbState=${runCatching { result.get(android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE) }.getOrNull()}"
+            )
+        } else {
+            if (now - lastWbAutoTelemetryMs < WB_AUTO_TELEMETRY_MS) return
+            lastWbAutoTelemetryMs = now
+            val gains = gainsOf(result)
+            Log.d(
+                TAG,
+                "WB遥测[auto] gains=${WbTelemetry.formatGains(gains)} 比值=${WbTelemetry.formatGainsRatios(gains)}" +
+                    " ccm=${WbTelemetry.formatTransform9(transform9Of(result))}" +
+                    " awbState=${runCatching { result.get(android.hardware.camera2.CaptureResult.CONTROL_AWB_STATE) }.getOrNull()}"
+            )
+        }
+    }
+
+    /** `COLOR_CORRECTION_GAINS`（RggbChannelVector）→ [R,G,B]；缺报/异常按「无」处理（保持花括号体：守卫按函数体定位） */
+    private fun gainsOf(result: TotalCaptureResult): FloatArray? {
+        return runCatching {
+            val v = result.get(android.hardware.camera2.CaptureResult.COLOR_CORRECTION_GAINS)
+                ?: return@runCatching null
+            floatArrayOf(v.red, v.greenEven, v.blue)
+        }.getOrNull()
+    }
+
+    /** `COLOR_CORRECTION_TRANSFORM` → 行优先 9 元素；缺报/异常都按「无」处理 */
+    private fun transform9Of(result: TotalCaptureResult): FloatArray? = runCatching {
+        val t = result.get(android.hardware.camera2.CaptureResult.COLOR_CORRECTION_TRANSFORM)
+            ?: return@runCatching null
+        FloatArray(9) { idx -> t.getElement(idx % 3, idx / 3).toFloat() }
+    }.getOrNull()
 
     // ------------------------------------------------- fps 选择与钳制
 
@@ -1125,7 +1303,9 @@ class Camera2Engine(
     private fun writeBackFps(value: Int, exact: Boolean) {
         val current: ParamState<Int> = params.fps.value
         if (current.value == value && current.exact == exact && current.enabled) return
-        params.fps.value = current.copy(value = value, exact = exact, enabled = true)
+        // 走 setFps 单一写入者（28 §4.4）：引擎自动降档也是「用户可见的档位变化」，
+        // 快门可选域必须同一拍按新档位重算，否则退到 24fps 后滑杆仍被 1/60 顶住
+        params.setFps(current.copy(value = value, exact = exact, enabled = true))
     }
 
     private fun onStructuralPulse(pulse: Pulse) {

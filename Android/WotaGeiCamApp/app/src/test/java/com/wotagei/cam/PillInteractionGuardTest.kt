@@ -8,6 +8,7 @@ import com.wotagei.cam.source.KotlinSourceScan.occurrences
 import com.wotagei.cam.ui.PillKey
 import com.wotagei.cam.ui.RECORDING_EDITABLE_PILLS
 import com.wotagei.cam.ui.pillEditableDuringRecording
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -17,8 +18,10 @@ import org.junit.Test
  * 2026-10-17 胶囊交互调整的源码/行为守卫：
  * 1. 读数与镜头胶囊**点按、长按都开弹窗**（点按不再循环改值）；
  * 2. 旧循环实现（`HudCycle.kt` / `nextLensKey`）删除干净——全仓主源码零残留；
- * 3. 录制中可调白名单恰为 ISO/EV/WB/ZOOM/FOCUS，其余弹窗控件走 `enabled = editable`；
- * 4. 对焦锁定录制中的条目判据是 `!recording || focusLocked`。
+ * 3. 录制中可调白名单恰为 ISO/EV/WB/ZOOM/FOCUS/MONITOR/GLOW（2026-10-27 B4 加入 MONITOR：
+ *    监看叠加只改上屏槽，成片不变），其余弹窗控件走 `enabled = editable`；
+ * 4. 对焦锁定录制中的条目判据是 `!recording || focusLocked`；
+ * 5. 监看弹窗常驻「只上屏、不进成片」说明（B4 的前置提示，缺了就是静默改）。
  *
  * 每条判据都配「尺子能红」：拆掉接线/改掉白名单后同一把尺必须报红。
  */
@@ -53,7 +56,7 @@ class PillInteractionGuardTest {
     private fun readOnlyIssues(src: String): List<String> {
         val readOnlyPills = listOf(
             "SizePill", "FpsPill", "ShutterPill", "BitratePill", "LensPill",
-            "RefLinePill", "MonitorPill", "FlashPill", "StabPill", "StoragePill"
+            "RefLinePill", "MonitorPill", "FlashPill", "StabPill", "StoragePill", "GlowPill"
         )
         return readOnlyPills.filter { fn ->
             val body = runCatching { bodyOf(src, fn) }.getOrNull()
@@ -62,16 +65,19 @@ class PillInteractionGuardTest {
     }
 
     /**
-     * 十根滑杆必须全部接梯（A2 + 2026-10-17 并入门槛滑杆）：任一根漏传 `ladder` 就会退回连续滑杆，
-     * 而纯函数测试仍全绿（审查 P3 的假绿口）。空 = 干净。
+     * 21 根滑杆必须全部接梯（A2 + 2026-10-17 并入门槛滑杆 + 2026-10-28 色调四条）：
+     * 任一根漏传 `ladder` 就会退回连续滑杆，而纯函数测试仍全绿（审查 P3 的假绿口）。空 = 干净。
      */
     private fun ladderIssues(src: String): List<String> {
         val bad = ArrayList<String>()
-        if (occurrences(src, "PillSlider(").size != 10) bad.add("PillSlider 调用点不是 10 处")
+        if (occurrences(src, "PillSlider(").size != 21) bad.add("PillSlider 调用点不是 21 处")
         // 快门面板另有 `val ladder = shutterLadder(...)`（梯的本地构造），参数字面量要减掉它才是调用点数
         val ladderArgs = occurrences(src, "ladder =").size - occurrences(src, "val ladder =").size
-        if (ladderArgs != 10) bad.add("ladder = 参数不是 10 处（有滑杆退回连续模式）")
-        val panels = listOf("ShutterPill", "IsoPill", "EvPill", "WbPill", "ZoomPill", "FocusPill", "MonitorPill", "FpsPill")
+        if (ladderArgs != 21) bad.add("ladder = 参数不是 21 处（有滑杆退回连续模式）")
+        val panels = listOf(
+            "ShutterPill", "IsoPill", "EvPill", "WbPill", "ZoomPill", "FocusPill",
+            "MonitorPill", "FpsPill", "GlowPill", "TonePill"
+        )
         panels.forEach { fn ->
             val body = runCatching { bodyOf(src, fn) }.getOrNull()
             if (body == null || occurrences(body, "ladder =").isEmpty()) bad.add("$fn 没有 ladder")
@@ -146,10 +152,16 @@ class PillInteractionGuardTest {
     }
 
     @Test
-    fun `录制中可调白名单恰为五项`() {
+    fun `录制中可调白名单恰为八项`() {
+        // 2026-10-27 B4：MONITOR 整组进白名单（只改 DISPLAY 槽，成片不变）
+        // 2026-10-27 B7：GLOW 进白名单（scene layer：**会**改成片，但不触发重画、不产生重复帧）
+        // 2026-10-28 F-E：TONE 按 Glow 同一先例进白名单（scene layer，29 §4.4-5 / §九-2）
         assertEquals(
-            "可调白名单必须恰为 ISO/EV/WB/ZOOM/FOCUS",
-            setOf(PillKey.ISO, PillKey.EV, PillKey.WB, PillKey.ZOOM, PillKey.FOCUS),
+            "可调白名单必须恰为 ISO/EV/WB/ZOOM/FOCUS/MONITOR/GLOW/TONE",
+            setOf(
+                PillKey.ISO, PillKey.EV, PillKey.WB, PillKey.ZOOM, PillKey.FOCUS,
+                PillKey.MONITOR, PillKey.GLOW, PillKey.TONE
+            ),
             RECORDING_EDITABLE_PILLS
         )
         PillKey.values().forEach { key ->
@@ -162,9 +174,52 @@ class PillInteractionGuardTest {
         // 只读/可调的代表项各点一次名（写死方向错一处即红）
         assertTrue(pillEditableDuringRecording(PillKey.WB))
         assertTrue(pillEditableDuringRecording(PillKey.FOCUS))
+        assertTrue("监看叠加只上屏 ⇒ 录制中可调（25 号计划 B4）", pillEditableDuringRecording(PillKey.MONITOR))
+        assertTrue("Glow 是 scene layer ⇒ 录制中可调（24 号计划 §1.6）", pillEditableDuringRecording(PillKey.GLOW))
+        assertTrue("色调是 scene layer ⇒ 录制中可调（29 §九-2）", pillEditableDuringRecording(PillKey.TONE))
         assertFalse(pillEditableDuringRecording(PillKey.SHUTTER))
         assertFalse(pillEditableDuringRecording(PillKey.BITRATE))
         assertFalse(pillEditableDuringRecording(PillKey.BT))
+    }
+
+    @Test
+    fun `监看弹窗常驻只上屏提示且录制中不再走只读提示`() {
+        // 用户口径（25 §3.9.1）：MonitorPill 里常驻一句「监看叠加只上屏，不进成片」——
+        // 录制中可调的前提是用户知道改了不改片；缺这句就是"静默改了却没说清"
+        val monitor = flatten(bodyOf(pills, "MonitorPill"))
+        assertTrue(
+            "MonitorPill 缺少常驻提示 cam_monitor_preview_only",
+            occurrences(monitor, "cam_monitor_preview_only").isNotEmpty()
+        )
+        // 字符串本身必须真的存在（引用拼错名字在遮蔽文本里看不出来）
+        val strings = stringsCamera().readText(Charsets.UTF_8)
+        assertTrue(
+            "strings_camera.xml 缺 cam_monitor_preview_only",
+            strings.contains("name=\"cam_monitor_preview_only\"") && strings.contains("监看叠加只上屏，不进成片")
+        )
+        // 只读总闸保留（对 MONITOR 自然不再触发），且必须排在常驻提示之后
+        val previewAt = monitor.indexOf("cam_monitor_preview_only")
+        val readOnlyAt = monitor.indexOf("cam_recording_readonly")
+        assertTrue("MonitorPill 的只读总闸被删了（其它状态的弹窗靠它）", readOnlyAt >= 0)
+        assertTrue("常驻提示必须排在只读提示之前（先讲清只上屏，再讲能不能改）", previewAt < readOnlyAt)
+        // 突变自证：摘掉常驻提示必须被守卫抓到（`occurrences` 按词边界判，
+        // 单纯把名字加个后缀（…_onlyX）不会被当成"还在"——那是 contains 的经典假绿）
+        val mutated = pills.replace("cam_monitor_preview_only", "cam_monitor_preview_note")
+        assertTrue(
+            "摘掉常驻提示的突变必须被守卫抓到",
+            occurrences(flatten(bodyOf(mutated, "MonitorPill")), "cam_monitor_preview_only").isEmpty()
+        )
+    }
+
+    /** 文案资源文件（`res/values/strings_camera.xml`）：与 DegradedKeepGuardTest 同一手法 */
+    private fun stringsCamera(): File {
+        var d: File? = KotlinSourceScan.mainSourceFile("ui/CameraScreen.kt").parentFile
+        while (d != null) {
+            val f = File(d, "res/values/strings_camera.xml")
+            if (f.isFile) return f
+            d = d.parentFile
+        }
+        throw AssertionError("找不到 res/values/strings_camera.xml（文案资源被挪走/改名，守卫失去输入）")
     }
 
     @Test
