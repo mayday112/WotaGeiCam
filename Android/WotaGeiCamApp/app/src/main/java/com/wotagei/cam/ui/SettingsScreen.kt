@@ -564,15 +564,14 @@ object WotaSettings {
         (prefs.getInt(key, 100).coerceIn(TEXT_SCALE_PCTS.first(), TEXT_SCALE_PCTS.last()) / 100f)
 
     /**
-     * 「启动后自动亮屏」延迟（秒）：坏值/越界回**默认 1**（0 是合法档=关闭，不能当坏值兜底用，
-     * 否则用户手改 prefs 写个 -5 反而把"关闭"当默认铺开）。默认值 = 29 §九 推荐（1s）。
+     * 「启动后自动亮屏」延迟（秒）：默认 0（关闭，跟随系统亮度）；0–10 步长 1。
      */
     fun cameraBrightenDelaySec(prefs: SharedPreferences): Int =
-        prefs.getInt(KEY_CAMERA_BRIGHTEN_DELAY_SEC, 1).coerceIn(0, 10)
+        prefs.getInt(KEY_CAMERA_BRIGHTEN_DELAY_SEC, 0).coerceIn(0, 10)
 
-    /** 「起播渐亮」时长（十分之一秒）：坏值/越界回默认 10（=1.0s，29 §五 表定） */
+    /** 「起播渐亮」时长（十分之一秒）：默认 0（关闭，跟随系统亮度）；0–30 步长 5 */
     fun playerBrightenRampTenths(prefs: SharedPreferences): Int =
-        prefs.getInt(KEY_PLAYER_BRIGHTEN_RAMP_TENTHS, 10).coerceIn(0, 30)
+        prefs.getInt(KEY_PLAYER_BRIGHTEN_RAMP_TENTHS, 0).coerceIn(0, 30)
 
     /** 播放页顶栏收起态：缺键 = 展开。读侧不做归一（boolean 没有坏域），写入方只有点按两枚钮 */
     fun playerTopBarCollapsed(prefs: SharedPreferences): Boolean =

@@ -53,8 +53,8 @@ class BrightnessRampTest {
     @Test
     fun `两条亮度设置的默认与钳制`() {
         val prefs = FakePrefs()
-        assertEquals("启动亮屏默认 1s（29 §九）", 1, WotaSettings.cameraBrightenDelaySec(prefs))
-        assertEquals("起播渐亮默认 1.0s", 10, WotaSettings.playerBrightenRampTenths(prefs))
+        assertEquals("启动亮屏默认 0s (关闭)", 0, WotaSettings.cameraBrightenDelaySec(prefs))
+        assertEquals("起播渐亮默认 0s (关闭)", 0, WotaSettings.playerBrightenRampTenths(prefs))
         // 0 是合法档（关闭），不许被"坏值回默认"吞掉
         prefs.map[WotaSettings.KEY_CAMERA_BRIGHTEN_DELAY_SEC] = 0
         prefs.map[WotaSettings.KEY_PLAYER_BRIGHTEN_RAMP_TENTHS] = 0
