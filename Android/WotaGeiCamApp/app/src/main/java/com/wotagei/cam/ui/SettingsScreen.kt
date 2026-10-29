@@ -446,12 +446,21 @@ object WotaSettings {
     fun uiOrientation(prefs: SharedPreferences): UIOrientation =
         UIOrientation.fromPersistValue(prefs.getString(KEY_UI_ORIENTATION, UIOrientation.DEFAULT.persistValue))
 
-    /** 根据语言代码返回 Locale（LANG_SYSTEM 返回 null 即跟随系统） */
-    fun getLocale(lang: String): Locale? = when (lang) {
+    /** 根据语言代码返回 Locale（LANG_SYSTEM 若非印尼/中文则默认 English） */
+    fun getLocale(lang: String): Locale = when (lang) {
         LANG_ENGLISH -> Locale.ENGLISH
         LANG_INDONESIAN -> Locale("in", "ID")
         LANG_CHINESE -> Locale.SIMPLIFIED_CHINESE
-        LANG_SYSTEM -> null
+        LANG_SYSTEM -> {
+            val sysLang = runCatching {
+                android.content.res.Resources.getSystem().configuration.locales[0]?.language
+            }.getOrNull() ?: "en"
+            when (sysLang) {
+                "id", "in" -> Locale("in", "ID")
+                "zh" -> Locale.SIMPLIFIED_CHINESE
+                else -> Locale.ENGLISH
+            }
+        }
         else -> Locale.ENGLISH
     }
 
@@ -463,7 +472,7 @@ object WotaSettings {
     fun wrapContext(context: Context): Context {
         val prefs = of(context)
         val lang = language(prefs)
-        val locale = getLocale(lang) ?: return context
+        val locale = getLocale(lang)
         Locale.setDefault(locale)
         val res = context.resources
         val config = Configuration(res.configuration)
@@ -478,26 +487,24 @@ object WotaSettings {
     @Suppress("DEPRECATION")
     fun applyLanguage(context: Context? = null, lang: String) {
         val locale = getLocale(lang)
-        if (locale != null) {
-            Locale.setDefault(locale)
-            val localeList = LocaleList(locale)
-            LocaleList.setDefault(localeList)
-            if (context != null) {
-                val res = context.resources
-                val config = Configuration(res.configuration)
-                config.setLocale(locale)
-                config.setLocales(localeList)
-                res.updateConfiguration(config, res.displayMetrics)
-                val appRes = context.applicationContext?.resources
-                if (appRes != null && appRes !== res) {
-                    val appConfig = Configuration(appRes.configuration)
-                    appConfig.setLocale(locale)
-                    appConfig.setLocales(localeList)
-                    appRes.updateConfiguration(appConfig, appRes.displayMetrics)
-                }
+        Locale.setDefault(locale)
+        val localeList = LocaleList(locale)
+        LocaleList.setDefault(localeList)
+        if (context != null) {
+            val res = context.resources
+            val config = Configuration(res.configuration)
+            config.setLocale(locale)
+            config.setLocales(localeList)
+            res.updateConfiguration(config, res.displayMetrics)
+            val appRes = context.applicationContext?.resources
+            if (appRes != null && appRes !== res) {
+                val appConfig = Configuration(appRes.configuration)
+                appConfig.setLocale(locale)
+                appConfig.setLocales(localeList)
+                appRes.updateConfiguration(appConfig, appRes.displayMetrics)
             }
         }
-        val localeListCompat = if (lang == LANG_SYSTEM || locale == null) {
+        val localeListCompat = if (lang == LANG_SYSTEM) {
             androidx.core.os.LocaleListCompat.getEmptyLocaleList()
         } else {
             androidx.core.os.LocaleListCompat.forLanguageTags(if (lang == LANG_INDONESIAN) "in,id" else lang)

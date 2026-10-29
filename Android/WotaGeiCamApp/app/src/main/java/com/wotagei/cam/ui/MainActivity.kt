@@ -83,10 +83,8 @@ class MainActivity : ComponentActivity() {
             runCatching {
                 val prefs = WotaSettings.of(this)
                 val locale = WotaSettings.getLocale(WotaSettings.language(prefs))
-                if (locale != null) {
-                    overrideConfiguration.setLocale(locale)
-                    overrideConfiguration.setLocales(LocaleList(locale))
-                }
+                overrideConfiguration.setLocale(locale)
+                overrideConfiguration.setLocales(LocaleList(locale))
             }
         }
         super.applyOverrideConfiguration(overrideConfiguration)
@@ -166,8 +164,7 @@ class MainActivity : ComponentActivity() {
             val locale = remember(lang) { WotaSettings.getLocale(lang) }
             val baseConfig = androidx.compose.ui.platform.LocalConfiguration.current
             val localizedConfig = remember(baseConfig, locale) {
-                if (locale == null) baseConfig
-                else Configuration(baseConfig).apply {
+                Configuration(baseConfig).apply {
                     setLocale(locale)
                     setLocales(LocaleList(locale))
                 }

@@ -12,6 +12,9 @@
     <string name="cam_state_prepare">准备中</string>
     <string name="cam_state_stopping">停止中</string>
     <string name="cam_state_high_fps">该帧率超出本机能力，已退到可用上限</string>
+    <string name="cam_state_low_fps">实际帧率只有约 %1$d（目标 %2$d）：光线不足或快门过慢所限，画面会卡</string>
+    <string name="cam_state_seg_near_cap">接近单段大小上限，即将自动换段写入新文件</string>
+    <string name="cam_state_approx_manual">当前帧率档为本机近似档：暗光下实际帧率可能低于所选值</string>
     <string name="cam_direct_no_effect">不使用 GPU 时斑马纹与峰值对焦不生效</string>
 
     <!-- 录制页分屏（用户第 3 项的前半：分屏控件 + 左侧压缩 + 右侧模式外壳） -->
@@ -19,7 +22,8 @@
     <string name="cam_split_exit">退出分屏</string>
     <string name="cam_split_lens">另镜头录制</string>
     <string name="cam_split_compare">实时对比播放</string>
-    <!-- 第 3 项后半：右侧对比播放器；播放/暂停复用 player_play_pause，选片失败复用 compare_pick_failed -->
+    <!-- 第 3 项后半：右侧对比播放器；播放/暂停复用 player_play_pause。选片失败按原因分档：
+         权限不足弹 MediaAccessDialog，非媒体库来源用 compare_pick_foreign_source，其余 compare_pick_failed -->
     <string name="cam_split_pick">选择视频</string>
     <!-- 双摄并发探测为空时挂在「另镜头录制」项下；可用态本次仍占位，点击只给下一批提示 -->
     <string name="cam_split_lens_unsupported">本机不支持双摄并发</string>
@@ -36,6 +40,10 @@
     <string name="cam_p_af">对焦模式</string>
     <string name="cam_p_mf">手动对焦</string>
     <string name="cam_p_wb">白平衡</string>
+    <!-- 手动白平衡的算法兜底（2026-10-28 用户需求）：本机未声明手动白平衡增益支持时，
+         手动档改由画面算法乘相对增益落地，必须在弹层与运行时讲明 -->
+    <string name="cam_wb_gl_fallback">此设备未声明手动白平衡增益支持，已改由画面算法处理：色温/色调是相对自动白平衡的偏移，不再下发相机增益</string>
+    <string name="cam_wb_gl_fallback_toast">此设备未声明手动白平衡增益支持，手动白平衡已改为画面算法处理</string>
     <string name="cam_p_kelvin">色温</string>
     <string name="cam_p_tint">色调</string>
     <string name="cam_p_lens">镜头</string>
@@ -87,6 +95,7 @@
     <string name="cam_focus_tap_locked_tip">对焦已锁定；要换焦点请长按画面或打开对焦胶囊解除</string>
     <string name="cam_focus_manual_locked">手动对焦档本身即锁定，无需再锁</string>
     <string name="cam_focus_lock_unsupported">此镜头不支持单次自动对焦，无法锁定焦点</string>
+    <!-- 能力给不了时胶囊「在场但禁用」的点击解释（2026-10-26）：不再整颗隐藏——隐藏会在钉格上留洞 -->
     <string name="cam_focus_unsupported">当前镜头不支持对焦调节</string>
     <string name="cam_flash_unsupported">当前镜头没有闪光灯</string>
     <string name="cam_focus_lock_recording">录制中不可锁定对焦</string>
@@ -100,6 +109,15 @@
     <string name="cam_lens_using">正在使用</string>
     <string name="cam_lens_fov">等效 %1$s mm · 水平视场角 %2$s°</string>
     <string name="cam_lens_fov_only">等效 %1$s mm</string>
+    <!-- 上屏档（2026-10-27 用户需求；docs/plan/24 R3 §2.4）：只改取景器的上屏渲染分辨率 -->
+    <string name="cam_display_scale">预览分辨率</string>
+    <string name="cam_display_scale_orig">原片</string>
+    <string name="cam_display_scale_readout">预览：%1$s</string>
+    <string name="cam_display_scale_note">只影响取景器上屏的渲染分辨率，成片画质不变。调低会把 GPU 帧预算让给录制、补弧与降噪，减少 4K 下的掉帧与发热。</string>
+    <string name="cam_display_scale_current">当前：原片</string>
+    <string name="cam_display_scale_current_rt">当前：%1$d（上屏 %2$d×%3$d）</string>
+    <string name="cam_display_scale_too_small">当前窗口太小，这一档不可用</string>
+    <string name="cam_display_scale_fallback">上屏降档不可用，已按原片渲染</string>
     <string name="cam_size_range">本机支持范围 %1$s ～ %2$s</string>
     <string name="cam_lens_super_wide">超广角</string>
     <string name="cam_lens_wide">广角</string>
@@ -156,6 +174,8 @@
     <!-- 屏幕监看面板 -->
     <string name="cam_monitor_title">屏幕监看</string>
     <string name="cam_monitor_need_gpu">需切到「使用 GPU」才生效</string>
+    <!-- 25 号计划 B4：录制中整组可调，但改了只影响预览（成片只由曲线/Glow/降噪/相机决定） -->
+    <string name="cam_monitor_preview_only">监看叠加只上屏，不进成片</string>
     <string name="cam_effect_none">关闭</string>
     <string name="cam_effect_zebra">斑马纹</string>
     <string name="cam_effect_peaking">峰值对焦</string>
@@ -179,6 +199,7 @@
     <string name="cam_curve_ch_green">绿</string>
     <string name="cam_curve_ch_blue">蓝</string>
     <string name="cam_curve_reset_all">全部复位</string>
+    <string name="cam_curve_io_readout">入 %1$d · 出 %2$d</string>
 
     <!-- 录制结果与失败提示（机器码在 record 包，这里按码给文案）。
          结果文案 = 原因句 + 附注句**叠加**（P3-1/P3-2 收口，分派见 ui/RecordResultNotice.kt 的
@@ -260,7 +281,7 @@
     <!-- P1（docs/plan/17 §十一 2）：被 hud_pills / hud_items 掩码关掉、但编辑页照旧列出（也照样能摆位）
          的那些条目，在水印层里 hud_edit_note 尾部补这一句。为什么必须有：不说清"它只在编辑页可见"，
          用户会以为"我在编辑页摆的位没生效"（他摆的正是录制页当前不显示的那几颗）。
-         摆位后保存、回录制页把那颗的显示打开，它就回到自己那一格。 -->
+         摆位后保存、回录制页把那颗的显示打开，它就回到你摆的这一格。 -->
     <string name="hud_edit_hidden_entries_note">已关闭显示的控件只在编辑页可见：照样能摆位，保存后回录制页把显示打开，它就回到你摆的这一格</string>
     <string name="hud_zone_top">顶栏胶囊组</string>
     <string name="hud_zone_left">左竖 Dock</string>
@@ -269,6 +290,42 @@
     <string name="hud_zone_bottom">底栏 Dock</string>
     <!-- 降噪（2026-10-26）：音频/画面两项默认关，一枚胶囊管两件事 -->
     <string name="cam_pill_denoise">降噪</string>
+
+    <!-- ============ Glow 光晕（2026-10-27 用户需求；docs/plan/24 R3 §1.6） ============ -->
+    <string name="cam_pill_glow">光晕</string>
+    <string name="cam_glow_title">Glow 光晕</string>
+    <!-- 面板常驻口径：Glow 是 scene layer，改了会进成片（与监看叠加相反） -->
+    <string name="cam_glow_note">光晕进成片（烘焙进像素），调参在下一个真帧生效</string>
+    <!-- 2026-10-28 用户口径：光晕跟随光棒自身颜色（预设/两端色已删除） -->
+    <string name="cam_glow_color">光晕颜色</string>
+    <string name="cam_glow_same_color">点色盘圆心 = 跟随光棒原色；选色后光晕整体偏该色调</string>
+    <string name="cam_glow_on">开</string>
+    <string name="cam_glow_off">关</string>
+    <string name="cam_glow_threshold">亮度阈值</string>
+    <string name="cam_glow_soft">软边</string>
+    <string name="cam_glow_width">光晕宽度</string>
+    <string name="cam_glow_gain">增益</string>
+
+    <!-- ============ TONE 色调（2026-10-28；docs/plan/29 §四 F4） ============ -->
+    <string name="cam_pill_tone">色调</string>
+    <string name="cam_tone_title">色调</string>
+    <!-- 面板常驻口径：tone 是 scene layer，改了会进成片（与 Glow 同一套说明纪律，不许静默） -->
+    <string name="cam_tone_note">色调进成片（烘进曲线同一张查找表），预览与成片同步变化</string>
+    <string name="cam_tone_direct">直连渲染没有片元链，色调不生效；需切到 GPU 渲染</string>
+    <string name="cam_tone_black">黑点</string>
+    <string name="cam_tone_white">白点</string>
+    <string name="cam_tone_shadows">阴影</string>
+    <string name="cam_tone_highlights">高光</string>
+    <string name="cam_tone_reset">全部归零</string>
+    <string name="cam_glow_add">叠加</string>
+    <string name="cam_glow_freq">频率</string>
+    <string name="cam_glow_blend">混合</string>
+    <!-- 状态行：当前档位来自 GlowStatus（相机帧尺寸 × 帧率判档） -->
+    <string name="cam_glow_status_auto">当前：×%1$d（自动）</string>
+    <string name="cam_glow_status_res_label">当前：×%1$d（%2$d×%3$d 自动）</string>
+    <string name="cam_glow_broken">Glow 已停用</string>
+    <string name="cam_glow_clamped">受机型纹理上限，已夹到 %1$d×%2$d</string>
+    <string name="cam_glow_direct">需切到「使用 GPU」才生效</string>
     <string name="denoise_audio_off">关闭</string>
     <string name="denoise_audio_system">系统降噪</string>
     <string name="denoise_video_off">关闭</string>
@@ -280,9 +337,19 @@
     <string name="denoise_audio_note">使用系统 NoiseSuppressor 压制风声与环境底噪；内录音轨不受影响。开启后录制改走自研引擎，本机不支持时自动按无降噪继续。</string>
     <string name="denoise_video_note">HAL 档由相机硬件降噪（零额外功耗）；GPU 双边按边缘保持滤除暗部噪点，仅 GPU 渲染可用。</string>
     <string name="denoise_video_fallback_direct">当前为直连渲染，GPU 双边不可用，已退回 HAL 快速档</string>
-    <string name="denoise_video_effect_on">监看叠加（斑马纹/峰值对焦）开着时不降噪，关掉后自动恢复</string>
+    <string name="denoise_video_effect_on">监看叠加只影响预览；成片仍按所选档降噪</string>
     <string name="denoise_lite_tip">本机负载较高（画质×帧率），画面降噪已自动改用轻量档</string>
     <string name="denoise_audio_unsupported_tip">本机不支持系统降噪，环境音按原样录制</string>
+    <string name="cam_marker">站位线</string>
+    <string name="cam_marker_add">加一条站位线</string>
+    <string name="cam_marker_remove">减一条站位线</string>
+    <string name="cam_marker_color_title">站位线颜色</string>
+    <string name="marker_color_yellow">黄色</string>
+    <string name="marker_color_cyan">青色</string>
+    <string name="marker_color_magenta">品红</string>
+    <string name="marker_color_green">绿色</string>
+    <string name="marker_color_white">白色</string>
+    <string name="marker_color_orange">橙色</string>
     <string name="cam_focus_manual_peaking_tip">手动对焦可配合监看·峰值对焦使用：合焦区域会高亮</string>
     <string name="cam_fps_downgraded_tip">本机跑不动该帧率，已自动退回 %1$d 帧</string>
 </resources>

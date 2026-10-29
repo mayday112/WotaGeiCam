@@ -12,6 +12,9 @@
     <string name="cam_state_prepare">Menyiapkan</string>
     <string name="cam_state_stopping">Menghentikan</string>
     <string name="cam_state_high_fps">Frame rate melebihi kemampuan perangkat; dialihkan ke batas maksimal</string>
+    <string name="cam_state_low_fps">Frame rate aktual hanya ~%1$d (target %2$d): terbatas karena cahaya redup atau rana lambat, video mungkin patah-patah</string>
+    <string name="cam_state_seg_near_cap">Mendekati batas ukuran per segmen, akan segera otomatis membagi ke file baru</string>
+    <string name="cam_state_approx_manual">Frame rate saat ini adalah tingkat perkiraan di perangkat ini: frame rate aktual mungkin lebih rendah saat redup</string>
     <string name="cam_direct_no_effect">Pola zebra dan focus peaking tidak aktif saat tidak menggunakan GPU</string>
 
     <!-- Layar Terpisah (Split Screen) -->
@@ -34,6 +37,8 @@
     <string name="cam_p_af">Mode Fokus</string>
     <string name="cam_p_mf">Fokus Manual</string>
     <string name="cam_p_wb">White Balance</string>
+    <string name="cam_wb_gl_fallback">Perangkat ini tidak mendukung gain white balance manual; dialihkan ke algoritma gambar: suhu/rona menjadi offset relatif terhadap WB otomatis</string>
+    <string name="cam_wb_gl_fallback_toast">Gain WB manual tidak didukung perangkat; dialihkan ke pemrosesan algoritma gambar</string>
     <string name="cam_p_kelvin">Suhu Warna</string>
     <string name="cam_p_tint">Corak Warna (Tint)</string>
     <string name="cam_p_lens">Lensa</string>
@@ -92,6 +97,14 @@
     <string name="cam_lens_using">Sedang Digunakan</string>
     <string name="cam_lens_fov">Ekuivalen %1$s mm · Sudut Pandang Horizontal %2$s°</string>
     <string name="cam_lens_fov_only">Ekuivalen %1$s mm</string>
+    <string name="cam_display_scale">Resolusi Pratinjau</string>
+    <string name="cam_display_scale_orig">Asli</string>
+    <string name="cam_display_scale_readout">Pratinjau: %1$s</string>
+    <string name="cam_display_scale_note">Hanya memengaruhi resolusi tampilan jendela bidik; kualitas rekaman tetap utuh. Menurunkan opsi ini menghemat beban GPU untuk perekaman, perbaikan busur, dan denoise, mengurangi drop frame &amp; panas di 4K.</string>
+    <string name="cam_display_scale_current">Saat ini: Asli</string>
+    <string name="cam_display_scale_current_rt">Saat ini: %1$d (Layar %2$d×%3$d)</string>
+    <string name="cam_display_scale_too_small">Jendela saat ini terlalu kecil, tingkat ini tidak tersedia</string>
+    <string name="cam_display_scale_fallback">Penurunan skala pratinjau tidak tersedia, merender pada resolusi asli</string>
     <string name="cam_size_range">Rentang yang didukung perangkat: %1$s ～ %2$s</string>
     <string name="cam_lens_super_wide">Ultra Lebar</string>
     <string name="cam_lens_wide">Lebar</string>
@@ -148,6 +161,7 @@
     <!-- Panel Monitor Layar -->
     <string name="cam_monitor_title">Monitor Layar</string>
     <string name="cam_monitor_need_gpu">Harus beralih ke \"Gunakan GPU\" agar berfungsi</string>
+    <string name="cam_monitor_preview_only">Overlay monitor hanya tampil di pratinjau, tidak masuk ke hasil rekaman</string>
     <string name="cam_effect_none">Mati</string>
     <string name="cam_effect_zebra">Pola Zebra</string>
     <string name="cam_effect_peaking">Focus Peaking</string>
@@ -170,6 +184,7 @@
     <string name="cam_curve_ch_green">Hijau</string>
     <string name="cam_curve_ch_blue">Biru</string>
     <string name="cam_curve_reset_all">Reset Semua</string>
+    <string name="cam_curve_io_readout">Masuk %1$d · Keluar %2$d</string>
 
     <!-- Hasil Perekaman & Pemberitahuan Kesalahan -->
     <string name="cam_record_saved">Tersimpan, durasi %1$s</string>
@@ -223,6 +238,38 @@
     <string name="hud_zone_bottom">Dock Bilah Bawah</string>
     <!-- Reduksi Bising (2026-10-26): Audio & Video default nonaktif -->
     <string name="cam_pill_denoise">Reduksi Bising</string>
+
+    <!-- ============ Glow ============ -->
+    <string name="cam_pill_glow">Pendar (Glow)</string>
+    <string name="cam_glow_title">Efek Pendar (Glow)</string>
+    <string name="cam_glow_note">Efek pendar masuk ke hasil rekaman (dibake ke piksel); perubahan parameter berlaku di frame berikutnya</string>
+    <string name="cam_glow_color">Warna Pendar</string>
+    <string name="cam_glow_same_color">Ketuk tengah roda warna = ikuti warna asli lightstick; memilih warna akan memberi rona pada pendar</string>
+    <string name="cam_glow_on">Aktif</string>
+    <string name="cam_glow_off">Nonaktif</string>
+    <string name="cam_glow_threshold">Ambang Kecerahan</string>
+    <string name="cam_glow_soft">Kelembutan Tepi</string>
+    <string name="cam_glow_width">Lebar Pendar</string>
+    <string name="cam_glow_gain">Penguatan (Gain)</string>
+
+    <!-- ============ TONE ============ -->
+    <string name="cam_pill_tone">Nada (Tone)</string>
+    <string name="cam_tone_title">Nada Warna (Tone)</string>
+    <string name="cam_tone_note">Nada warna masuk ke hasil rekaman (menyatu di tabel LUT kurva); pratinjau dan rekaman berubah bersamaan</string>
+    <string name="cam_tone_direct">Render langsung tidak memiliki pipeline shader; beralih ke render GPU agar Tone berfungsi</string>
+    <string name="cam_tone_black">Titik Hitam (Blacks)</string>
+    <string name="cam_tone_white">Titik Putih (Whites)</string>
+    <string name="cam_tone_shadows">Bayangan (Shadows)</string>
+    <string name="cam_tone_highlights">Sorotan (Highlights)</string>
+    <string name="cam_tone_reset">Atur Ulang Semua</string>
+    <string name="cam_glow_add">Tambah (Add)</string>
+    <string name="cam_glow_freq">Frekuensi</string>
+    <string name="cam_glow_blend">Campuran (Blend)</string>
+    <string name="cam_glow_status_auto">Saat ini: ×%1$d (Otomatis)</string>
+    <string name="cam_glow_status_res_label">Saat ini: ×%1$d (%2$d×%3$d Otomatis)</string>
+    <string name="cam_glow_broken">Glow dinonaktifkan</string>
+    <string name="cam_glow_clamped">Dibatasi ke %1$d×%2$d karena batas tekstur perangkat</string>
+    <string name="cam_glow_direct">Beralih ke \"Gunakan GPU\" agar berfungsi</string>
     <string name="denoise_audio_off">Nonaktif</string>
     <string name="denoise_audio_system">Sistem</string>
     <string name="denoise_video_off">Nonaktif</string>
@@ -234,9 +281,19 @@
     <string name="denoise_audio_note">Menggunakan NoiseSuppressor bawaan sistem untuk meredam suara angin dan derau latar sekitar; trek audio internal tidak terpengaruh. Saat aktif, perekaman beralih ke mesin kustom. Jika perangkat tidak mendukung, perekaman otomatis dilanjutkan tanpa peredam bising.</string>
     <string name="denoise_video_note">Mode HAL menggunakan reduksi bising perangkat keras kamera (tanpa daya tambahan); Bilateral GPU memfilter derau area gelap dengan mempertahankan tepian objek, hanya tersedia pada mode render GPU.</string>
     <string name="denoise_video_fallback_direct">Saat ini menggunakan render langsung: Bilateral GPU tidak tersedia, dialihkan ke HAL Cepat</string>
-    <string name="denoise_video_effect_on">Reduksi bising dijeda saat overlay monitor (zebra/focus peaking) aktif; otomatis dilanjutkan saat dimatikan</string>
+    <string name="denoise_video_effect_on">Overlay monitor hanya memengaruhi pratinjau; hasil rekaman tetap menggunakan tingkat denoise yang dipilih</string>
     <string name="denoise_lite_tip">Beban perangkat cukup tinggi (resolusi × frame rate); reduksi bising video otomatis dialihkan ke mode ringan</string>
     <string name="denoise_audio_unsupported_tip">Perangkat ini tidak mendukung peredam bising sistem; suara sekitar direkam apa adanya</string>
+    <string name="cam_marker">Garis Posisi</string>
+    <string name="cam_marker_add">Tambah garis posisi</string>
+    <string name="cam_marker_remove">Kurangi garis posisi</string>
+    <string name="cam_marker_color_title">Warna Garis Posisi</string>
+    <string name="marker_color_yellow">Kuning</string>
+    <string name="marker_color_cyan">Sian (Cyan)</string>
+    <string name="marker_color_magenta">Magenta</string>
+    <string name="marker_color_green">Hijau</string>
+    <string name="marker_color_white">Putih</string>
+    <string name="marker_color_orange">Oranye</string>
     <string name="cam_focus_manual_peaking_tip">Fokus manual dapat dipadukan dengan Monitor · Focus Peaking: area fokus akan disorot</string>
     <string name="cam_fps_downgraded_tip">Perangkat tidak mampu mempertahankan frame rate ini; otomatis diturunkan ke %1$d fps</string>
 </resources>

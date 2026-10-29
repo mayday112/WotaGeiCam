@@ -12,6 +12,9 @@
     <string name="cam_state_prepare">Preparing</string>
     <string name="cam_state_stopping">Stopping</string>
     <string name="cam_state_high_fps">Frame rate exceeds device capability; capped at maximum supported</string>
+    <string name="cam_state_low_fps">Actual frame rate is only ~%1$d (target %2$d): limited by low light or slow shutter, video may stutter</string>
+    <string name="cam_state_seg_near_cap">Approaching single-segment size limit, will automatically split into a new file soon</string>
+    <string name="cam_state_approx_manual">Current frame rate is an approximate tier on this device: actual frame rate may drop in low light</string>
     <string name="cam_direct_no_effect">Zebra pattern and focus peaking require GPU rendering</string>
 
     <!-- Split Screen -->
@@ -34,6 +37,8 @@
     <string name="cam_p_af">Focus Mode</string>
     <string name="cam_p_mf">Manual Focus</string>
     <string name="cam_p_wb">White Balance</string>
+    <string name="cam_wb_gl_fallback">This device does not declare manual white balance gain support; handled by image algorithm instead: temperature/tint act as offsets relative to auto WB</string>
+    <string name="cam_wb_gl_fallback_toast">Manual WB gain is not supported by hardware; switched to image algorithm processing</string>
     <string name="cam_p_kelvin">Color Temp</string>
     <string name="cam_p_tint">Tint</string>
     <string name="cam_p_lens">Lens</string>
@@ -92,6 +97,14 @@
     <string name="cam_lens_using">In Use</string>
     <string name="cam_lens_fov">Equiv %1$s mm · HFOV %2$s°</string>
     <string name="cam_lens_fov_only">Equiv %1$s mm</string>
+    <string name="cam_display_scale">Preview Resolution</string>
+    <string name="cam_display_scale_orig">Original</string>
+    <string name="cam_display_scale_readout">Preview: %1$s</string>
+    <string name="cam_display_scale_note">Only affects viewfinder display resolution; recorded video quality is unchanged. Lowering frees GPU budget for recording, arc mend, and denoise, reducing frame drops and heat in 4K.</string>
+    <string name="cam_display_scale_current">Current: Original</string>
+    <string name="cam_display_scale_current_rt">Current: %1$d (Display %2$d×%3$d)</string>
+    <string name="cam_display_scale_too_small">Current window is too small for this tier</string>
+    <string name="cam_display_scale_fallback">Preview downscaling unavailable, rendering at original resolution</string>
     <string name="cam_size_range">Device supported range: %1$s – %2$s</string>
     <string name="cam_lens_super_wide">Ultra Wide</string>
     <string name="cam_lens_wide">Wide</string>
@@ -148,6 +161,7 @@
     <!-- Monitor Panel -->
     <string name="cam_monitor_title">Screen Monitor</string>
     <string name="cam_monitor_need_gpu">Requires \"GPU Render\" to take effect</string>
+    <string name="cam_monitor_preview_only">Monitor overlays appear on preview only, not in recorded video</string>
     <string name="cam_effect_none">Off</string>
     <string name="cam_effect_zebra">Zebra Pattern</string>
     <string name="cam_effect_peaking">Focus Peaking</string>
@@ -170,6 +184,7 @@
     <string name="cam_curve_ch_green">Green</string>
     <string name="cam_curve_ch_blue">Blue</string>
     <string name="cam_curve_reset_all">Reset All</string>
+    <string name="cam_curve_io_readout">In %1$d · Out %2$d</string>
 
     <!-- Recording Results and Error Notices -->
     <string name="cam_record_saved">Saved, duration %1$s</string>
@@ -223,6 +238,38 @@
     <string name="hud_zone_bottom">Bottom Bar Dock</string>
     <!-- Noise Reduction (2026-10-26): Audio/Video both off by default -->
     <string name="cam_pill_denoise">Denoise</string>
+
+    <!-- ============ Glow ============ -->
+    <string name="cam_pill_glow">Glow</string>
+    <string name="cam_glow_title">Glow Effect</string>
+    <string name="cam_glow_note">Glow is baked into the recorded video; parameter changes take effect on the next frame</string>
+    <string name="cam_glow_color">Glow Color</string>
+    <string name="cam_glow_same_color">Tap wheel center = follow lightstick original color; picking a color tints the overall glow</string>
+    <string name="cam_glow_on">On</string>
+    <string name="cam_glow_off">Off</string>
+    <string name="cam_glow_threshold">Threshold</string>
+    <string name="cam_glow_soft">Soft Knee</string>
+    <string name="cam_glow_width">Glow Width</string>
+    <string name="cam_glow_gain">Gain</string>
+
+    <!-- ============ TONE ============ -->
+    <string name="cam_pill_tone">Tone</string>
+    <string name="cam_tone_title">Tone</string>
+    <string name="cam_tone_note">Tone is baked into the recorded video (shared LUT with curves); preview and recording change together</string>
+    <string name="cam_tone_direct">Direct rendering has no shader pipeline; switch to GPU rendering for Tone</string>
+    <string name="cam_tone_black">Blacks</string>
+    <string name="cam_tone_white">Whites</string>
+    <string name="cam_tone_shadows">Shadows</string>
+    <string name="cam_tone_highlights">Highlights</string>
+    <string name="cam_tone_reset">Reset All</string>
+    <string name="cam_glow_add">Additive</string>
+    <string name="cam_glow_freq">Frequency</string>
+    <string name="cam_glow_blend">Blend</string>
+    <string name="cam_glow_status_auto">Current: ×%1$d (Auto)</string>
+    <string name="cam_glow_status_res_label">Current: ×%1$d (%2$d×%3$d Auto)</string>
+    <string name="cam_glow_broken">Glow disabled</string>
+    <string name="cam_glow_clamped">Clamped to %1$d×%2$d due to device texture limit</string>
+    <string name="cam_glow_direct">Switch to \"Use GPU\" to take effect</string>
     <string name="denoise_audio_off">Off</string>
     <string name="denoise_audio_system">System Denoise</string>
     <string name="denoise_video_off">Off</string>
@@ -234,9 +281,19 @@
     <string name="denoise_audio_note">Uses system NoiseSuppressor to reduce wind and ambient background noise; internal audio track is unaffected. When enabled, recording switches to the built-in engine. If not supported by this device, recording continues automatically without noise suppression.</string>
     <string name="denoise_video_note">HAL modes use camera hardware noise reduction (zero extra power); GPU bilateral filters low-light noise while preserving edges, available only in GPU rendering mode.</string>
     <string name="denoise_video_fallback_direct">Direct rendering active: GPU bilateral is unavailable, reverted to HAL Fast</string>
-    <string name="denoise_video_effect_on">Noise reduction paused while monitor overlay (zebra/focus peaking) is active; resumes when turned off</string>
+    <string name="denoise_video_effect_on">Monitor overlays only affect preview; recorded video still uses the selected denoise tier</string>
     <string name="denoise_lite_tip">High device load (resolution × frame rate); video noise reduction switched to lightweight mode</string>
     <string name="denoise_audio_unsupported_tip">This device does not support system noise suppression; ambient audio recorded as-is</string>
+    <string name="cam_marker">Stage Markers</string>
+    <string name="cam_marker_add">Add stage marker line</string>
+    <string name="cam_marker_remove">Remove stage marker line</string>
+    <string name="cam_marker_color_title">Marker Line Color</string>
+    <string name="marker_color_yellow">Yellow</string>
+    <string name="marker_color_cyan">Cyan</string>
+    <string name="marker_color_magenta">Magenta</string>
+    <string name="marker_color_green">Green</string>
+    <string name="marker_color_white">White</string>
+    <string name="marker_color_orange">Orange</string>
     <string name="cam_focus_manual_peaking_tip">Manual focus can be paired with Monitor · Focus Peaking: in-focus areas will be highlighted</string>
     <string name="cam_fps_downgraded_tip">Device cannot sustain this frame rate; automatically reverted to %1$d fps</string>
 </resources>

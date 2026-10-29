@@ -8,6 +8,8 @@
     <string name="player_fps_step_exact">%1$.2f fps</string>
     <string name="player_loop_one">Ulang video ini</string>
     <string name="player_mirror">Cermin Horizontal</string>
+    <string name="player_top_bar_collapse">Sembunyikan bilah atas</string>
+    <string name="player_top_bar_expand">Tampilkan bilah atas</string>
     <string name="player_zoom">%1$.1fx zoom</string>
     <string name="player_zoom_badge">x%1$.2f</string>
     <string name="player_error">Pemutaran gagal, file mungkin rusak atau format tidak didukung</string>
@@ -88,7 +90,7 @@
 
     <!-- Ekspor Potongan Video -->
     <string name="player_clip">Potong</string>
-    <string name="player_clip_title">Ekspor Segmen A/B (Pemotongan Lossless)</string>
+    <string name="player_clip_title">Ekspor Segmen A/B</string>
     <string name="player_clip_need_ab">Tandai bagian yang ingin disimpan menggunakan A/B di bilah bawah sebelum mengekspor</string>
     <string name="player_clip_in">Titik Masuk %1$s (Otomatis menyesuaikan ke keyframe)</string>
     <string name="player_clip_out">Titik Keluar %1$s</string>
@@ -99,6 +101,16 @@
     <string name="player_clip_done">Potongan video berhasil diekspor ke galeri</string>
     <string name="player_clip_failed">Ekspor gagal, silakan coba lagi</string>
     <string name="player_clip_commit_kept">Ekspor selesai tetapi belum terindeks; file tetap tersimpan dan akan dipulihkan saat aplikasi dibuka ulang</string>
+    <string name="player_clip_mode">Metode Ekspor</string>
+    <string name="player_clip_mode_lossless">Tanpa Kompresi (Lossless)</string>
+    <string name="player_clip_mode_scene">Render Ulang</string>
+    <string name="player_clip_scene_lossless_note">Tanpa encode ulang; video sama persis seperti saat direkam (kurva, glow, dan denoise sudah menyatu)</string>
+    <string name="player_clip_scene_none">Glow maupun Denoise tidak aktif; hasil render ulang sama dengan tanpa kompresi</string>
+    <string name="player_clip_scene_glow">Glow</string>
+    <string name="player_clip_scene_denoise">Denoise</string>
+    <string name="player_clip_scene_sep"> + </string>
+    <string name="player_clip_scene_summary">Encode ulang, menerapkan: %1$s</string>
+    <string name="player_clip_scene_curve_note">. Kurva sudah menyatu saat perekaman dan tidak dirender ulang di sini</string>
 
     <!-- Pemilihan Trek Audio -->
     <string name="player_track_env">Suara Sekitar</string>

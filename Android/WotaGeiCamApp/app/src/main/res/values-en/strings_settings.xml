@@ -29,6 +29,16 @@
     <string name="set_motion_liquid">Liquid Bounce</string>
     <string name="set_motion_note">Only affects panel and button transitions, scale, and fade animations</string>
 
+    <!-- Brightness -->
+    <string name="set_group_brightness">Brightness</string>
+    <string name="set_value_off">Off</string>
+    <string name="set_brighten_camera">Auto-brighten on Launch (Delay)</string>
+    <string name="set_brighten_camera_note">Follows system brightness on entering viewfinder, then ramps to full over 7s after delay; only triggers once per cold start, 0 = Off</string>
+    <string name="set_brighten_player">Brighten on Playback</string>
+    <string name="set_brighten_player_note">Ramps from current to full brightness when single-video playback starts, and restores on exit; 0 = Off</string>
+    <string name="set_brighten_seconds">%1$d s</string>
+    <string name="set_brighten_seconds_tenths">%1$d.%2$d s</string>
+
     <!-- Viewfinder HUD -->
     <string name="set_group_hud">Viewfinder Features</string>
     <string name="set_hud_note">Top row contains persistent readouts (defaults to Shutter / FPS / Bitrate). Bottom row contains camera control pills. Unchecking removes them from the viewfinder.</string>

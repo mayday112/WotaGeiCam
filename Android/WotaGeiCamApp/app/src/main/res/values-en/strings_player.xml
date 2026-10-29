@@ -8,6 +8,8 @@
     <string name="player_fps_step_exact">%1$.2f fps</string>
     <string name="player_loop_one">Loop single video</string>
     <string name="player_mirror">Mirror horizontal</string>
+    <string name="player_top_bar_collapse">Collapse top bar</string>
+    <string name="player_top_bar_expand">Expand top bar</string>
     <string name="player_zoom">%1$.1fx zoom</string>
     <string name="player_zoom_badge">x%1$.2f</string>
     <string name="player_error">Playback failed. File may be corrupted or format unsupported</string>
@@ -88,7 +90,7 @@
 
     <!-- Trimming Export -->
     <string name="player_clip">Trim</string>
-    <string name="player_clip_title">Export A/B segment (Lossless trim)</string>
+    <string name="player_clip_title">Export A/B Segment</string>
     <string name="player_clip_need_ab">Mark segment to keep using bottom bar A/B points before exporting</string>
     <string name="player_clip_in">In point %1$s (Auto-aligned to keyframe)</string>
     <string name="player_clip_out">Out point %1$s</string>
@@ -98,7 +100,18 @@
     <string name="player_clip_cancel">Cancel export</string>
     <string name="player_clip_done">Trimmed clip exported to gallery</string>
     <string name="player_clip_failed">Export failed, please retry</string>
+    <!-- #4: commit failed but bytes kept -->
     <string name="player_clip_commit_kept">Export completed but unindexed; file preserved and will restore on app restart</string>
+    <string name="player_clip_mode">Export Mode</string>
+    <string name="player_clip_mode_lossless">Lossless</string>
+    <string name="player_clip_mode_scene">Post-render</string>
+    <string name="player_clip_scene_lossless_note">No re-encoding; video stays exactly as recorded (curves, glow, and denoise are already baked in)</string>
+    <string name="player_clip_scene_none">Neither Glow nor Denoise is active; post-render produces the same result as lossless</string>
+    <string name="player_clip_scene_glow">Glow</string>
+    <string name="player_clip_scene_denoise">Denoise</string>
+    <string name="player_clip_scene_sep"> + </string>
+    <string name="player_clip_scene_summary">Re-encodes video, applying: %1$s</string>
+    <string name="player_clip_scene_curve_note">. Curves were already baked in during recording and will not be applied twice</string>
 
     <!-- Audio Track Selection -->
     <string name="player_track_env">Ambient</string>

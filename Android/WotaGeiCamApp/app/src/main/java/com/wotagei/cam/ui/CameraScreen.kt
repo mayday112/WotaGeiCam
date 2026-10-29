@@ -729,7 +729,7 @@ fun CameraScreen(
             params.displayScale.value = com.wotagei.cam.core.nearestDisplayScale(
                 content.width(), content.height(), params.displayScale.value
             )
-            showTip(app.getString(R.string.cam_display_scale_fallback))
+            showTip(context.getString(R.string.cam_display_scale_fallback))
             engine.displayScaleFallback.value = false
         }
     }
@@ -759,7 +759,7 @@ fun CameraScreen(
     LaunchedEffect(wbApply.byGl) {
         if (wbApply.byGl && !wbFallbackTipShown) {
             wbFallbackTipShown = true
-            showTip(app.getString(R.string.cam_wb_gl_fallback_toast))
+            showTip(context.getString(R.string.cam_wb_gl_fallback_toast))
         }
     }
 

@@ -29,6 +29,16 @@
     <string name="set_motion_liquid">Efek Membal (Liquid)</string>
     <string name="set_motion_note">Hanya berlaku pada pergeseran, skala, serta fade-in/fade-out panel dan tombol</string>
 
+    <!-- Kecerahan -->
+    <string name="set_group_brightness">Kecerahan</string>
+    <string name="set_value_off">Nonaktif</string>
+    <string name="set_brighten_camera">Cerahkan Otomatis Saat Mulai (Jeda)</string>
+    <string name="set_brighten_camera_note">Mengikuti kecerahan sistem saat masuk jendela bidik, lalu meningkat penuh dalam 7 dtk setelah jeda; hanya berlaku sekali saat pertama dibuka, 0 = Nonaktif</string>
+    <string name="set_brighten_player">Cerahkan Saat Memutar</string>
+    <string name="set_brighten_player_note">Meningkatkan kecerahan secara bertahap hingga penuh saat video mulai diputar, dan kembali normal saat keluar; 0 = Nonaktif</string>
+    <string name="set_brighten_seconds">%1$d dtk</string>
+    <string name="set_brighten_seconds_tenths">%1$d.%2$d dtk</string>
+
     <!-- Pembacaan Tetap Viewfinder -->
     <string name="set_group_hud">Fitur Tetap Viewfinder</string>
     <string name="set_hud_note">Baris atas adalah pembacaan tetap (default: Shutter / FPS / Bitrate), baris bawah adalah kapsul kontrol halaman rekaman. Hapus centang untuk menyembunyikannya dari jendela bidik.</string>
