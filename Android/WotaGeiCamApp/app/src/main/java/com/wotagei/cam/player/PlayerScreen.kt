@@ -333,7 +333,8 @@ fun PlayerScreen(
     onCompare: (Long) -> Unit,
     repo: com.wotagei.cam.media.MediaRepo = rememberMediaRepo(),
     ops: MediaOps = rememberMediaOps(),
-    onPlaybackStarted: () -> Unit = {}
+    onPlaybackStarted: () -> Unit = {},
+    onPlaybackActiveChanged: (Boolean) -> Unit = {}
 ) {
     // 契约：clipById 对"查过且没有"（片被外部删掉/回收站清掉）会发射一次 null（MediaRepo.clipById
     // 专用管道直接 emit 可空结果，不走吞 null 的 gated）。首次发射（片在 → VideoClip、片没了 → null）
@@ -359,7 +360,8 @@ fun PlayerScreen(
             onBack = onBack,
             onCompare = onCompare,
             ops = ops,
-            onPlaybackStarted = onPlaybackStarted
+            onPlaybackStarted = onPlaybackStarted,
+            onPlaybackActiveChanged = onPlaybackActiveChanged
         )
     }
 }
@@ -377,7 +379,8 @@ fun PlayerScreen(
     onBack: () -> Unit,
     onCompare: (Long) -> Unit,
     ops: MediaOps = rememberMediaOps(),
-    onPlaybackStarted: () -> Unit = {}
+    onPlaybackStarted: () -> Unit = {},
+    onPlaybackActiveChanged: (Boolean) -> Unit = {}
 ) {
     val engine = rememberPlayerEngine()
     val scope = rememberCoroutineScope()
@@ -425,6 +428,7 @@ fun PlayerScreen(
     // 在 BrightnessRamp 收口——页面不记状态，暂停不重置、重进页面才重新武装的语义由闸保证
     LaunchedEffect(playing) {
         if (playing) onPlaybackStarted()
+        onPlaybackActiveChanged(playing)
     }
 
     var controlsVisible by remember { mutableStateOf(true) }

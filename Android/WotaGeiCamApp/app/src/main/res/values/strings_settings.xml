@@ -37,6 +37,8 @@
     <string name="set_brighten_camera_note">进入取景页先跟随系统亮度，延迟结束后 7 秒内渐亮到满；仅冷启后第一次进取景页生效，0 = 关闭</string>
     <string name="set_brighten_player">起播时渐亮</string>
     <string name="set_brighten_player_note">单视频播放页起播时从当前亮度渐亮到满，离开页面恢复；0 = 关闭</string>
+    <string name="set_player_stay_awake">播放时保持屏幕常亮</string>
+    <string name="set_player_stay_awake_note">视频播放期间屏幕不熄灭；暂停后跟随系统休眠时间</string>
     <string name="set_brighten_seconds">%1$d 秒</string>
     <string name="set_brighten_seconds_tenths">%1$d.%2$d 秒</string>
 

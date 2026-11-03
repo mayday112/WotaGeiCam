@@ -36,6 +36,8 @@
     <string name="set_brighten_camera_note">Follows system brightness on entering viewfinder, then ramps to full over 7s after delay; only triggers once per cold start, 0 = Off</string>
     <string name="set_brighten_player">Brighten on Playback</string>
     <string name="set_brighten_player_note">Ramps from current to full brightness when single-video playback starts, and restores on exit; 0 = Off</string>
+    <string name="set_player_stay_awake">Keep Screen On While Playing</string>
+    <string name="set_player_stay_awake_note">Screen won\'t sleep while a video is playing; when paused it follows the system sleep timeout</string>
     <string name="set_brighten_seconds">%1$d s</string>
     <string name="set_brighten_seconds_tenths">%1$d.%2$d s</string>
 

@@ -36,6 +36,8 @@
     <string name="set_brighten_camera_note">Mengikuti kecerahan sistem saat masuk jendela bidik, lalu meningkat penuh dalam 7 dtk setelah jeda; hanya berlaku sekali saat pertama dibuka, 0 = Nonaktif</string>
     <string name="set_brighten_player">Cerahkan Saat Memutar</string>
     <string name="set_brighten_player_note">Meningkatkan kecerahan secara bertahap hingga penuh saat video mulai diputar, dan kembali normal saat keluar; 0 = Nonaktif</string>
+    <string name="set_player_stay_awake">Layar Tetap Nyala Saat Memutar Video</string>
+    <string name="set_player_stay_awake_note">Layar tidak mati selama video diputar; saat dijeda, kembali mengikuti batas waktu tidur HP</string>
     <string name="set_brighten_seconds">%1$d dtk</string>
     <string name="set_brighten_seconds_tenths">%1$d.%2$d dtk</string>
 

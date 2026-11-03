@@ -130,6 +130,12 @@ class MainActivity : ComponentActivity() {
         brightnessRamp.onPlayerPlaybackStarted(window, WotaSettings.of(this))
     }
 
+    /** 播放中屏幕常亮联动：只在播放进行中由 WindowKeepOnDriver 维持常亮 */
+    internal fun onPlaybackActiveChanged(playing: Boolean) {
+        val prefs = WotaSettings.of(this)
+        windowKeepOn.onPlayback(window, playing, WotaSettings.playerStayAwake(prefs))
+    }
+
     /**
      * 预览自愈 watchdog（2026-10-29 黑屏取证 → 2026-10-30 三次修订）：**Activity 级**兜底。
      *
@@ -600,7 +606,8 @@ private fun WotaRoot() {
                     onBack = { navigateBack() },
                     onCompare = { id -> nav.navigate(WotaNav.compare(id)) },
                     // 起播渐亮（29 §5.3-②）：页面只上报"起播了"，武装闸与窗口写入收口在 MainActivity
-                    onPlaybackStarted = { windowOwner?.onPlayerPlaybackStarted() }
+                    onPlaybackStarted = { windowOwner?.onPlayerPlaybackStarted() },
+                    onPlaybackActiveChanged = { windowOwner?.onPlaybackActiveChanged(it) }
                 )
             }
         }
@@ -614,7 +621,8 @@ private fun WotaRoot() {
                 CompareScreen(
                     leftMediaId = entry.arguments?.getLong(WotaNav.COMPARE_ARG_LEFT) ?: -1L,
                     onBack = { navigateBack() },
-                    onPractice = { nav.navigate(ROUTE_CAMERA) }
+                    onPractice = { nav.navigate(ROUTE_CAMERA) },
+                    onPlaybackActiveChanged = { windowOwner?.onPlaybackActiveChanged(it) }
                 )
             }
         }

@@ -35,9 +35,29 @@ internal class WindowKeepOnDriver {
     /** 幂等闸：已经施加过就不再记"原值"，免得把 1.0 当成用户进页前的原始亮度 */
     private var applied = false
 
+    private var currentRoute: String? = null
+    private var playbackAwake = false
+
     /** 目的地变化时的唯一入口：取景相关页进入、其余页退出（判定表见 [keepScreenOnForRoute]） */
     fun apply(window: Window, route: String?) {
+        currentRoute = route
         if (keepScreenOnForRoute(route)) enter(window) else exit(window)
+        setPlaybackAwake(window, false)
+    }
+
+    /** 播放中屏幕常亮驱动：视频正在播放且处于支持页面时保持常亮 */
+    fun onPlayback(window: Window, playing: Boolean, enabled: Boolean) {
+        setPlaybackAwake(window, playbackHoldsScreen(currentRoute, playing, enabled))
+    }
+
+    private fun setPlaybackAwake(window: Window, on: Boolean) {
+        if (playbackAwake == on) return
+        playbackAwake = on
+        if (on) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else if (!applied) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
     }
 
     /**
@@ -86,3 +106,11 @@ fun keepScreenOnForRoute(route: String?): Boolean = when (route) {
     // 未知路由（含 null）：默认不常亮——宁可少常亮一页，也不能在非取景页钉住常亮
     else -> false
 }
+
+/** 支持播放常亮的页面（播放页 + 对比页） */
+fun stayAwakeRoute(route: String?): Boolean =
+    route == WotaNav.PLAYER || route == WotaNav.COMPARE
+
+/** 判定当前播放状态是否需要保持屏幕常亮（纯函数，JVM 可测） */
+fun playbackHoldsScreen(route: String?, playing: Boolean, enabled: Boolean): Boolean =
+    enabled && playing && stayAwakeRoute(route)

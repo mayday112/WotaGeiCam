@@ -140,7 +140,8 @@ fun CompareScreen(
     leftMediaId: Long,
     onBack: () -> Unit,
     onPractice: () -> Unit,
-    repo: MediaRepo = rememberMediaRepo()
+    repo: MediaRepo = rememberMediaRepo(),
+    onPlaybackActiveChanged: (Boolean) -> Unit = {}
 ) {
     val left by repo.clipById(leftMediaId).collectState(null)
     val c = left
@@ -149,12 +150,22 @@ fun CompareScreen(
             CircularProgressIndicator(color = WotaAccent)
         }
     } else {
-        CompareContent(left = c, onBack = onBack, onPractice = onPractice)
+        CompareContent(
+            left = c,
+            onBack = onBack,
+            onPractice = onPractice,
+            onPlaybackActiveChanged = onPlaybackActiveChanged
+        )
     }
 }
 
 @Composable
-private fun CompareContent(left: VideoClip, onBack: () -> Unit, onPractice: () -> Unit) {
+private fun CompareContent(
+    left: VideoClip,
+    onBack: () -> Unit,
+    onPractice: () -> Unit,
+    onPlaybackActiveChanged: (Boolean) -> Unit = {}
+) {
     val app = LocalContext.current.applicationContext
     val leftEngine = rememberPlayerEngine()
     val rightEngine = rememberPlayerEngine()
@@ -221,6 +232,9 @@ private fun CompareContent(left: VideoClip, onBack: () -> Unit, onPractice: () -
     val leftPlaying by leftEngine.isPlaying.collectState(false)
     val rightPlaying by rightEngine.isPlaying.collectState(false)
     val playing = leftPlaying || rightPlaying
+    LaunchedEffect(playing) {
+        onPlaybackActiveChanged(playing)
+    }
     val ab by leftEngine.ab.collectState(AbRange())
     val speed by leftEngine.speed.collectState(PlayerSpeedTiers.DEFAULT)
 

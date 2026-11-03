@@ -275,6 +275,9 @@ object WotaSettings {
      */
     const val KEY_PLAYER_BRIGHTEN_RAMP_TENTHS = "player_brighten_ramp_tenths"
 
+    /** 播放时保持屏幕常亮（默认开）：视频播放期间屏幕不熄灭，暂停后跟随系统休眠时间 */
+    const val KEY_PLAYER_STAY_AWAKE = "player_stay_awake"
+
     /**
      * 播放页顶栏持久收起（29 §6.3，2026-10-28）：boolean，缺省 false = 展开（保持现行为）。
      * 进页读、点按写，退出重进/冷启保持。纯 UI 设置，**不走 [applyDefaultsOnce]**。
@@ -578,6 +581,10 @@ object WotaSettings {
     /** 「起播渐亮」时长（十分之一秒）：默认 0（关闭，跟随系统亮度）；0–30 步长 5 */
     fun playerBrightenRampTenths(prefs: SharedPreferences): Int =
         prefs.getInt(KEY_PLAYER_BRIGHTEN_RAMP_TENTHS, 0).coerceIn(0, 30)
+
+    /** 播放时保持屏幕常亮：视频播放期间保持屏幕不熄灭，默认 true */
+    fun playerStayAwake(prefs: SharedPreferences): Boolean =
+        prefs.getBoolean(KEY_PLAYER_STAY_AWAKE, true)
 
     /** 播放页顶栏收起态：缺键 = 展开。读侧不做归一（boolean 没有坏域），写入方只有点按两枚钮 */
     fun playerTopBarCollapsed(prefs: SharedPreferences): Boolean =
@@ -950,6 +957,7 @@ private fun BlockBrightness(prefs: SharedPreferences) {
     // 读侧已钳（29 §5.5），这里只管展示选中档；0 档 = 关闭（TierPicker 的 zeroValue 提供双击归零）
     var brightenDelay by remember { mutableStateOf(WotaSettings.cameraBrightenDelaySec(prefs)) }
     var playerRamp by remember { mutableStateOf(WotaSettings.playerBrightenRampTenths(prefs)) }
+    var stayAwake by remember { mutableStateOf(WotaSettings.playerStayAwake(prefs)) }
     // TierPicker 的 items/format 是普通 lambda（非 composable 上下文），文案先在外面取好、
     // 带参格式化走 context.getString——stringResource 只能出现在组合里
     val context = LocalContext.current
@@ -988,6 +996,34 @@ private fun BlockBrightness(prefs: SharedPreferences) {
             zeroValue = 0,
             note = stringResource(R.string.set_brighten_player_note)
         )
+        Spacer(Modifier.height(8.dp))
+        Line()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.set_player_stay_awake),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WotaText
+                )
+                Text(
+                    text = stringResource(R.string.set_player_stay_awake_note),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = WotaTextDim
+                )
+            }
+            WotaSwitch(
+                checked = stayAwake,
+                onCheckedChange = {
+                    stayAwake = it
+                    prefs.edit().putBoolean(WotaSettings.KEY_PLAYER_STAY_AWAKE, it).apply()
+                }
+            )
+        }
     }
 }
 
