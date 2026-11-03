@@ -100,6 +100,10 @@
     <string name="cam_display_scale">Resolusi Pratinjau</string>
     <string name="cam_display_scale_orig">Asli</string>
     <string name="cam_display_scale_readout">Pratinjau: %1$s</string>
+    <!-- Koreksi eksposur rana 1/24, 1/25 (r42) -->
+    <string name="cam_shutter_correction_auto">Penyesuaian Otomatis</string>
+    <string name="cam_shutter_correction_auto_hint">Sesuaikan eksposur otomatis untuk stabilitas frame</string>
+    <string name="cam_shutter_correction_manual">Penyesuaian Manual</string>
     <string name="cam_display_scale_note">Hanya memengaruhi resolusi tampilan jendela bidik; kualitas rekaman tetap utuh. Menurunkan opsi ini menghemat beban GPU untuk perekaman, perbaikan busur, dan denoise, mengurangi drop frame &amp; panas di 4K.</string>
     <string name="cam_display_scale_current">Saat ini: Asli</string>
     <string name="cam_display_scale_current_rt">Saat ini: %1$d (Layar %2$d×%3$d)</string>

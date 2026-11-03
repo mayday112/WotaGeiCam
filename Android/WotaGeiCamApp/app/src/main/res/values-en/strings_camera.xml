@@ -100,6 +100,10 @@
     <string name="cam_display_scale">Preview Resolution</string>
     <string name="cam_display_scale_orig">Original</string>
     <string name="cam_display_scale_readout">Preview: %1$s</string>
+    <!-- Shutter 1/24, 1/25 exposure fine-tuning (r42) -->
+    <string name="cam_shutter_correction_auto">Auto Fine-tune</string>
+    <string name="cam_shutter_correction_auto_hint">Auto fine-tunes exposure for frame stability</string>
+    <string name="cam_shutter_correction_manual">Manual Fine-tune</string>
     <string name="cam_display_scale_note">Only affects viewfinder display resolution; recorded video quality is unchanged. Lowering frees GPU budget for recording, arc mend, and denoise, reducing frame drops and heat in 4K.</string>
     <string name="cam_display_scale_current">Current: Original</string>
     <string name="cam_display_scale_current_rt">Current: %1$d (Display %2$d×%3$d)</string>
