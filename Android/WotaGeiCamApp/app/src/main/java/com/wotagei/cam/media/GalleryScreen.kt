@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -89,6 +90,7 @@ import com.wotagei.cam.R
 import com.wotagei.cam.player.rememberPlayerEngine
 import com.wotagei.cam.player.WotaPlayerSurface
 import com.wotagei.cam.ui.WotaSettings
+import com.wotagei.cam.ui.design.LikeHeart
 import com.wotagei.cam.ui.design.WotaColor
 import com.wotagei.cam.ui.design.WotaMenuEntry
 import com.wotagei.cam.ui.design.WotaMenuPopup
@@ -116,6 +118,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.wotagei.cam.ui.anim.LocalMotion
+import com.wotagei.cam.ui.anim.MotionMode
 
 /**
  * 导航路由常量（UI 层 NavHost 照此注册）：
@@ -1182,8 +1185,24 @@ private fun FullscreenBrowse(
     }
     DisposableEffect(Unit) { onDispose { engine.releasePlayer() } }
 
+    // 页签滑动（可被手势连续打断的场景，2026-10-30 液态改版）：液态档把 Pager 的**吸附**规格
+    // 换成工程内的弹簧语言（response/damping 口径，见 ui/anim/Motion.kt 的 LiquidSpring）——
+    // 松手后从当前运动状态带着速度落位，形状由阻尼决定；其余档保持 PagerDefaults.defaultSnap
+    // （速度驱动的既定手感，本改版不碰）。注意 PagerDefaults.flingBehavior 是 @Composable，
+    // 只能在组合期直调；low/highVelocityAnimationSpec 是 decay 族，参数类型不收弹簧，保持默认。
+    val motion = LocalMotion.current
+    val pagerFling = if (motion.mode == MotionMode.LIQUID) {
+        PagerDefaults.flingBehavior(
+            state = pagerState,
+            snapAnimationSpec = motion.float
+        )
+    } else {
+        PagerDefaults.flingBehavior(state = pagerState)
+    }
+
     HorizontalPager(
         state = pagerState,
+        flingBehavior = pagerFling,
         modifier = Modifier.fillMaxSize()
     ) { index ->
         val clip = clips.getOrNull(index) ?: return@HorizontalPager
@@ -1210,15 +1229,16 @@ private fun FullscreenBrowse(
                     }
                     Text("${formatDuration(pos)} / ${formatDuration(dur)}", style = MonoStyle, color = WotaText)
                     Spacer(Modifier.width(6.dp))
-                    IconButton(onClick = { ops.setLike(clip, !clip.liked) }) {
-                        Icon(
-                            if (clip.liked) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
-                            // 标签必须跟着状态走：原来恒报「已收藏」，未收藏的成片读屏也说成已收藏
-                            contentDescription = stringResource(
-                                if (clip.liked) R.string.gallery_desc_liked else R.string.gallery_desc_unliked
-                            )
+                    // 收藏红心（2026-10-30 用户需求）：换用 Bencho "Like" 的红心动画
+                    // （绽放环 + 七对彩点 + 红心弹出；**不含数字滚动**——本工程没有计数）。
+                    // 标签跟着状态走：原来恒报「已收藏」，未收藏的成片读屏也说成已收藏
+                    LikeHeart(
+                        liked = clip.liked,
+                        onToggle = { ops.setLike(clip, it) },
+                        contentDescription = stringResource(
+                            if (clip.liked) R.string.gallery_desc_liked else R.string.gallery_desc_unliked
                         )
-                    }
+                    )
                     IconButton(onClick = { ops.share(listOf(clip)) }) { Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.gallery_menu_share)) }
                     IconButton(onClick = { ops.moveToTrash(listOf(clip)) }) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.gallery_menu_trash)) }
                     if (clip.isTrashed) {

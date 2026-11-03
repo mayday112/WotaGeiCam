@@ -36,6 +36,8 @@ class ParamsPersistWiringGuardTest {
         "default_arc_merge_deadband",
         // 2026-10-26：降噪两项（音频/画面）入档
         "denoise_audio", "denoise_video",
+        // 2026-11-01：等号档曝光纠偏两项入档（自动开关默认开 + 手动滑杆值 0..8ms）
+        "correction_auto", "correction_manual_ns",
         // 2026-10-27：站位线的间距与颜色入档（**线数刻意不入档**，见下面的专门用例）
         "default_marker_spread", "default_marker_color",
         // 2026-10-27：Glow 整份参数（复合串键）；2026-10-28：色调（KEY_TONE）+ 上屏渲染比例
@@ -228,12 +230,12 @@ class ParamsPersistWiringGuardTest {
     @Test
     fun `R4_二十一个滑杆调用点全接松手落盘`() {
         assertEquals(
-            "PillSlider 调用点数（拍板以实查 21 处为准；2026-10-28 +色调四条）",
-            21, occurrences(maskedPills, "PillSlider(").size
+            "PillSlider 调用点数（拍板以实查 22 处为准；2026-10-28 +色调四条；2026-11-01 +等号档手动微调）",
+            22, occurrences(maskedPills, "PillSlider(").size
         )
         assertEquals(
             "补传 onValueChangeFinished 的调用点数",
-            21, occurrences(maskedPills, "onValueChangeFinished = onPersist").size
+            22, occurrences(maskedPills, "onValueChangeFinished = onPersist").size
         )
         // 十个带滑杆的面板逐个点名牌：漏挂一颗 = 该面板滑杆拖完被 force-stop 丢值
         val pillFns = listOf(

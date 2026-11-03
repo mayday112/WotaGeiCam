@@ -5,6 +5,7 @@ import android.Manifest
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -76,6 +77,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -277,6 +279,20 @@ import kotlin.math.roundToInt
  * - 录制：[Recorders.create] + [VideoStore]，DIRECT 把编码面交给 Camera2 会话，GPU 交给 [GlRenderEngine]；
  * - 回看：[VideoStore] 已清 IS_PENDING，这里只 `repo.invalidate()` 让媒体库重查。
  */
+/**
+ * 从任意 context 往上找宿主 [MainActivity]（`LocalContext` 可能是 ContextThemeWrapper 包出来的）。
+ * Activity 级自愈布防要用它——页面手里就有现成的 [CameraController]，不必再按路由回查
+ * backStackEntry（那条路在冷启/快速导航竞态下会拿到 null，兜底层不许靠运气布防）。
+ */
+private fun findHostActivity(ctx: Context): MainActivity? {
+    var c: Context? = ctx
+    while (c != null) {
+        if (c is MainActivity) return c
+        c = (c as? ContextWrapper)?.baseContext
+    }
+    return null
+}
+
 @Composable
 @Suppress("LongMethod")
 fun CameraScreen(
@@ -287,10 +303,16 @@ fun CameraScreen(
     val context = LocalContext.current
     val app = remember(context) { context.applicationContext }
     val owner = LocalLifecycleOwner.current
-    // 门面放在导航目的地的 ViewModelStore 上：离开录制页即随栈回收，回到页面复用同一实例
+    val hostActivity = remember(context) { findHostActivity(context) }
     val storeOwner = LocalViewModelStoreOwner.current
-    val ctrl = remember(storeOwner) {
-        CameraController.of(checkNotNull(storeOwner) { "CameraScreen 必须在 NavHost 目的地内使用" })
+    // 门面收口到 **Activity 作用域**（2026-10-30 生命周期重构，黑屏五轮定案后的结构修复）：
+    // 相机管线的寿命 = 窗口寿命，而非导航条目——此前 per-entry 作用域让"导航竞态拆组合"
+    // 连带杀死引擎/GL 缓存/全部接线，才有保活定时器、组合在场回报、recreate 兜底这一整串
+    // 补丁。收口后：页面只负责「可见时驱动、隐藏时按保活策略收放」；导航怎么竞争都动不到
+    // 相机状态，重新组合（含 recreate）拿回的就是同一个控制器与同一枚 GL 引擎。
+    val ctrl = remember(hostActivity, storeOwner) {
+        if (hostActivity != null) CameraController.of(hostActivity)
+        else CameraController.of(checkNotNull(storeOwner) { "CameraScreen 必须在 NavHost 目的地内使用" })
     }
     val params = ctrl.params
     // 默认档位必须在建 sink 之前套用：渲染模式默认值会决定首个 sink 是 GL 还是直显，晚一帧就白起一个 GL 线程
@@ -664,15 +686,184 @@ fun CameraScreen(
         (activeSink as? GlRenderEngine)?.onCameraSurfaceReady = { ctrl.onPreviewSurfaceReady() }
         // 显示面挂摘/重挂 → 布防手动白平衡稳压窗（卓易通桥过渡拍绿帧，2026-10-29）
         (activeSink as? GlRenderEngine)?.onDisplaySurfaceTransient = { ctrl.onPreviewSurfaceTransient() }
+        // 上屏 swap 失败摘面 → 立刻请求重挂（GL 线程触发；tryEmit 线程安全）。
+        // 这是「画面黑但应用活着」的唯一发生点，等看门狗轮询要 1.5~2.5s，这里当场救。
+        (activeSink as? GlRenderEngine)?.onWindowSurfaceDropped = { ctrl.requestDisplayReattach() }
         ctrl.bind(activeSink)
         ctrl.start()
+        // 预览账（2026-10-30 黑屏三次取证）：本页停留期间相机出了多少帧、屏上真的换了多少帧。
+        // 复用引擎时 GL 侧没有 EGL/矩阵日志可看，只有这两个计数差能回答"这一页到底黑不黑"——
+        // 上屏帧为 0 而相机帧正常 = 上屏链死；两者都 0 = 相机没起来。
+        val pageEnteredAtMs = SystemClock.elapsedRealtime()
+        val camAtEntry = ctrl.frameResultCount() ?: -1L
+        val dispAtEntry = ctrl.displayFrameCount() ?: -1L
         onDispose {
+            val seconds = (SystemClock.elapsedRealtime() - pageEnteredAtMs) / 1000.0
+            val cam = ctrl.frameResultCount()
+            val disp = ctrl.displayFrameCount()
+            Log.i(
+                TAG_UI,
+                "预览账：本页 ${"%.1f".format(seconds)}s 相机帧=${if (cam == null || camAtEntry < 0) -1 else cam - camAtEntry}" +
+                    " 上屏帧=${if (disp == null || dispAtEntry < 0) -1 else disp - dispAtEntry}" +
+                    " hasSurface=${ctrl.hasDisplaySurface()} 保活=${ctrl.previewKeptBehind}"
+            )
             if (ctrl.previewKeptBehind && activeSink is GlRenderEngine) {
-                // 设置页覆盖（旗标由 MainActivity 的目的地回调维护）：相机与 GL 引擎原样保活，
-                // 回场零重建。窗口面已由 CameraSurface 的面销毁回调摘除（GL 线程与上下文保持
-                // 存活是 PreviewSink 系的既有契约）；GL 引擎的释放权上收 CameraController.onCleared。
+                // 设置页覆盖 / 前台页面往返（旗标由 MainActivity 的目的地回调维护）：相机与 GL 引擎
+                // 原样保活，回场零重建。窗口面已由 CameraSurface 的面销毁回调摘除（GL 线程与上下文
+                // 保持存活是 PreviewSink 系的既有契约）；GL 引擎的释放权上收 CameraController.onCleared。
             } else {
                 ctrl.unbind(activeSink)
+            }
+        }
+    }
+
+    // ---- 上屏面重挂（2026-10-30 黑屏三次取证）
+    // 「相机活着、屏幕全黑」这一档的**唯一**出路：承载视图整体重建 ⇒ 新 TextureView ⇒ 新
+    // SurfaceTexture ⇒ 引擎重接窗口面。重启预览/重建引擎都动不到这条链（相机本来就在出帧）。
+    // 请求来自两处看门狗（页面内 + Activity 级），这里只负责把它落成一次视图重建。
+    var surfaceEpoch by remember(activeSink) { mutableIntStateOf(0) }
+    LaunchedEffect(ctrl) {
+        // 限频 600ms：swap 连环失败时（挂上又立刻失败）不至于无限重建视图；
+        // 连环失败的最终兜底仍是看门狗的 forceRebind
+        var lastAt = 0L
+        ctrl.displayReattach.collect {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastAt < 600L) return@collect
+            lastAt = now
+            Log.i(TAG_UI, "上屏面重挂：重建承载视图 epoch=${surfaceEpoch + 1}")
+            surfaceEpoch++
+        }
+    }
+
+    // ---- Activity 级自愈布防（2026-10-30）：页面在组合里时**直接用这枚 ctrl 布防**。
+    // 目的地回调那条路要按路由回查 backStackEntry 取 ctrl，冷启/快速导航竞态下可能拿不到
+    // （拿到 null 就整条不布防）——而这一层正是"页面卡死也要能救"的兜底，不许靠运气布防。
+    // 离开路由时由目的地回调停火（watchRoute 一变，协程自己 break）。
+    DisposableEffect(ctrl) {
+        val host = findHostActivity(context)
+        host?.onRouteForPreviewWatch(ROUTE_CAMERA, ctrl)
+        // 页面在组合里 = 不需要保活（回场完成）：清掉宽限计时，避免 30s 后把正在用的相机关掉
+        ctrl.cancelPreviewKeepAlive()
+        // 组合在场回报已收口到 NavHost 的 DestinationPresence（2026-10-30 审查 🟡-3：
+        // 六个目的地统一回报，不再由本页专用上报）
+        onDispose { }
+    }
+
+    // ---- 预览自愈 watchdog（2026-10-29 黑屏取证，2026-10-30 三次修订）
+    // 一次修订（r30）判的是「状态字段」，重建卡死的中间态下字段仍"看着活着"，看门狗被绕过去。
+    // 二次修订（r31）改判「有没有收到相机帧」——但帧心跳只能证明**相机活着**，证明不了
+    // **帧有没有上屏**。2026-10-30 真机日志：设置页往返后重建的页面里相机 3A 遥测照常 1Hz，
+    // 而 GL 侧一帧都没画（没有 EGL 就绪、没有上屏 swap），整屏黑且看门狗判活、永不介入。
+    // 三次修订把"活着"拆成两条**单调**心跳，各自对应一种死法：
+    //  · 相机心跳 = result 回调累计（引擎侧，只增不重置）→ 不涨 = 相机会话死
+    //    ⇒ 重启预览 → 仍不涨就整条重建引擎；
+    //  · 上屏心跳 = 窗口面 swap 成功累计（GL 侧）→ 不涨而相机在涨 = 上屏链死
+    //    ⇒ **重挂承载面**（重建承载视图 = 新 SurfaceTexture）。这一档重启相机毫无意义，
+    //      相机本来就在跑（r31 的盲区正在这里）。
+    // 本节留在组合里、以 ctrl 为键——录制页被弹出栈时组合销毁，页面不可见也不该后台拉相机；
+    // 回到页面会重新布防（各计数归零重来）。
+    LaunchedEffect(ctrl, activeSink) {
+        var camLast = ctrl.frameResultCount() ?: -1L
+        var camGrowAtMs = SystemClock.elapsedRealtime()
+        var camMiss = 0
+        var dispLast = ctrl.displayFrameCount() ?: -1L
+        var dispGrowAtMs = SystemClock.elapsedRealtime()
+        // 上屏判据要等相机**真的出过帧**才启用：相机还没开起来时"屏上没换帧"是必然的，
+        // 那时去重挂面只会把首帧推得更晚（慢机型开相机要 1.5s+）
+        var camSeenFrames = false
+        var reattachTries = 0
+        while (true) {
+            delay(1000)
+            val nowMs = SystemClock.elapsedRealtime()
+            val s = ctrl.state.value
+            // 页面在前台才判活：熄屏 / 被别的应用盖住 / 导航离开时相机本来就该停着，
+            // 不许把那时的"没帧"当死态去自愈拉起（r31 的看门狗没这道闸，后台会被反复重启相机）
+            val pageOkay = !s.needsCameraPermission &&
+                runner.status.value == RecordStatus.IDLE &&
+                owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+
+            val cam = ctrl.frameResultCount()
+            if (cam != null && cam != camLast) {
+                if (!camSeenFrames) {
+                    camSeenFrames = true
+                    dispGrowAtMs = nowMs
+                }
+                camLast = cam
+                camGrowAtMs = nowMs
+                camMiss = 0
+            }
+            val disp = ctrl.displayFrameCount()
+            if (disp != null && disp != dispLast) {
+                dispLast = disp
+                dispGrowAtMs = nowMs
+                reattachTries = 0
+            }
+            if (!pageOkay) {
+                camGrowAtMs = nowMs
+                dispGrowAtMs = nowMs
+                camMiss = 0
+                reattachTries = 0
+                continue
+            }
+            // ① 相机侧：连续 2.5s 无新帧才算可疑（相机打开本身约 1s，避免开局误触）
+            val camDeadMs = nowMs - camGrowAtMs
+            if (camDeadMs >= 2_500L) {
+                camMiss++
+                when {
+                    cam == null && camMiss >= 2 -> {
+                        Log.w(TAG_UI, "预览自愈：引擎不在（device=${s.device}）⇒ 重新绑定引擎")
+                        ctrl.bind(activeSink)
+                        camLast = -1L
+                        camGrowAtMs = nowMs
+                        dispGrowAtMs = nowMs
+                        camSeenFrames = false
+                        camMiss = 0
+                    }
+                    cam == null -> Unit
+                    camMiss == 1 -> {
+                        Log.w(
+                            TAG_UI,
+                            "预览自愈：${camDeadMs}ms 无相机帧 ⇒ 重启预览（device=${s.device} preview=${s.preview}）"
+                        )
+                        ctrl.restartPreview()
+                        // 重启期间本来就没帧可画：给上屏判据重开一段宽限，别紧接着把面也重挂了
+                        dispGrowAtMs = nowMs
+                    }
+                    camMiss >= 4 -> {
+                        Log.w(
+                            TAG_UI,
+                            "预览自愈：重启预览后仍无帧 ⇒ 整条重建引擎（device=${s.device} preview=${s.preview}）"
+                        )
+                        ctrl.forceRebind(activeSink)
+                        camLast = -1L
+                        camGrowAtMs = nowMs
+                        dispGrowAtMs = nowMs
+                        camSeenFrames = false
+                        camMiss = 0
+                    }
+                }
+                continue
+            }
+            // ② 上屏侧：相机在出帧而屏上不换帧——只有重挂承载面能救（重启相机做不到）
+            if (disp != null && camSeenFrames && nowMs - dispGrowAtMs >= 1_500L) {
+                reattachTries++
+                Log.w(
+                    TAG_UI,
+                    "预览自愈：相机在出帧但上屏无帧 ${nowMs - dispGrowAtMs}ms" +
+                        "（hasSurface=${ctrl.hasDisplaySurface()} 第${reattachTries}次）⇒ 重挂显示面"
+                )
+                dispGrowAtMs = nowMs
+                if (reattachTries >= 3) {
+                    Log.w(TAG_UI, "预览自愈：重挂显示面无效 ⇒ 整条重建引擎 + 再重挂")
+                    ctrl.forceRebind(activeSink)
+                    camLast = -1L
+                    camGrowAtMs = nowMs
+                    dispGrowAtMs = nowMs
+                    camSeenFrames = false
+                    reattachTries = 0
+                } else {
+                    ctrl.requestDisplayReattach()
+                }
             }
         }
     }
@@ -1276,13 +1467,17 @@ fun CameraScreen(
                     // 与 HUD 各容器同在那层缩放之下，localPositionOf 才能把共同的祖先变换抵消。
                     .onGloballyPositioned { previewCoords = it }
             ) {
-                CameraSurface(
-                    mode = renderMode,
-                    sink = activeSink,
-                    modifier = Modifier.matchParentSize(),
-                    // 直显面尺寸变化会改会话结构签名，主动催一次重建；GL 路径同入口且幂等
-                    onDisplaySurface = { surface, _, _ -> if (surface != null) ctrl.onPreviewSurfaceReady() }
-                )
+                // 承载视图按 surfaceEpoch 重建（上屏面重挂自愈）：换 key = 换 TextureView，
+                // 新 SurfaceTexture 会让引擎重接窗口面——黑屏里"相机活着、屏不换帧"的唯一出路
+                key(surfaceEpoch) {
+                    CameraSurface(
+                        mode = renderMode,
+                        sink = activeSink,
+                        modifier = Modifier.matchParentSize(),
+                        // 直显面尺寸变化会改会话结构签名，主动催一次重建；GL 路径同入口且幂等
+                        onDisplaySurface = { surface, _, _ -> if (surface != null) ctrl.onPreviewSurfaceReady() }
+                    )
+                }
                 RefLineOverlay(
                     mask = refLines,
                     aspect = previewAspect,
@@ -1837,6 +2032,10 @@ fun CameraScreen(
                     // 不动、不会跟着 Dock 一起被拖出屏外（霜板那条链是反过来的需求，另见 HudDockZone）。
                     val dockSlideMotion = LocalMotion.current
                     val docksOut = sheet != Sheet.NONE || pop != null
+                    // 可被用户连续打断的场景（连点不同胶囊 = 滑出/收回互相打断）：必须用
+                    // Animatable.animateTo —— 它默认 `initialVelocity = velocity`，液态档的弹簧
+                    // 因此从**当前运动状态**接着走、继承打断瞬间的速度；换成 snapTo + 重新计时
+                    // 就会速度归零重启（"突然一顿再起步"，正是这次改版要消除的观感）。
                     val dockSlide = remember { Animatable(0f) }
                     LaunchedEffect(docksOut) {
                         val target = if (docksOut) 1f else 0f
@@ -1988,7 +2187,16 @@ fun CameraScreen(
                 modifier = Modifier.matchParentSize()
             ) {
                 PreviewGate(
-                    opening = ui.device == DeviceStatus.OPEN_ING,
+                    // 打开中 = 相机打开进行时（OPEN_ING）或设备健康只是会话在重建/等重开
+                    //（OPEN_SUCCEED / CLOSE）：这三种都该转圈。**只有真正的失败档**
+                    //（OPEN_FAILED_*）才给「重试/去设置」。2026-10-30 真机视频实锤：回场重开的
+                    // ~1s 里 device 还没到 OPEN_ING（枚举能力中）或已回到 CLOSE，这行失败文案
+                    // 直接把用户吓退（按返回 = 接一整段黑屏），是黑屏反馈链的起爆点。
+                    opening = ui.preview != PreviewStatus.ERROR && (
+                        ui.device == DeviceStatus.OPEN_ING ||
+                            ui.device == DeviceStatus.CLOSE ||
+                            ui.device == DeviceStatus.OPEN_SUCCEED
+                        ),
                     needPermission = ui.needsCameraPermission,
                     modifier = Modifier.fillMaxSize(),
                     onRetry = {
@@ -2026,6 +2234,9 @@ fun CameraScreen(
             val sizeAnchor = pillAnchors[PillKey.SIZE]
             if (sizeAnchor != null && sizeAnchor.width > 0 && sizeAnchor.height > 0) {
                 DisplayScaleReadout(displayScale, sizeAnchor)
+                // 等号档实测读数行（方案 31）：与上面那行同锚点，钉在「预览：<档位>」正下方一行；
+                // 手动曝光且实际下发值在场才显示（组件内部判定）
+                ExposureTelemetryReadout(params, sizeAnchor)
             }
         }
 
@@ -3138,6 +3349,11 @@ private class RecordRunner(
 
     /** 退出页面：同步收尾，保证文件写完、pending 清掉之后再让相机释放 */
     fun shutdown() {
+        // 收尾在工作线程排队完成（quitSafely 保证已入队任务跑完再退线程）。
+        // 2026-10-30 全面审查 🟡-2：此前这里是主线程 `latch.await(3s)`——长录制停录时
+        // moov 收尾写盘在容器慢盘上顶到 3 秒，就是一次最长 3 秒的主线程卡顿，而这段代码
+        // 正好跑在"快速返回"的高频路径上（onDispose）。现在主线程只投递，超时监控挪到
+        // 旁路线程：只留日志，不阻塞任何人；quitSafely 本身保证收尾一定会完成。
         val latch = CountDownLatch(1)
         handler.post {
             stopRequested = false // 退页收尾：清掉取消信号（本路不走检查点，直接完整停录）
@@ -3145,8 +3361,10 @@ private class RecordRunner(
             latch.countDown()
             thread.quitSafely()
         }
-        val ok = runCatching { latch.await(3, TimeUnit.SECONDS) }.getOrDefault(false)
-        if (!ok) Log.w(TAG_UI, "录制收尾超时，交给引擎兜底")
+        Thread({
+            val ok = runCatching { latch.await(3, TimeUnit.SECONDS) }.getOrDefault(false)
+            if (!ok) Log.w(TAG_UI, "录制收尾超过 3s 尚未完成（后台继续收尾），页面已先行退出")
+        }, "WotaRecFinalizeWatch").start()
     }
 
     fun clearResult() {
@@ -4012,6 +4230,55 @@ private fun DisplayScaleReadout(scale: DisplayScale, anchor: IntRect) {
     // 字号 11sp→9sp、填充白 40%→30%、描边红从全亮降到 55%——仍可读，但不与画面争。
     val style = WotaType.label.copy(fontSize = 9.sp, lineHeight = 12.sp)
     Box(Modifier.offset { IntOffset(anchor.left, anchor.bottom + gap) }) {
+        Text(
+            text = text,
+            color = WotaColor.rec.copy(alpha = 0.55f),
+            style = style.copy(drawStyle = Stroke(width = outline)),
+            maxLines = 1
+        )
+        Text(
+            text = text,
+            color = WotaColor.textLo.copy(alpha = 0.75f),
+            style = style,
+            maxLines = 1
+        )
+    }
+}
+
+/**
+ * 「预览：<档位>」下方的**实测读数行**（2026-11-01 用户定版，docs/plan/31）：
+ * 实际曝光（`XX ms | 1/YY`）· 实际帧率（`XX fps`）· 纠偏模式（自动/手动）· 纠偏值（`X.X ms`）。
+ *
+ * - 数据同源帧率守卫（~1s 采样）与曝光下发留痕（applyParams 逐次回写总线），但**渲染互不相干**：
+ *   帧率过低提示是告警行（lowFpsHint），这一行是常态读数，各占各的位；
+ * - 只在手动曝光（AE_OFF）且有实际下发值时显示——自动档三键缺席，"实际曝光"无从谈起；
+ * - 样式与 [DisplayScaleReadout] 同一套（红描边 + 半透明灰、9sp），钉在它正下方一行的位置。
+ */
+@Composable
+private fun ExposureTelemetryReadout(params: WotaParams, anchor: IntRect) {
+    val aeMode by params.aeMode.observed()
+    val sentNs by params.actualSentExposureNs.observed()
+    val fpsMeasured by params.actualFps.observed()
+    val corrAuto by params.exposureCorrectionAuto.observed()
+    val corrNs by params.actualCorrectionNs.observed()
+    if (aeMode != AeMode.MANUAL) return
+    val sent = sentNs ?: return
+    if (sent <= 0L) return
+    val expPart = "%.1f ms | 1/%d".format(
+        sent / 1_000_000.0,
+        (WotaTiers.NS_PER_SECOND.toDouble() / sent).roundToInt().coerceAtLeast(1)
+    )
+    val fpsPart = fpsMeasured?.let { "%.0f fps".format(it) } ?: "-- fps"
+    val modePart = stringResource(if (corrAuto) R.string.cam_ae_auto else R.string.cam_ae_manual)
+    val corrPart = "%.1f ms".format((corrNs ?: 0L) / 1_000_000.0)
+    val text = "$expPart · $fpsPart · $modePart · $corrPart"
+    val density = LocalDensity.current
+    val gap = with(density) { 4.dp.roundToPx() }
+    // DisplayScaleReadout 的正文行高（12sp）：这一行钉在它下面一行，避免两行文字叠在一起
+    val line = with(density) { 12.sp.toPx().roundToInt() }
+    val outline = with(density) { 1.2.dp.toPx() }
+    val style = WotaType.label.copy(fontSize = 9.sp, lineHeight = 12.sp)
+    Box(Modifier.offset { IntOffset(anchor.left, anchor.bottom + gap + line) }) {
         Text(
             text = text,
             color = WotaColor.rec.copy(alpha = 0.55f),

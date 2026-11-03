@@ -67,6 +67,20 @@ interface DisplaySurfaceReceiver {
      * @param heightPx 承载视图高（px）
      */
     fun onDisplaySurfaceChanged(surface: Surface?, widthPx: Int, heightPx: Int)
+
+    /**
+     * **带归属**的面销毁：把「正在销毁的那一枚 Surface」一并交出，sink 据此丢弃过期摘除。
+     *
+     * 为什么 null 版不够（2026-10-30 黑屏三次取证）：`TextureView` 的销毁回调是异步排队的，
+     * 录制页被快速重建时**旧视图的 onSurfaceTextureDestroyed 可能晚于新视图的 available**——
+     * 那时按 null 无条件摘面，会把刚接好的新面摘掉，而且之后再也不会有新的 attach 事件
+     * ⇒ 相机照常出帧、GL 一帧都不画、整屏黑且没有任何自愈入口。
+     *
+     * 默认实现保留旧语义（摘面），实现方需要防这条竞态就覆盖它。
+     */
+    fun onDisplaySurfaceDestroyed(surface: Surface) {
+        onDisplaySurfaceChanged(null, 0, 0)
+    }
 }
 
 /**
@@ -162,6 +176,29 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
     /** 待消费的相机帧数（多帧只取最新，等价于分析流的 acquireLatestImage） */
     @Volatile
     private var newFrames = 0
+
+    // ---- 上屏自愈心跳（2026-10-30 黑屏三次取证）
+    // 相机侧心跳（result 回调）只能证明「相机会话在出帧」，证明不了「帧到底有没有上屏」——
+    // 真机日志里出现过相机 3A 遥测照常 1Hz、GL 侧一帧未画的黑屏。所以这里再记两枚**单调**计数：
+    //   [cameraFrameTotal]  相机帧进入 GL 的次数（SurfaceTexture 回调）
+    //   [displaySwapTotal]  窗口面 swap **成功**的次数（= 屏上真的换了一帧）
+    // 两枚都不重置、只在各自发生点自增，看门狗据此区分「相机死」与「上屏链死」。
+
+    /** 相机帧进 GL 的累计数（单调） */
+    @Volatile
+    private var cameraFrameTotal = 0L
+
+    /** 上屏帧累计数（单调；窗口面 swap 成功才算一拍） */
+    @Volatile
+    private var displaySwapTotal = 0L
+
+    /** 当前是否挂着窗口面（GL 线程写、主线程读；判据别读 GL 线程字段） */
+    @Volatile
+    private var windowAttached = false
+
+    /** 最近一次被采纳的上屏窗口面（主线程写；[onDisplaySurfaceDestroyed] 用它判归属） */
+    @Volatile
+    private var acceptedDisplaySurface: Surface? = null
 
     /** 状态脏标记：无新帧也要重画一次（切效果/改尺寸/换面） */
     @Volatile
@@ -707,6 +744,16 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
     var onCameraSurfaceReady: (() -> Unit)? = null
 
     /**
+     * 上屏窗口面被摘除（swap 失败）时的回调（GL 线程触发；消费方须自行保证线程安全）。
+     *
+     * 这是「画面全黑但应用活着」唯一的发生点：swap 失败就地摘面后，绘制退到 pbuffer，
+     * 相机帧照常消费、UI 照常响应，唯独屏幕黑。接入方收到就应走显示面重挂
+     * （重建承载视图），不等看门狗的秒级轮询。
+     */
+    @Volatile
+    var onWindowSurfaceDropped: (() -> Unit)? = null
+
+    /**
      * 显示面挂摘/重挂瞬间回调（UI 线程，2026-10-29 手动白平衡绿帧）。
      *
      * 卓易通桥（华为 ALN-AL00 实测）在应用显示面切换的过渡拍会直接吐 HAL 过渡帧：请求此刻是
@@ -746,6 +793,15 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
 
     /** EGL/GL 是否就绪（未就绪时 [cameraTargets] 返回空表） */
     fun isReady(): Boolean = glReady && !released.get()
+
+    /** 相机帧进 GL 的累计数（单调；给预览自愈心跳用） */
+    fun cameraFrameCount(): Long = cameraFrameTotal
+
+    /** 上屏帧累计数（单调；窗口面 swap 成功才涨——「屏上真的换了一帧」的唯一证据） */
+    fun displayFrameCount(): Long = displaySwapTotal
+
+    /** 当前是否挂着窗口面（false + 相机在出帧 = 上屏链断了，需要重挂承载面） */
+    fun hasWindowSurface(): Boolean = windowAttached
 
     // region PreviewSink
 
@@ -806,9 +862,24 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
 
     override fun onDisplaySurfaceChanged(surface: Surface?, widthPx: Int, heightPx: Int) {
         if (released.get()) return
+        acceptedDisplaySurface = surface
         // 挂摘与重挂都要布防稳压窗（见 onDisplaySurfaceTransient 的绿帧取证）
         onDisplaySurfaceTransient?.invoke()
         postGl { replaceWindowSurface(surface, widthPx, heightPx) }
+    }
+
+    /**
+     * 面销毁（带归属）：**只认当前挂着的这一枚**，旧视图迟到的摘除一律丢弃。
+     * 竞态见接口注释；被丢弃时留一行日志，下次取证能一眼看到"摘面被忽略"。
+     */
+    override fun onDisplaySurfaceDestroyed(surface: Surface) {
+        if (released.get()) return
+        val current = acceptedDisplaySurface
+        if (current != null && current !== surface) {
+            Log.i(TAG_GL, "忽略过期显示面摘除（当前面已被新页面接管）")
+            return
+        }
+        onDisplaySurfaceChanged(null, 0, 0)
     }
 
     // endregion
@@ -1241,6 +1312,7 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
         if (released.get()) return
         // 帧账：回调数与 newFrames 同点自增（newFrames 语义不变；两枚都在 GL 线程写）
         FrameLedger.onGlCallback()
+        cameraFrameTotal++
         newFrames++
         scheduleDraw()
     }
@@ -1497,6 +1569,7 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
         destroyEglSurface(windowEglSurface)
         windowEglSurface = null
         windowNative = null
+        windowAttached = false
         lastWindowSwapNs = 0L
         updateContentRect()
         dirty = true
@@ -1521,6 +1594,7 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
         }
         windowEglSurface = es
         windowNative = surface
+        windowAttached = true
         scheduleDraw()
     }
 
@@ -2075,7 +2149,21 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
         // 预览 blit 之后、swap 之前：按矩形表把霜底板贴上去（#84 步骤 2，A2 混合）。
         // 这一步只在窗口面里发生，[drawEncoderPass] 走的是另一条完整独立的路（同一条"绝不碰霜"红线）
         drawFrostPlates()
-        if (!swap(window)) dropWindowSurface() else lastWindowSwapNs = System.nanoTime()
+        if (!swap(window)) {
+            // 「画面全黑但应用活着」的头号静默路径（2026-10-30 真机录屏对账）：swap 失败就地
+            // 摘除窗口面，之后 drawFrame 退到 pbuffer——相机帧照常消费、UI 照常响应，唯独
+            // 屏幕全黑，且此前一行日志都不留。必须留痕：下一份日志先搜这一行。
+            Log.w(TAG_GL, "上屏 swap 失败 ⇒ 摘除窗口面（画面将保持黑，直到显示面重挂）")
+            dropWindowSurface()
+            // 立刻请求重挂（不等看门狗秒级轮询）；消费方自行限频，连环失败仍有
+            // 看门狗的 forceRebind 兜底
+            onWindowSurfaceDropped?.invoke()
+        } else {
+            lastWindowSwapNs = System.nanoTime()
+            // 上屏心跳（单调）：只有 swap 成功才算"屏上真的换了一帧"，
+            // 这条计数是「相机活着但整屏黑」唯一能观测到的死亡信号
+            displaySwapTotal++
+        }
     }
 
     /**
@@ -2161,6 +2249,7 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
         destroyEglSurface(windowEglSurface)
         windowEglSurface = null
         windowNative = null
+        windowAttached = false
         windowWidth = 0
         windowHeight = 0
     }
@@ -2915,6 +3004,7 @@ class GlRenderEngine : PreviewSink, DisplaySurfaceReceiver, FrostBlurProvider, G
     private fun releaseGl() {
         glReady = false
         hasTextureData = false
+        windowAttached = false
         // 删除资源需要 current 上下文，用 pbuffer 兜底
         makeCurrent(pbufferSurface)
 

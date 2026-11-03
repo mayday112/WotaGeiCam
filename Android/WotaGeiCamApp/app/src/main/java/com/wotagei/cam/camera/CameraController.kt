@@ -26,9 +26,13 @@ import com.wotagei.cam.core.pickCapabilityDefault
 import com.wotagei.cam.diag.Diag as Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -58,6 +62,13 @@ data class CameraUiState(
 class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecycleObserver {
 
     companion object {
+        /**
+         * 页面往返保活宽限（非设置页）。**用户裁决 2s**（2026-10-30）：只覆盖"手滑误触/瞬切"，
+         * 不养一台背后常开的相机。注意超过这个时间的往返回场仍会重开相机（首帧 0.5~0.9s），
+         * 这是刻意的取舍——保活越久越费电发热。
+         */
+        const val PAGE_KEEP_ALIVE_MS = 2_000L
+
         fun of(owner: ViewModelStoreOwner): CameraController =
             ViewModelProvider(owner)[CameraController::class.java]
     }
@@ -107,6 +118,61 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
      */
     var previewKeptBehind: Boolean = false
 
+    // ------------------------------------------------- 页面往返保活（2026-10-30 黑屏三次取证）
+
+    /**
+     * 页面往返保活：**离开录制页但 app 仍在前台**时，相机再活一段（[graceMs] ≤ 0 = 无限期），
+     * 回来零重建。
+     *
+     * 为什么从"只保设置页"扩到"所有前台页"：2026-10-30 r32 真机日志里，每次从播放/编辑页回到
+     * 录制页都会触发一次完整重开（`open slot=` + 新会话），首帧要 0.5~0.9s；用户报的两次黑屏
+     * 正好落在这两段重开窗口里（页面存在 0.72s，一帧未出就退出）。更关键的是"重开后一帧都不来"
+     * 的死法**只在重开路径上出现**（r30/r31 日志同一形状：`帧率决议` 打了、帧不来）。保活把
+     * 这一整类都绕开：回来就是现成会话，相机与 GL 都不重建。
+     *
+     * 省电兜底：非设置页给宽限 [PAGE_KEEP_ALIVE_MS]（用户裁决 2s，只兜"瞬切/误触"），
+     * 到点自动关；app 退到后台立刻关（[closePreviewNow]，由 MainActivity.onStop 触发）。
+     */
+    private var keepAliveJob: Job? = null
+
+    fun keepPreviewAlive(graceMs: Long) {
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+        previewKeptBehind = true
+        if (graceMs > 0) {
+            keepAliveJob = bus.launch {
+                delay(graceMs)
+                Log.i("WotaCam", "页面保活到期（${graceMs}ms）⇒ 关相机省电")
+                closePreviewNow()
+            }
+        }
+    }
+
+    fun cancelPreviewKeepAlive() {
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+        previewKeptBehind = false
+    }
+
+    /** 立刻收相机并解除保活（app 退后台 / 宽限到期） */
+    fun closePreviewNow() {
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+        previewKeptBehind = false
+        stop()
+    }
+
+    /**
+     * app 退到后台（MainActivity.onStop）：**只收「被留在别的页后面」的那台相机**。
+     *
+     * 录制页在前台时不能在这里收：那样 engine 变 null，回到前台没有任何入口再 bind（页面组合
+     * 还在、不会重新执行 DisposableEffect），预览会一直黑着——这条路由生命周期 ON_PAUSE→
+     * [pause]（停预览留设备）→ ON_RESUME→[resume] 的老路负责，别抢。
+     */
+    fun onAppBackgrounded() {
+        if (previewKeptBehind) closePreviewNow()
+    }
+
     /** GPU 预览引擎的**页面级缓存**：跨设置往返复用同一实例（SurfaceTexture 活着 = 会话不用重建）。释放权在 [onCleared]，页面 dispose 不再碰它 */
     private var cachedGlSink: GlRenderEngine? = null
 
@@ -125,7 +191,12 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
 
     /** 绑定预览输出面；换面（DIRECT↔GPU）时重建引擎，参数总线保持不变 */
     fun bind(sink: PreviewSink) {
-        if (boundSink === sink && engine != null) return
+        // 早退也要消化 pendingStart（2026-10-29 黑屏取证）：引擎还在时直接 return 会把
+        // "该起相机"的欠账永久挂着（之后没人再调 start）
+        if (boundSink === sink && engine != null) {
+            if (pendingStart) start()
+            return
+        }
         engine?.close()
         boundSink = sink
         engine = Camera2Engine(
@@ -163,6 +234,53 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
         engine?.onSinkSurfaceReady()
     }
 
+    /**
+     * 预览自愈第二级（2026-10-29 黑屏取证）：整条重建引擎——旧引擎先关，按同一 sink 重新建
+     * 并启动。预览自愈 watchdog 在「重启预览无效」时调它，保证任何卡死态都能自己爬出来，
+     * 不再要求用户手动重进页面。
+     */
+    fun forceRebind(sink: PreviewSink) {
+        engine?.close()
+        engine = null
+        boundSink = null
+        bind(sink)
+        // 重建引擎只换了相机侧；上屏链若是死的（窗口面已失效/被摘掉），这里必须补一次重挂，
+        // 否则"重建完还是黑"（2026-10-30 取证）。
+        requestDisplayReattach()
+    }
+
+    /** 当前绑定的预览 sink（自愈重建要用同一枚；null = 还没绑过面） */
+    fun currentSink(): PreviewSink? = boundSink
+
+    /** 相机结果回调累计数（给预览自愈心跳用；null = 引擎不在） */
+    fun frameResultCount(): Long? = engine?.frameResultCount()
+
+    /**
+     * 上屏帧累计数（窗口面 swap 成功数，单调）。**与 [frameResultCount] 是两条独立的心跳**：
+     * 前者证明"相机在出帧"，它证明"屏上真的换了一帧"。2026-10-30 真机日志里出现过相机 3A
+     * 遥测照常 1Hz、GL 一帧未画的黑屏——只有这一条能观测到那种死法。
+     * null = 当前不是 GPU 管线（DIRECT 直显不经过 GL，没有上屏计数可读）。
+     */
+    fun displayFrameCount(): Long? = (boundSink as? GlRenderEngine)?.displayFrameCount()
+
+    /** 当前是否挂着上屏窗口面（null = 非 GPU 管线）；false + 相机在出帧 = 上屏链接断了 */
+    fun hasDisplaySurface(): Boolean? = (boundSink as? GlRenderEngine)?.hasWindowSurface()
+
+    // ------------------------------------------------- 上屏面重挂（黑屏自愈第三级）
+
+    private val reattachRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /**
+     * 上屏面重挂请求：页面收到后**重建承载视图**（新 `TextureView` ⇒ 新 `SurfaceTexture` ⇒
+     * 引擎重建窗口 EGLSurface）。用于「相机活着、屏幕全黑」这一档——那种死态下重启预览与
+     * 重建引擎都没用（相机本来就在跑），只有把上屏面重新接上才能恢复。
+     */
+    val displayReattach: SharedFlow<Unit> = reattachRequests
+
+    fun requestDisplayReattach() {
+        reattachRequests.tryEmit(Unit)
+    }
+
     /** 显示面挂摘/重挂（设置页覆盖往返）：布防引擎侧手动白平衡稳压窗（绿帧取证，2026-10-29） */
     fun onPreviewSurfaceTransient() {
         engine?.onSinkSurfaceTransient()
@@ -176,12 +294,13 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
             pendingStart = true
             return
         }
-        // 覆盖保活回场（设置页往返）：设备与预览都在跑，这里任何"重开"都会撞上桥的会话重建
-        // 窗口（手动白平衡绿帧）——原样返回，预览本来就没停过。只 OPEN 不预览（ON_PAUSE 后）
-        // 的设备仍走下面正常路径由 resume()/这里补 startPreview。
-        if (engineOrNull?.deviceStatus == DeviceStatus.OPEN_SUCCEED &&
-            ui.value.preview == PreviewStatus.ING
-        ) {
+        // 覆盖保活回场（设置页往返）且管线**真身**活着：原样返回，任何"重开"都会撞上桥的
+        // 会话重建窗口（手动白平衡绿帧）。2026-10-29 黑屏取证后判据从缓存状态改成引擎真身——
+        // 快速导航的竞态里 deviceStatus/preview 可能残留成"看着活着"，早退会把相机卡死。
+        if (engineOrNull?.isPreviewLive() == true) {
+            // 回场复用留痕（2026-10-30）：这条日志与 `open slot=` 是互斥的两条路——有它 = 零重建，
+            // 没有它 = 整条重开。下次黑屏时先看这一行就能分清"重建窗口"还是"重建后死"
+            Log.i("WotaCam", "回场复用相机（会话在跑，未重建）device=${ui.value.device}")
             return
         }
         if (!granted(Manifest.permission.CAMERA)) {
@@ -193,6 +312,18 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
         pendingStart = false
         // 缺 RECORD_AUDIO 只降级纯视频，不打断取景
         applyAudioPermission()
+        // 设备健康、只是会话/期望断了：只重建会话，**不整条重开**——与 resume() 同一口径。
+        // 整条重开要过"关设备→openCamera→建会话"全链（0.5~0.9s 首帧 + 桥的绿帧窗口），
+        // 回场高频路径不值得；2026-10-30 r34 日志：回场重开正是用户看到「预览未就绪」的窗口。
+        val e = engineOrNull
+        if (e != null && e.deviceStatus == DeviceStatus.OPEN_SUCCEED) {
+            Log.i("WotaCam", "回场重开降级：设备在，只重建会话（${e.previewLivenessDebug()}）")
+            e.startPreview()
+            return
+        }
+        if (e != null) {
+            Log.i("WotaCam", "整条重开相机（${e.previewLivenessDebug()}）")
+        }
         openCurrentLens()
     }
 
@@ -213,9 +344,10 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
     /** ON_RESUME：设备还在就重起预览，被系统收回了就整条重开 */
     fun resume() {
         val e = engine ?: run { pendingStart = true; return }
-        // 预览一直在跑（覆盖保活回场）：不重提请求——面板已验证"同会话重发请求"不闪绿，
-        // 但"重启预览 + 首拍重提交"是否在桥上也干净没有证据，能不动就不动
-        if (e.deviceStatus == DeviceStatus.OPEN_SUCCEED && ui.value.preview == PreviewStatus.ING) return
+        // 预览真身一直在跑（覆盖保活回场）：不重提请求——同会话重发请求不闪绿，但
+        // "重启预览 + 首拍重提交"是否在桥上也干净没有证据，能不动就不动。判据用真身
+        // （2026-10-29 黑屏取证：缓存状态可能残留，早退会把相机卡死在黑屏态）
+        if (e.isPreviewLive()) return
         if (e.deviceStatus == DeviceStatus.OPEN_SUCCEED) e.startPreview() else start()
     }
 
@@ -240,6 +372,8 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
     }
 
     override fun onCleared() {
+        keepAliveJob?.cancel()
+        keepAliveJob = null
         engine?.close()
         engine = null
         boundSink = null

@@ -5,6 +5,13 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import android.os.SystemClock
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -123,7 +130,205 @@ class MainActivity : ComponentActivity() {
         brightnessRamp.onPlayerPlaybackStarted(window, WotaSettings.of(this))
     }
 
+    /**
+     * 预览自愈 watchdog（2026-10-29 黑屏取证 → 2026-10-30 三次修订）：**Activity 级**兜底。
+     *
+     * 为什么不能只放在 [CameraScreen] 的组成里：黑屏的一种可能形态是页面卡在导航中间态、
+     * 组合不再重组——那时页面内的 LaunchedEffect 也停摆，看门狗等于不存在。这一层只要
+     * Activity 在前台就会跑，与任何页面的组合生命周期无关。
+     *
+     * 判据是**两条单调心跳**（r31 只判了第一条，所以"相机在出帧、屏上不换帧"这一档永远漏）：
+     * - 相机心跳 `frameResultCount`：不涨 = 相机会话死 ⇒ 4s 重启预览、10s 整条重建；
+     * - 上屏心跳 `displayFrameCount`：不涨而相机在涨 = 上屏链死 ⇒ 2.5s 重挂承载面，
+     *   连续三次仍不上屏就整条重建 + 再重挂。
+     * 两条都只在当前路由是录制页时判（其他页面相机可以合法停着）。
+     */
+    private var previewWatchJob: Job? = null
+    private var watchRoute: String? = null
+
+    /** 最近一次见到的录制页门面（onStop 收相机用：app 退后台时保活的相机必须立刻放掉） */
+    internal var previewCtrl: com.wotagei.cam.camera.CameraController? = null
+
+    /**
+     * 当前**有组合在场**的目的地路由（页面内容回报，不读路由态）。
+     *
+     * 2026-10-30 通用化（全面审查 🟡-3）：此前只有录制页回报组合在场/销毁，兜底也只为
+     * 录制页而生——播放/对比/相册/设置/HUD 编辑页若出现同类"组合没了而目的地没变"，
+     * 同样整窗黑而无人救。现在六个目的地统一经 [onDestinationComposed] 回报，由
+     * [armCompositionGuard] 统一守护。
+     */
+    @Volatile
+    internal var composedRoute: String? = null
+
+    internal fun onDestinationComposed(route: String?) {
+        composedRoute = route
+    }
+
+    internal fun onDestinationDisposed(route: String?) {
+        if (composedRoute == route) composedRoute = null
+    }
+
+    /** 目的地组合守护的常驻协程（与相机预览看门狗正交：那条管"组合在但预览死"） */
+    private var compositionGuardJob: Job? = null
+
+    /**
+     * **目的地组合守护**：目的地没变、但它的组合已不在场 ⇒ 整窗黑（NavHost 无内容可画）。
+     * 3s 仍不自愈则按栈态分流：返回栈空 ⇒ finish（recreate 只会把空栈原样恢复成黑屏循环）；
+     * 栈在 ⇒ recreate（ViewModel 存活，页面重组即愈）。每次路由变化都会重新布防。
+     */
+    private fun armCompositionGuard() {
+        if (compositionGuardJob?.isActive == true) return
+        compositionGuardJob = lifecycleScope.launch {
+            var goneSinceMs = 0L
+            while (isActive) {
+                delay(1_000)
+                val route = watchRoute ?: break
+                if (lifecycle.currentState != Lifecycle.State.RESUMED) {
+                    goneSinceMs = 0
+                    continue
+                }
+                if (composedRoute == route) {
+                    goneSinceMs = 0
+                    continue
+                }
+                val nowMs = SystemClock.elapsedRealtime()
+                if (goneSinceMs == 0L) {
+                    goneSinceMs = nowMs
+                    continue
+                }
+                if (nowMs - goneSinceMs < 3_000L) continue
+                val nav = navStateProvider?.invoke()
+                val stackEmpty = nav == null || nav.currentDestination == null
+                if (stackEmpty) {
+                    Log.w("WotaWatch", "目的地组合已销毁且返回栈已空 ⇒ 结束 Activity（NavHost 无内容可画）")
+                    finish()
+                } else {
+                    Log.w("WotaWatch", "目的地组合被拆（route=$route）⇒ 重建 Activity 自救")
+                    recreate()
+                }
+                return@launch
+            }
+        }
+    }
+
+    /**
+     * 导航栈只读探针（看门狗自救分流用）：组合没了时**返回栈是否也空了**要分开治——
+     * 栈空 = NavHost 无内容可画，recreate 只会把空栈原样恢复（黑屏循环），必须 finish；
+     * 栈非空 = 组合被竞态拆掉，recreate 即愈。由 WotaRoot 接线，Activity 不持有 nav。
+     */
+    internal var navStateProvider: (() -> androidx.navigation.NavController?)? = null
+
+    internal fun onRouteForPreviewWatch(route: String?, ctrl: com.wotagei.cam.camera.CameraController?) {
+        watchRoute = route
+        // 通用组合守护（所有目的地）：与下面相机专用的预览看门狗各自独立布防
+        armCompositionGuard()
+        if (route != ROUTE_CAMERA) {
+            previewWatchJob?.cancel()
+            previewWatchJob = null
+            return
+        }
+        // 路由是录制页但这拍拿不到 ctrl（冷启/快速导航竞态里 backStackEntry 可能还不在）：
+        // 不许把已经在跑的那条顺手停掉——页面会拿手里的 ctrl 自己重新布防。
+        if (ctrl == null) return
+        if (previewWatchJob?.isActive == true) return
+        previewWatchJob = lifecycleScope.launch {
+            var camLast = -1L
+            var camGrowAtMs = SystemClock.elapsedRealtime()
+            var dispLast = -1L
+            var dispGrowAtMs = SystemClock.elapsedRealtime()
+            // 上屏判据要等相机真的出过帧才启用（相机还没起来时"屏上没帧"是必然的）
+            var camSeenFrames = false
+            var restarted = false
+            var reattachTries = 0
+            while (isActive) {
+                delay(1000)
+                if (watchRoute != ROUTE_CAMERA) break
+                val nowMs = SystemClock.elapsedRealtime()
+                // 只在真正可见时判（后台/其它页不算）
+                if (lifecycle.currentState != Lifecycle.State.RESUMED) {
+                    camGrowAtMs = nowMs
+                    dispGrowAtMs = nowMs
+                    camSeenFrames = false
+                    restarted = false
+                    reattachTries = 0
+                    continue
+                }
+                // 组合不在场 = 整窗黑（连 UI 都没了）：相机侧的任何自愈都没有意义，
+                // 交给 armCompositionGuard 统一处理，这里直接跳过判活。
+                if (composedRoute != ROUTE_CAMERA) continue
+                val cam = ctrl.frameResultCount()
+                if (cam != null && cam != camLast) {
+                    if (!camSeenFrames) {
+                        camSeenFrames = true
+                        dispGrowAtMs = nowMs
+                    }
+                    camLast = cam
+                    camGrowAtMs = nowMs
+                    restarted = false
+                }
+                val disp = ctrl.displayFrameCount()
+                if (disp != null && disp != dispLast) {
+                    dispLast = disp
+                    dispGrowAtMs = nowMs
+                    reattachTries = 0
+                }
+                val camDeadMs = nowMs - camGrowAtMs
+                if (camDeadMs >= 4_000L) {
+                    if (cam == null) {
+                        Log.w("WotaWatch", "Activity 级预览自愈：引擎不在 ⇒ 重新绑定")
+                        ctrl.currentSink()?.let { ctrl.bind(it) }
+                        camGrowAtMs = nowMs
+                        dispGrowAtMs = nowMs
+                        camSeenFrames = false
+                    } else if (!restarted) {
+                        restarted = true
+                        Log.w("WotaWatch", "Activity 级预览自愈：${camDeadMs}ms 无相机帧 ⇒ 重启预览")
+                        ctrl.restartPreview()
+                        dispGrowAtMs = nowMs
+                    } else if (camDeadMs >= 10_000L) {
+                        Log.w("WotaWatch", "Activity 级预览自愈：10s 仍无帧 ⇒ 整条重建引擎")
+                        ctrl.currentSink()?.let { ctrl.forceRebind(it) }
+                        camGrowAtMs = nowMs
+                        dispGrowAtMs = nowMs
+                        camSeenFrames = false
+                        restarted = false
+                    }
+                    continue
+                }
+                // 上屏侧：相机在出帧而屏上不换帧（r31 的盲区）——重启相机没用，只能重挂面
+                if (disp != null && camSeenFrames && nowMs - dispGrowAtMs >= 2_500L) {
+                    reattachTries++
+                    Log.w(
+                        "WotaWatch",
+                        "Activity 级预览自愈：相机在出帧但上屏无帧 ${nowMs - dispGrowAtMs}ms" +
+                            "（hasSurface=${ctrl.hasDisplaySurface()} 第${reattachTries}次）⇒ 重挂显示面"
+                    )
+                    dispGrowAtMs = nowMs
+                    if (reattachTries >= 3) {
+                        Log.w("WotaWatch", "Activity 级预览自愈：重挂显示面无效 ⇒ 整条重建引擎 + 再重挂")
+                        ctrl.currentSink()?.let { ctrl.forceRebind(it) }
+                        camGrowAtMs = nowMs
+                        camSeenFrames = false
+                        reattachTries = 0
+                    } else {
+                        ctrl.requestDisplayReattach()
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onStop() {
+        // app 退到后台：把"被留在别的页后面"的保活相机立刻放掉（前台往返才保活）。
+        // 录制页正在前台时不能在这里收——那条路由生命周期 ON_PAUSE/ON_RESUME 老路负责。
+        previewCtrl?.onAppBackgrounded()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        // 与 onCreate 配对（2026-10-30）：isFinishing=false 的 destroy = 配置变更/容器重建，
+        // 黑屏窗口若与这行同拍出现，"整窗黑"就是重建期产物，与相机/GL 无关
+        com.wotagei.cam.diag.Diag.i("WotaNav", "Activity onDestroy（isFinishing=$isFinishing）")
         // 诊断日志的「上一会话结束于」留痕：正常退出与"被系统杀/崩溃"因此可区分
         // （下次冷启会把这行写进日志——排障时第一个要回答的就是"上次是正常退出的吗"）
         if (isFinishing) com.wotagei.cam.diag.Diag.markCleanExit()
@@ -132,6 +337,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Activity 重建留痕（2026-10-30 黑屏取证）：「整窗变黑但应用活着、返回正常」的候选之一
+        // 是配置变更/容器导致的 Activity 重建——重建期窗口会黑一拍。有没有重建、是不是配置变更
+        // （重建=true），这行直接写死；与 WotaNav 目的地行配对读。
+        com.wotagei.cam.diag.Diag.i(
+            "WotaNav",
+            "Activity onCreate（重建=${savedInstanceState != null}）"
+        )
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         applyMergeHook(intent)
@@ -230,15 +442,51 @@ private fun WatchMotion(prefs: SharedPreferences, onChange: (MotionMode) -> Unit
     }
 }
 
+/**
+ * 目的地组合在场回报（单点收口，2026-10-30 全面审查 🟡-3）：把"这一页现在有没有 UI 在画"
+ * 报给 Activity 的通用组合守护（[MainActivity.onDestinationComposed]）。每个目的地内容
+ * 最外层包一层——缺了它，导航竞态把组合拆掉时整窗黑而无人救（r38/r39 日志实录）。
+ * 放在内容之前声明：内容里的副作用先于本层 onDispose 拆解，回报顺序天然正确。
+ */
+@Composable
+private fun DestinationPresence(
+    host: MainActivity?,
+    route: String,
+    content: @Composable () -> Unit
+) {
+    DisposableEffect(host, route) {
+        host?.onDestinationComposed(route)
+        onDispose { host?.onDestinationDisposed(route) }
+    }
+    content()
+}
+
 @Composable
 @Suppress("LongMethod")
 private fun WotaRoot() {
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
+    // 窗口拥有者提前取好：目的地组合守护（DestinationPresence）与窗口策略共用这一枚
+    val windowOwner = remember(activity) { activity as? MainActivity }
     val nav: NavHostController = rememberNavController()
     var showPermissionPrompt by remember { mutableStateOf(false) }
     // 各屏文本高度独立：prefs 读值即当前设置，回本页时重组生效
     val prefs = remember(context) { WotaSettings.of(context) }
+
+    // 页内返回唯一出口（2026-10-30 生命周期重构）：防抖 + 栈底不变量收口在这一处。
+    // ① 栈底不变量：起始目的地（录制页）**不许被页内返回弹掉**——弹掉 = 返回栈清空 =
+    //    NavHost 无内容可画 = 整窗黑，且 Activity 不会自动结束（r39 日志 isFinishing=false
+    //    实录）。录制页没有页内返回钮，这条路径只来自转场迟到的误点；想退出用系统返回。
+    // ② 防抖：转场 ~300ms，400ms 内的第二次 pop 是同一次手滑的余波，一律忽略。
+    // ③ 系统返回不走这里：返回栈只剩起始页时由系统正常结束 Activity（既有实测行为）。
+    var lastPopAt by remember { mutableStateOf(0L) }
+    fun navigateBack(): Boolean {
+        if (nav.currentDestination?.id == nav.graph.startDestinationId) return false
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastPopAt < 400L) return false
+        lastPopAt = now
+        return nav.popBackStack()
+    }
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -262,15 +510,34 @@ private fun WotaRoot() {
     DisposableEffect(nav, activity) {
         // 窗口归 MainActivity 所有：常亮/高亮也走这一条目的地回调（单一真源见 ui/WindowKeepOn.kt），
         // 与「某个页面何时重组/何时离开组合」彻底解耦
-        val windowOwner = activity as? MainActivity
         val listener = NavController.OnDestinationChangedListener { _, destination, _ ->
+            // 目的地留痕（2026-10-30 黑屏取证）：黑屏投诉里最关键的问题就是"黑的那一屏是哪个
+            // 页面"——状态栏可见与否只能缩小范围，这一行直接写名。一次导航一行，量级可忽略。
+            com.wotagei.cam.diag.Diag.i("WotaNav", "目的地 → ${destination.route}")
             applyPageMode(activity, destination.route)
             windowOwner?.onRouteForWindowKeepOn(destination.route)
-            // 设置页覆盖保活旗标（2026-10-29 手动白平衡绿帧）：此监听在 navigate/popBackStack 时
-            // 同步触发、先于旧页 dispose，旗标读到的新值即时生效。相机 entry 不在栈上时按 false 走老路。
-            runCatching {
-                CameraController.of(nav.getBackStackEntry(ROUTE_CAMERA))
-            }.getOrNull()?.previewKeptBehind = destination.route == ROUTE_SETTINGS
+            // 页面保活旗标（2026-10-29 手动白平衡绿帧 / 2026-10-30 黑屏三次修订扩面）：
+            // 此监听在 navigate/popBackStack 时**同步触发、先于旧页 dispose 与 ON_PAUSE**，
+            // 旗标读到的新值即时生效。口径：离开录制页就保活——设置页无限期（r28 既有语义），
+            // 其他前台页给宽限（到点自动关，见 CameraController.PAGE_KEEP_ALIVE_MS）；
+            // 门面 = Activity 作用域单例（2026-10-30 生命周期重构）：与录制页取同一实例，
+            // 不再按导航条目回查——导航竞态从此与相机状态彻底解耦，回场保活/看门狗的
+            // 控制器引用也不再依赖"条目恰好在栈上"。
+            val cameraCtrl = windowOwner?.let { CameraController.of(it) }
+            if (cameraCtrl != null) {
+                windowOwner?.previewCtrl = cameraCtrl
+                if (destination.route == ROUTE_CAMERA) {
+                    cameraCtrl.cancelPreviewKeepAlive()
+                } else {
+                    cameraCtrl.keepPreviewAlive(
+                        if (destination.route == ROUTE_SETTINGS) 0L else CameraController.PAGE_KEEP_ALIVE_MS
+                    )
+                }
+            }
+            // Activity 级预览自愈（与页面组合解耦）：路由进出录制页时起停
+            windowOwner?.onRouteForPreviewWatch(destination.route, cameraCtrl)
+            // 导航栈只读探针（看门狗自救分流：栈空 ⇒ finish / 栈在内容没 ⇒ recreate）
+            windowOwner?.navStateProvider = { nav }
         }
         nav.addOnDestinationChangedListener(listener)
         onDispose { nav.removeOnDestinationChangedListener(listener) }
@@ -295,39 +562,47 @@ private fun WotaRoot() {
         startDestination = ROUTE_CAMERA
     ) {
         composable(ROUTE_CAMERA) {
-            TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
-                CameraScreen(
-                    onOpenGallery = { nav.navigate(WotaNav.GALLERY) },
-                    onOpenSettings = { nav.navigate(ROUTE_SETTINGS) },
-                    // 练习动线回程（2026-10-04 方向 4 + 同日裁决）：录成后定向弹回对比页。
-                    // 用户可能录成前绕经媒体库/播放器——无差别 popBackStack() 只退一层会落错层
-                    // （数据不丢但人到媒体库）。这里定向弹到对比页 route，途中的绕行探索页被
-                    // 一并弹掉属预期；对比页不在栈内（异常动线）时保底回普通弹栈。该回调只在
-                    // ComparePractice.deliver 成功（练习桥 armed）时被调，普通录制路径零影响。
-                    onPracticeFinish = {
-                        if (!nav.popBackStack(WotaNav.COMPARE, false)) nav.popBackStack()
-                    }
-                )
+            DestinationPresence(windowOwner, ROUTE_CAMERA) {
+                TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
+                    CameraScreen(
+                        onOpenGallery = { nav.navigate(WotaNav.GALLERY) },
+                        onOpenSettings = { nav.navigate(ROUTE_SETTINGS) },
+                        // 练习动线回程（2026-10-04 方向 4 + 同日裁决）：录成后定向弹回对比页。
+                        // 用户可能录成前绕经媒体库/播放器——无差别 popBackStack() 只退一层会落错层
+                        // （数据不丢但人到媒体库）。这里定向弹到对比页 route，途中的绕行探索页被
+                        // 一并弹掉属预期；对比页不在栈内（异常动线）时保底回普通弹栈。该回调只在
+                        // ComparePractice.deliver 成功（练习桥 armed）时被调，普通录制路径零影响。
+                        onPracticeFinish = {
+                            // 程序化定向返回（非用户手势）：栈上必有录制页在 COMPARE 之下，
+                            // 不会触发"弹掉栈底"竞态，故不走 navigateBack 的栈底不变量
+                            if (!nav.popBackStack(WotaNav.COMPARE, false)) nav.popBackStack()
+                        }
+                    )
+                }
             }
         }
         composable(WotaNav.GALLERY) {
-            GalleryEntryScreen(
-                onOpen = { id -> nav.navigate(WotaNav.player(id)) },
-                onCompare = { id -> nav.navigate(WotaNav.compare(id)) },
-                onBack = { nav.popBackStack() }
-            )
+            DestinationPresence(windowOwner, WotaNav.GALLERY) {
+                GalleryEntryScreen(
+                    onOpen = { id -> nav.navigate(WotaNav.player(id)) },
+                    onCompare = { id -> nav.navigate(WotaNav.compare(id)) },
+                    onBack = { navigateBack() }
+                )
+            }
         }
         composable(
             route = WotaNav.PLAYER,
             arguments = listOf(navArgument(WotaNav.PLAYER_ARG) { type = NavType.LongType })
         ) { entry ->
-            PlayerScreen(
-                mediaId = entry.arguments?.getLong(WotaNav.PLAYER_ARG) ?: -1L,
-                onBack = { nav.popBackStack() },
-                onCompare = { id -> nav.navigate(WotaNav.compare(id)) },
-                // 起播渐亮（29 §5.3-②）：页面只上报"起播了"，武装闸与窗口写入收口在 MainActivity
-                onPlaybackStarted = { (activity as? MainActivity)?.onPlayerPlaybackStarted() }
-            )
+            DestinationPresence(windowOwner, WotaNav.PLAYER) {
+                PlayerScreen(
+                    mediaId = entry.arguments?.getLong(WotaNav.PLAYER_ARG) ?: -1L,
+                    onBack = { navigateBack() },
+                    onCompare = { id -> nav.navigate(WotaNav.compare(id)) },
+                    // 起播渐亮（29 §5.3-②）：页面只上报"起播了"，武装闸与窗口写入收口在 MainActivity
+                    onPlaybackStarted = { windowOwner?.onPlayerPlaybackStarted() }
+                )
+            }
         }
         composable(
             route = WotaNav.COMPARE,
@@ -335,24 +610,30 @@ private fun WotaRoot() {
                 navArgument(WotaNav.COMPARE_ARG_LEFT) { type = NavType.LongType; defaultValue = -1L }
             )
         ) { entry ->
-            CompareScreen(
-                leftMediaId = entry.arguments?.getLong(WotaNav.COMPARE_ARG_LEFT) ?: -1L,
-                onBack = { nav.popBackStack() },
-                onPractice = { nav.navigate(ROUTE_CAMERA) }
-            )
-        }
-        composable(ROUTE_SETTINGS) {
-            TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS)) {
-                SettingsScreen(
-                    onBack = { nav.popBackStack() },
-                    onOpenHudEditor = { nav.navigate(ROUTE_HUD_EDITOR) }
+            DestinationPresence(windowOwner, WotaNav.COMPARE) {
+                CompareScreen(
+                    leftMediaId = entry.arguments?.getLong(WotaNav.COMPARE_ARG_LEFT) ?: -1L,
+                    onBack = { navigateBack() },
+                    onPractice = { nav.navigate(ROUTE_CAMERA) }
                 )
             }
         }
+        composable(ROUTE_SETTINGS) {
+            DestinationPresence(windowOwner, ROUTE_SETTINGS) {
+                TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS)) {
+                    SettingsScreen(
+                        onBack = { navigateBack() },
+                        onOpenHudEditor = { nav.navigate(ROUTE_HUD_EDITOR) }
+                    )
+                }
+            }
+        }
         composable(ROUTE_HUD_EDITOR) {
-            // 编辑的是录制页的控件，文本高度也走录制页那一档，两边量出来的宽度才同一个数
-            TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
-                HudLayoutEditorScreen(onBack = { nav.popBackStack() })
+            DestinationPresence(windowOwner, ROUTE_HUD_EDITOR) {
+                // 编辑的是录制页的控件，文本高度也走录制页那一档，两边量出来的宽度才同一个数
+                TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
+                    HudLayoutEditorScreen(onBack = { navigateBack() })
+                }
             }
         }
     }

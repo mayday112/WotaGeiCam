@@ -45,8 +45,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -95,6 +93,7 @@ import com.wotagei.cam.ui.design.PillSlider
 import com.wotagei.cam.ui.design.WotaColor
 import com.wotagei.cam.ui.design.WotaShape
 import com.wotagei.cam.ui.design.WotaSpace
+import com.wotagei.cam.ui.design.WotaSwitch
 import com.wotagei.cam.ui.design.WotaType
 import com.wotagei.cam.ui.design.wotaCard
 import com.wotagei.cam.ui.theme.MonoStyle
@@ -192,6 +191,13 @@ object WotaSettings {
     /** 降噪两项（2026-10-26）：默认关，与相机参数同一条"录制页即改即存"纪律 */
     const val KEY_DENOISE_AUDIO = "denoise_audio"
     const val KEY_DENOISE_VIDEO = "denoise_video"
+
+    /**
+     * 等号档曝光纠偏（2026-11-01 用户定版）：自动开关（默认 true）与手动滑杆值
+     * （ns，0..8_000_000、0.5ms 步进，自动关时生效）。与相机参数同一条"录制页即改即存"纪律。
+     */
+    const val KEY_CORRECTION_AUTO = "correction_auto"
+    const val KEY_CORRECTION_MANUAL_NS = "correction_manual_ns"
 
     /**
      * 站位线的**间距与颜色**（2026-10-27 用户裁决）：只持久化这两项，
@@ -858,13 +864,13 @@ private fun BlockDefault(prefs: SharedPreferences) {
                     color = WotaTextDim
                 )
             }
-            Switch(
+            WotaSwitch(
                 checked = defaultMuted,
                 onCheckedChange = {
                     defaultMuted = it
                     prefs.edit().putBoolean(WotaSettings.KEY_DEFAULT_AUDIO_MUTE, it).apply()
                 },
-                colors = SwitchDefaults.colors(checkedTrackColor = WotaColor.accentActive, checkedThumbColor = WotaColor.onAccent)
+
             )
         }
     }
@@ -1079,7 +1085,7 @@ private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
                     color = WotaTextDim
                 )
             }
-            Switch(
+            WotaSwitch(
                 checked = frostBlur,
                 onCheckedChange = {
                     frostBlur = it
@@ -1088,7 +1094,7 @@ private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
                     // GL 在下一帧把它搬进引擎那枚门（UI 拿不到引擎实例，这是唯一一条生产路）
                     FrostCardTable.setUiEnabled(it)
                 },
-                colors = SwitchDefaults.colors(checkedTrackColor = WotaColor.accentActive, checkedThumbColor = WotaColor.onAccent)
+
             )
         }
     }
@@ -1238,13 +1244,13 @@ private fun BlockLevel(prefs: SharedPreferences) {
                 color = WotaText,
                 modifier = Modifier.weight(1f)
             )
-            Switch(
+            WotaSwitch(
                 checked = levelEnabled,
                 onCheckedChange = {
                     levelEnabled = it
                     prefs.edit().putBoolean(WotaSettings.KEY_LEVEL_ENABLED, it).apply()
                 },
-                colors = SwitchDefaults.colors(checkedTrackColor = WotaColor.accentActive, checkedThumbColor = WotaColor.onAccent)
+
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1260,13 +1266,13 @@ private fun BlockLevel(prefs: SharedPreferences) {
                     color = WotaTextDim
                 )
             }
-            Switch(
+            WotaSwitch(
                 checked = levelBuzz,
                 onCheckedChange = {
                     levelBuzz = it
                     prefs.edit().putBoolean(WotaSettings.KEY_LEVEL_BUZZ, it).apply()
                 },
-                colors = SwitchDefaults.colors(checkedTrackColor = WotaColor.accentActive, checkedThumbColor = WotaColor.onAccent)
+
             )
         }
     }
@@ -1611,18 +1617,14 @@ private fun BlockDiag(prefs: SharedPreferences) {
                 color = WotaText,
                 modifier = Modifier.weight(1f)
             )
-            Switch(
+            WotaSwitch(
                 checked = diagOn,
                 onCheckedChange = {
                     diagOn = it
                     WotaSettings.setDiagEnabled(prefs, it)
                     // 运行期立即生效（日志器不用重启应用）
                     com.wotagei.cam.diag.Diag.setEnabled(it)
-                },
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = WotaColor.accentActive,
-                    checkedThumbColor = WotaColor.onAccent
-                )
+                }
             )
         }
         Text(
@@ -1640,7 +1642,7 @@ private fun BlockDiag(prefs: SharedPreferences) {
                 modifier = Modifier.weight(1f)
             )
             // 总开关关 ⇒ 详细档置灰不可切（没开着记录，"记多细"无从谈起）
-            Switch(
+            WotaSwitch(
                 checked = verbose,
                 onCheckedChange = {
                     verbose = it
@@ -1648,11 +1650,7 @@ private fun BlockDiag(prefs: SharedPreferences) {
                     // 运行期立即生效（日志器不用重启应用）
                     com.wotagei.cam.diag.Diag.setVerbose(it)
                 },
-                enabled = diagOn,
-                colors = SwitchDefaults.colors(
-                    checkedTrackColor = WotaColor.accentActive,
-                    checkedThumbColor = WotaColor.onAccent
-                )
+                enabled = diagOn
             )
         }
         Text(
@@ -1860,7 +1858,7 @@ private fun ChipCell(text: String, selected: Boolean, modifier: Modifier = Modif
     // 只有 3.91:1 不过 AA 正文，对 #0A59F7 5.55:1 过（见 WotaColor.accentSurface 注）
     val fill = if (selected) WotaColor.accentSurface else Color.Transparent
     val labelColor = if (selected) WotaColor.onAccent else WotaColor.textHi
-    val scale by animateFloatAsState(if (pressed) motion.pressScale else 1f, motion.float)
+    val scale by animateFloatAsState(if (pressed) motion.pressScale else 1f, motion.press)
     Box(
         modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
