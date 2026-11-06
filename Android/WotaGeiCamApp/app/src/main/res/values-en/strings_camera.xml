@@ -277,6 +277,22 @@
     <string name="cam_glow_broken">Glow disabled</string>
     <string name="cam_glow_clamped">Clamped to %1$d×%2$d due to device texture limit</string>
     <string name="cam_glow_direct">Switch to \"Use GPU\" to take effect</string>
+
+    <!-- ============ Echo (R2 Highlight Trail) ============ -->
+    <string name="cam_pill_echo">Echo</string>
+    <string name="cam_echo_title">Echo (Highlight Trail)</string>
+    <string name="cam_echo_note">Echo is baked into the recorded video (multi-frame blend); parameter changes take effect on the next frame</string>
+    <string name="cam_echo_mode_title">Blend Mode</string>
+    <string name="cam_echo_mode_keep">Keep Brightness</string>
+    <string name="cam_echo_mode_trail">Bright Trail</string>
+    <string name="cam_echo_mode_hint">Keep Brightness = solid star-trail-style long arcs, background unchanged; Bright Trail = only highlights leave a comet tail</string>
+    <string name="cam_echo_multiplier">Arc Multiplier</string>
+    <string name="cam_echo_multiplier_hint">Higher multiplier = longer arcs; use high values carefully (image may smear)</string>
+    <string name="cam_echo_threshold">Highlight Threshold</string>
+    <string name="cam_echo_threshold_hint">Only applies in \"Bright Trail\" mode; 100% = only the brightest pixels leave a trail</string>
+    <string name="cam_echo_gain">Trail Strength</string>
+    <string name="cam_echo_broken">Echo disabled</string>
+    <string name="cam_echo_direct">Switch to \"Use GPU\" to take effect</string>
     <string name="denoise_audio_off">Off</string>
     <string name="denoise_audio_system">System Denoise</string>
     <string name="denoise_video_off">Off</string>

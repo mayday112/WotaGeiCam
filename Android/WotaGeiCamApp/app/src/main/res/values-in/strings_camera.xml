@@ -277,6 +277,22 @@
     <string name="cam_glow_broken">Glow dinonaktifkan</string>
     <string name="cam_glow_clamped">Dibatasi ke %1$d×%2$d karena batas tekstur perangkat</string>
     <string name="cam_glow_direct">Beralih ke \"Gunakan GPU\" agar berfungsi</string>
+
+    <!-- ============ Jejak (Echo) ============ -->
+    <string name="cam_pill_echo">Jejak (Echo)</string>
+    <string name="cam_echo_title">Jejak Cahaya (Echo)</string>
+    <string name="cam_echo_note">Efek jejak masuk ke hasil rekaman (gabungan beberapa frame dibake ke piksel); perubahan parameter berlaku di frame berikutnya</string>
+    <string name="cam_echo_mode_title">Mode Penggabungan</string>
+    <string name="cam_echo_mode_keep">Pertahankan Kecerahan</string>
+    <string name="cam_echo_mode_trail">Ekor Terang</string>
+    <string name="cam_echo_mode_hint">Pertahankan Kecerahan = lintasan panjang padat ala star trail, latar tidak berubah; Ekor Terang = hanya bagian terang yang meninggalkan ekor komet</string>
+    <string name="cam_echo_multiplier">Pengali Lintasan</string>
+    <string name="cam_echo_multiplier_hint">Semakin tinggi semakin panjang lintasannya; hati-hati di nilai tinggi (gambar bisa blur)</string>
+    <string name="cam_echo_threshold">Ambang Sorotan</string>
+    <string name="cam_echo_threshold_hint">Hanya berlaku di mode \"Ekor Terang\"; 100% = hanya piksel paling terang yang meninggalkan jejak</string>
+    <string name="cam_echo_gain">Kekuatan Ekor</string>
+    <string name="cam_echo_broken">Efek jejak dinonaktifkan</string>
+    <string name="cam_echo_direct">Beralih ke \"Gunakan GPU\" agar berfungsi</string>
     <string name="denoise_audio_off">Nonaktif</string>
     <string name="denoise_audio_system">Sistem</string>
     <string name="denoise_video_off">Nonaktif</string>

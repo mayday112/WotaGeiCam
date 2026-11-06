@@ -42,8 +42,8 @@
     <string name="cam_p_wb">白平衡</string>
     <!-- 手动白平衡的算法兜底（2026-10-28 用户需求）：本机未声明手动白平衡增益支持时，
          手动档改由画面算法乘相对增益落地，必须在弹层与运行时讲明 -->
-    <string name="cam_wb_gl_fallback">此设备未声明手动白平衡增益支持，已改由画面算法处理：色温/色调是相对自动白平衡的偏移，不再下发相机增益</string>
-    <string name="cam_wb_gl_fallback_toast">此设备未声明手动白平衡增益支持，手动白平衡已改为画面算法处理</string>
+    <string name="cam_wb_gl_fallback">本机白平衡不接受手动增益（HAL 未声明支持，或运行期探测到增益未被采纳），已改由画面算法处理：色温/色调是相对自动白平衡的偏移，不再下发相机增益</string>
+    <string name="cam_wb_gl_fallback_toast">本机白平衡不接受手动增益，手动白平衡已改为画面算法处理</string>
     <string name="cam_p_kelvin">色温</string>
     <string name="cam_p_tint">色调</string>
     <string name="cam_p_lens">镜头</string>
@@ -113,6 +113,10 @@
     <string name="cam_display_scale">预览分辨率</string>
     <string name="cam_display_scale_orig">原片</string>
     <string name="cam_display_scale_readout">预览：%1$s</string>
+    <!-- 等号档曝光纠偏（2026-11-01 用户定版 / docs/plan/31）：快门面板 1/24、1/25 档的微调入口 -->
+    <string name="cam_shutter_correction_auto">自动微调曝光</string>
+    <string name="cam_shutter_correction_auto_hint">自动微调曝光以稳帧</string>
+    <string name="cam_shutter_correction_manual">手动微调</string>
     <string name="cam_display_scale_note">只影响取景器上屏的渲染分辨率，成片画质不变。调低会把 GPU 帧预算让给录制、补弧与降噪，减少 4K 下的掉帧与发热。</string>
     <string name="cam_display_scale_current">当前：原片</string>
     <string name="cam_display_scale_current_rt">当前：%1$d（上屏 %2$d×%3$d）</string>
@@ -281,7 +285,7 @@
     <!-- P1（docs/plan/17 §十一 2）：被 hud_pills / hud_items 掩码关掉、但编辑页照旧列出（也照样能摆位）
          的那些条目，在水印层里 hud_edit_note 尾部补这一句。为什么必须有：不说清"它只在编辑页可见"，
          用户会以为"我在编辑页摆的位没生效"（他摆的正是录制页当前不显示的那几颗）。
-         摆位后保存、回录制页把那颗的显示打开，它就回到你摆的这一格。 -->
+         摆位后保存、回录制页把那颗的显示打开，它就回到自己那一格。 -->
     <string name="hud_edit_hidden_entries_note">已关闭显示的控件只在编辑页可见：照样能摆位，保存后回录制页把显示打开，它就回到你摆的这一格</string>
     <string name="hud_zone_top">顶栏胶囊组</string>
     <string name="hud_zone_left">左竖 Dock</string>
@@ -298,7 +302,10 @@
     <string name="cam_glow_note">光晕进成片（烘焙进像素），调参在下一个真帧生效</string>
     <!-- 2026-10-28 用户口径：光晕跟随光棒自身颜色（预设/两端色已删除） -->
     <string name="cam_glow_color">光晕颜色</string>
-    <string name="cam_glow_same_color">点色盘圆心 = 跟随光棒原色；选色后光晕整体偏该色调</string>
+    <string name="cam_glow_same_color">光晕颜色：像素自身颜色 = 亮部发它本来的色；仅色盘颜色 = 亮部统一发所选色。双击色盘归零（白）；点圆心也回中性</string>
+    <string name="cam_glow_color_pixel">像素自身颜色</string>
+    <string name="cam_glow_color_wheel">仅色盘颜色</string>
+    <string name="cam_glow_threshold_hint">100% = 只给画面里最亮的像素加光晕</string>
     <string name="cam_glow_on">开</string>
     <string name="cam_glow_off">关</string>
     <string name="cam_glow_threshold">亮度阈值</string>
@@ -326,6 +333,24 @@
     <string name="cam_glow_broken">Glow 已停用</string>
     <string name="cam_glow_clamped">受机型纹理上限，已夹到 %1$d×%2$d</string>
     <string name="cam_glow_direct">需切到「使用 GPU」才生效</string>
+
+    <!-- ============ 残影（R2 高光拖影，2026-11-05；docs/research/R2） ============ -->
+    <string name="cam_pill_echo">残影</string>
+    <string name="cam_echo_title">残影（高光拖影）</string>
+    <!-- 面板常驻口径：残影是 scene layer（与 Glow/TONE 同一套说明纪律，不许静默） -->
+    <string name="cam_echo_note">残影进成片（多帧叠加烘进像素），调参在下一个真帧生效</string>
+    <string name="cam_echo_mode_title">合成模式</string>
+    <!-- 双模式（R2 §四.2，并入 B 站光弧倍增器已验证语义）：措辞沿用其勾选框原文 -->
+    <string name="cam_echo_mode_keep">保持亮度</string>
+    <string name="cam_echo_mode_trail">提亮拖尾</string>
+    <string name="cam_echo_mode_hint">保持亮度 = 星轨式实心长弧，背景不动；提亮拖尾 = 只有高光拖出彗尾</string>
+    <string name="cam_echo_multiplier">光弧倍数</string>
+    <string name="cam_echo_multiplier_hint">倍数越高弧越长，高倍慎用（画面成糊）</string>
+    <string name="cam_echo_threshold">高光阈值</string>
+    <string name="cam_echo_threshold_hint">只有效果在「提亮拖尾」时参与；100% = 只让画面里最亮的像素拖尾</string>
+    <string name="cam_echo_gain">拖尾强度</string>
+    <string name="cam_echo_broken">残影已停用</string>
+    <string name="cam_echo_direct">需切到「使用 GPU」才生效</string>
     <string name="denoise_audio_off">关闭</string>
     <string name="denoise_audio_system">系统降噪</string>
     <string name="denoise_video_off">关闭</string>

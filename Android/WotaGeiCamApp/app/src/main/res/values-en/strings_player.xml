@@ -106,9 +106,10 @@
     <string name="player_clip_mode_lossless">Lossless</string>
     <string name="player_clip_mode_scene">Post-render</string>
     <string name="player_clip_scene_lossless_note">No re-encoding; video stays exactly as recorded (curves, glow, and denoise are already baked in)</string>
-    <string name="player_clip_scene_none">Neither Glow nor Denoise is active; post-render produces the same result as lossless</string>
+    <string name="player_clip_scene_none">Glow, Denoise, and Echo are all off; post-render produces the same result as lossless</string>
     <string name="player_clip_scene_glow">Glow</string>
     <string name="player_clip_scene_denoise">Denoise</string>
+    <string name="player_clip_scene_echo">Echo</string>
     <string name="player_clip_scene_sep"> + </string>
     <string name="player_clip_scene_summary">Re-encodes video, applying: %1$s</string>
     <string name="player_clip_scene_curve_note">. Curves were already baked in during recording and will not be applied twice</string>
@@ -121,6 +122,13 @@
     <string name="player_clip_cfg_threshold">Glow Brightness Threshold</string>
     <string name="player_clip_cfg_gain">Glow Gain</string>
     <string name="player_clip_cfg_blend">Glow Blend</string>
+    <!-- Echo (R2): toggle + mode + multiplier for this export; threshold/gain shown when in Bright Trail mode -->
+    <string name="player_clip_cfg_echo">Echo</string>
+    <string name="player_clip_cfg_echo_keep">Keep Brightness</string>
+    <string name="player_clip_cfg_echo_trail">Bright Trail</string>
+    <string name="player_clip_cfg_echo_multiplier">Arc Multiplier</string>
+    <string name="player_clip_cfg_echo_threshold">Echo Highlight Threshold</string>
+    <string name="player_clip_cfg_echo_gain">Echo Strength</string>
 
     <!-- Audio Track Selection -->
     <string name="player_track_env">Ambient</string>

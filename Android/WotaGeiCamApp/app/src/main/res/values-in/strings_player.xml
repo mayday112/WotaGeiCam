@@ -105,9 +105,10 @@
     <string name="player_clip_mode_lossless">Tanpa Kompresi (Lossless)</string>
     <string name="player_clip_mode_scene">Render Ulang</string>
     <string name="player_clip_scene_lossless_note">Tanpa encode ulang; video sama persis seperti saat direkam (kurva, glow, dan denoise sudah menyatu)</string>
-    <string name="player_clip_scene_none">Glow maupun Denoise tidak aktif; hasil render ulang sama dengan tanpa kompresi</string>
+    <string name="player_clip_scene_none">Glow, Denoise, dan Jejak tidak aktif; hasil render ulang sama dengan tanpa kompresi</string>
     <string name="player_clip_scene_glow">Glow</string>
     <string name="player_clip_scene_denoise">Denoise</string>
+    <string name="player_clip_scene_echo">Jejak</string>
     <string name="player_clip_scene_sep"> + </string>
     <string name="player_clip_scene_summary">Encode ulang, menerapkan: %1$s</string>
     <string name="player_clip_scene_curve_note">. Kurva sudah menyatu saat perekaman dan tidak dirender ulang di sini</string>
@@ -120,6 +121,13 @@
     <string name="player_clip_cfg_threshold">Ambang Kecerahan Pendar</string>
     <string name="player_clip_cfg_gain">Intensitas Pendar</string>
     <string name="player_clip_cfg_blend">Pencampuran Pendar (Blend)</string>
+    <!-- Jejak (Echo): toggle + mode + pengali pada ekspor ini; ambang/kekuatan tampil di mode Ekor Terang -->
+    <string name="player_clip_cfg_echo">Jejak (Echo)</string>
+    <string name="player_clip_cfg_echo_keep">Pertahankan Kecerahan</string>
+    <string name="player_clip_cfg_echo_trail">Ekor Terang</string>
+    <string name="player_clip_cfg_echo_multiplier">Pengali Lintasan</string>
+    <string name="player_clip_cfg_echo_threshold">Ambang Sorotan Jejak</string>
+    <string name="player_clip_cfg_echo_gain">Kekuatan Jejak</string>
 
     <!-- Pemilihan Trek Audio -->
     <string name="player_track_env">Suara Sekitar</string>
