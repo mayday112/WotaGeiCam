@@ -360,6 +360,11 @@ fun CameraScreen(
      * 长键 LaunchedEffect 会把它下发给 `GlowProvider`（不触发重画，见 setGlowParams 的注释）。
      */
     val glowParams by params.glowParams.observed()
+    /**
+     * 残影参数（R2，2026-11-05）：与 Glow 同一套总线纪律——改参每拍只写总线、落盘走
+     * [persist].flush()、独立 LaunchedEffect 下发给 `EchoProvider`（不触发重画）。
+     */
+    val echoParams by params.echoParams.observed()
     /** 上屏渲染比例（2026-10-27）：只影响窗口 pass 的离屏 RT；换引擎由下面那条长键补发 */
     val displayScale by params.displayScale.observed()
     // 站位指示线（2026-10-27 二轮定版）：**线的开/关只由线数驱动**（0 = 关），没有独立开关——
@@ -884,6 +889,11 @@ fun CameraScreen(
         (activeSink as? com.wotagei.cam.camera.GlowProvider)?.setGlowParams(glowParams)
     }
 
+    // ---- 残影参数下发（R2，2026-11-05）：与 Glow 同一条纪律的姊妹 effect（键/位置/理由逐字同上）
+    LaunchedEffect(activeSink, echoParams) {
+        (activeSink as? com.wotagei.cam.camera.EchoProvider)?.setEchoParams(echoParams)
+    }
+
 
     // ---- GPU 特效档位实时下发；DIRECT 强制无特效（03 文档 §1）
     LaunchedEffect(
@@ -1400,6 +1410,8 @@ fun CameraScreen(
     // 「降噪」那颗同理（2026-10-26）：归属归表说了算，在底栏时走 [BottomBandChips] 的伴随条目渲染，
     // 被搬到别的容器时由那枚容器泛化渲染——同一颗只有一条渲染路，锚点也就只有一个写入方
     val denoiseEntry = HudEntry.of(CamPill.DENOISE)
+    /** 残影（R2）：底栏伴随条目（与降噪同带，排它左侧 = 左起第一颗） */
+    val echoEntry = HudEntry.of(CamPill.ECHO)
 
     // ---- 第 8 条：长按底栏 Dock 换栏（只作用 y，结果写进 hud_layout 的底栏容器那一份坐标）
     var dockDragging by remember { mutableStateOf(false) }
@@ -1607,6 +1619,10 @@ fun CameraScreen(
         toneLabel = stringResource(R.string.cam_pill_tone),
         toneActive = toneParams.isIdentity.not() && renderMode == RenderMode.GPU,
         toneUsable = renderMode == RenderMode.GPU,
+        // 残影（R2，2026-11-05）：读数恒取控件名；DIRECT 下在场但禁用（与 Glow 同口径）
+        echoLabel = stringResource(R.string.cam_pill_echo),
+        echoActive = echoParams.enabled && renderMode == RenderMode.GPU,
+        echoUsable = renderMode == RenderMode.GPU,
         flash = flash,
         // 六项第 7 条：镜头入口从顶栏搬到底栏那颗，标签读当前镜头名
         lensLabel = stringResource(lensLabelRes(slot?.type ?: lens)),
@@ -1680,6 +1696,10 @@ fun CameraScreen(
         },
         onToneClick = {
             if (renderMode == RenderMode.GPU) pop = PillKey.TONE
+            else showTip(app.getString(R.string.cam_monitor_need_gpu))
+        },
+        onEchoClick = {
+            if (renderMode == RenderMode.GPU) pop = PillKey.ECHO
             else showTip(app.getString(R.string.cam_monitor_need_gpu))
         },
         onCurveClick = {
@@ -2146,6 +2166,9 @@ fun CameraScreen(
                                 BottomBandChips(
                                     dockLeftPx = dockLeftPx,
                                     dockStripH = dockStripH,
+                                    echoEntry = echoEntry.takeIf {
+                                        it in visibleEntries && hudLayout.sourceZoneOf(it) == HudZone.BOTTOM
+                                    },
                                     denoiseEntry = denoiseEntry.takeIf {
                                         it in visibleEntries && hudLayout.sourceZoneOf(it) == HudZone.BOTTOM
                                     },
@@ -2319,6 +2342,10 @@ fun CameraScreen(
             // Glow 状态行（分档/停用/夹取/DIRECT）：两个 sink 都实现 GlowProvider，DIRECT 回 available=false
             glowStatusProvider = {
                 (activeSink as? com.wotagei.cam.camera.GlowProvider)?.glowStatus()
+            },
+            // 残影状态行（停用/DIRECT）：与 Glow 同一条纪律——无默认值必传，两个 sink 都实现 EchoProvider
+            echoStatusProvider = {
+                (activeSink as? com.wotagei.cam.camera.EchoProvider)?.echoStatus()
             },
             )
         }
@@ -4093,13 +4120,14 @@ private fun launchCaptureConsent(
 private fun BoxScope.BottomBandChips(
     dockLeftPx: Int,
     dockStripH: Int,
+    echoEntry: HudEntry?,
     denoiseEntry: HudEntry?,
     hudCtx: HudCtx,
     bitrateLabel: String?,
     pillAnchors: MutableMap<PillKey, IntRect>,
     onBitrateClick: () -> Unit
 ) {
-    if (denoiseEntry == null && bitrateLabel == null) return
+    if (echoEntry == null && denoiseEntry == null && bitrateLabel == null) return
     val density = LocalDensity.current
     var rowWpx by remember { mutableIntStateOf(0) }
     val gapPx = with(density) { WotaSpace.s.toPx() }
@@ -4117,6 +4145,14 @@ private fun BoxScope.BottomBandChips(
             .onSizeChanged { if (it.width != rowWpx) rowWpx = it.width },
         horizontalArrangement = Arrangement.spacedBy(WotaSpace.s)
     ) {
+        // 残影（R2，2026-11-05）：与降噪同一条伴随条目路，Row 里排最左（= 贴 Dock 左缘第一颗）
+        if (echoEntry != null) {
+            HudBottomBandEntry(
+                entry = echoEntry,
+                ctx = hudCtx,
+                clicksAccepted = true
+            )
+        }
         if (denoiseEntry != null) {
             HudBottomBandEntry(
                 entry = denoiseEntry,
@@ -4258,15 +4294,20 @@ private fun DisplayScaleReadout(scale: DisplayScale, anchor: IntRect) {
 private fun ExposureTelemetryReadout(params: WotaParams, anchor: IntRect) {
     val aeMode by params.aeMode.observed()
     val sentNs by params.actualSentExposureNs.observed()
+    val shutterState by params.shutter.observed()
     val fpsMeasured by params.actualFps.observed()
     val corrAuto by params.exposureCorrectionAuto.observed()
     val corrNs by params.actualCorrectionNs.observed()
     if (aeMode != AeMode.MANUAL) return
     val sent = sentNs ?: return
     if (sent <= 0L) return
+    // 分数标按**设定快门**反推，不按实发值（2026-11-05 用户反馈）：等号档纠偏会把实发曝光
+    // 压低一个余量（1/24=41.67ms 纠 2.1ms → 实发 39.6ms），拿实发反推会标成 1/25，看着像快门
+    // 被改了。设定快门才是用户的锚（1/24）；实发 ms + 末尾余量读数共同呈现纠偏效果。
+    val refNs = shutterState.value.takeIf { it > 0L } ?: sent
     val expPart = "%.1f ms | 1/%d".format(
         sent / 1_000_000.0,
-        (WotaTiers.NS_PER_SECOND.toDouble() / sent).roundToInt().coerceAtLeast(1)
+        (WotaTiers.NS_PER_SECOND.toDouble() / refNs).roundToInt().coerceAtLeast(1)
     )
     val fpsPart = fpsMeasured?.let { "%.0f fps".format(it) } ?: "-- fps"
     val modePart = stringResource(if (corrAuto) R.string.cam_ae_auto else R.string.cam_ae_manual)

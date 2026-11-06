@@ -114,10 +114,16 @@ class GlowWiringGuardTest {
         val link = slice("linkProgram") ?: return bad + "linkProgram 定位失败"
         val fragment = slice("fragmentFor") ?: return bad + "fragmentFor 定位失败"
         if (!link.contains("Shaders.TEXTURE_VS_GLOW")) bad.add("glow=true 时必须配 TEXTURE_VS_GLOW")
-        if (!link.contains("else Shaders.TEXTURE_VS")) bad.add("glow=false 时必须配 TEXTURE_VS（源码逐字不变）")
+        // 2026-11-05（R2 残影）：顶点选择从 if/else 改成 when（四枚变体），兜底分支形态随之更新
+        if (!link.contains("else -> Shaders.TEXTURE_VS")) bad.add("glow=false 时必须配 TEXTURE_VS（源码逐字不变）")
         if (!fragment.contains("glowFragment(")) bad.add("片元必须经 glowFragment 注入")
-        if (!fragment.contains("if (!key.glow) return base")) {
-            bad.add("fragmentFor 必须先短路 glow=false（关着时一字节都不注入）")
+        // 2026-11-05（R2 真机缺陷修复）：glow 必须按 key.glow 条件注入，但**不许 return base 短路**——
+        // 那会把 echo 一起挡掉（glow 默认关 ⇒ 残影恒不生效）。echo 注入必须独立于 glow。
+        if (!fragment.contains("val withGlow = if (key.glow)")) {
+            bad.add("fragmentFor 必须按 key.glow 条件注入 Glow（关着不注入，且不得 return base 挡掉 echo）")
+        }
+        if (!fragment.contains("echoFragment(withGlow, key.effect, glowOn = key.glow)")) {
+            bad.add("fragmentFor 的 echo 注入必须独立于 glow（glowOn=key.glow，glow 关也能注 echo）")
         }
         if (!link.contains("fragmentFor(key) ?: return null")) {
             bad.add("注入失败必须整条链接失败（让回退阶梯降掉 glow），不许静默用无 Glow 源")
@@ -134,11 +140,15 @@ class GlowWiringGuardTest {
     @Test
     fun `尺子能红_删掉glow短路或键维度必红`() {
         assertEquals("真身必须绿", emptyList<String>(), fragmentIssues(engine))
-        // 突变 1：删掉 `if (!key.glow) return base`（= 关着也走注入，零代价破产）
-        val noShortCircuit = engine.replace("        if (!key.glow) return base", "")
+        // 突变 1：回潮 2026-11-05 真机缺陷——把条件注入改回 `if (!key.glow) return base` 短路
+        //（glow 关着直接返回 base，echo 被一起挡掉 ⇒ 预览/成片残影恒不生效）
+        val buggyShortCircuit = engine.replace(
+            "val withGlow = if (key.glow) (Shaders.glowFragment(base, key.effect) ?: return null) else base",
+            "if (!key.glow) return base\n        val withGlow = Shaders.glowFragment(base, key.effect) ?: return null"
+        )
         assertTrue(
-            "删掉 glow 短路的突变必须报红",
-            fragmentIssues(noShortCircuit).any { it.contains("短路") }
+            "回潮 glow 短路（挡掉 echo）的突变必须报红",
+            fragmentIssues(buggyShortCircuit).isNotEmpty()
         )
         // 突变 2：键维度写死 false（= 开关不进 program 键）
         val stuckOff = engine.replace("fun glowOn(): Boolean = glowParams.enabled", "fun glowOn(): Boolean = false")
@@ -173,8 +183,8 @@ class GlowWiringGuardTest {
         )
         assertTrue("预热必须只在 enabled 时做", body("replaceEncoderSurface").contains("glowParams.enabled"))
         val prewarm = body("prepareGlowPrograms")
-        assertTrue("成片槽的 glow=1 变体", prewarm.contains("movieProgramKey(curveOn, denoise, glow = true)"))
-        assertTrue("上屏槽的 glow=1 变体", prewarm.contains("displayProgramKey(wantEffect, curveOn, denoise, glow = true)"))
+        assertTrue("成片槽的 glow=1 变体", prewarm.contains("movieProgramKey(curveOn, denoise, glow = true, echo = echoOn())"))
+        assertTrue("上屏槽的 glow=1 变体", prewarm.contains("displayProgramKey(wantEffect, curveOn, denoise, glow = true, echo = echoOn())"))
         val release = body("releaseGl")
         assertTrue("releaseGl 必须收链", release.contains("glowChain?.release()"))
         assertTrue("releaseGl 必须删 1×1 黑纹理", release.contains("glowBlackTex"))
@@ -266,7 +276,7 @@ class GlowWiringGuardTest {
     private fun uiWiringIssues(pillsSrc: String): List<String> {
         val bad = ArrayList<String>()
         // 29 §4.4（2026-10-28）起 PillKey 末尾是 TONE：GLOW 仍在 TONE 之前
-        if (!pillsSrc.contains("DENOISE, GLOW, TONE }")) bad.add("PillKey 末尾必须有 GLOW, TONE")
+        if (!pillsSrc.contains("DENOISE, GLOW, TONE, ECHO }")) bad.add("PillKey 末尾必须有 GLOW, TONE, ECHO（2026-11-05 R2 加 ECHO）")
         if (!pillsSrc.contains("PillKey.MONITOR, PillKey.GLOW")) bad.add("GLOW 必须进录制可调白名单")
         if (!pillsSrc.contains("PillKey.GLOW to")) bad.add("pillAnchorWriters 缺 GLOW 一行（浮层会弹到屏幕原点）")
         if (!pillsSrc.contains("PillKey.GLOW -> GlowPill(")) bad.add("PillHost 缺 GLOW → GlowPill 分支")
@@ -297,9 +307,10 @@ class GlowWiringGuardTest {
 
     @Test
     fun `UI登记_枚举位掩码与持久化键的真值`() {
-        // 位掩码：GLOW 必须是新加的一位（版本 2 补位）；2026-10-28 起 schema=3（+TONE，不自动补位）
+        // 位掩码：GLOW 必须是新加的一位（版本 2 补位）；2026-10-28 起 schema=3（+TONE），
+        // 2026-11-05 起 schema=4（+ECHO，R2；两颗都不自动补位）
         assertEquals(16384, com.wotagei.cam.core.CamPill.GLOW.bit)
-        assertEquals(3, com.wotagei.cam.core.CamPill.MASK_SCHEMA)
+        assertEquals(4, com.wotagei.cam.core.CamPill.MASK_SCHEMA)
         assertEquals(
             com.wotagei.cam.core.CamPill.GLOW.bit,
             com.wotagei.cam.core.CamPill.ADDED_IN_SCHEMA[2]
