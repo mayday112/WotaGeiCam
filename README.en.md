@@ -40,10 +40,11 @@ If you need an English / Indonesian (Bahasa Indonesia) interface, his build is r
 
 **🌟 Light-arc tool chain · film beautiful light arcs**
 - Forced slow shutter **1/24 · 1/25** full-window long exposure keeps arcs continuous; **equal-tier exposure correction** automatically leaves readout headroom to prevent frame drops.
-- **Afterimage (highlight trailing)**: multi-frame echo lengthens arcs, "keep brightness / brightened trail" dual modes, multiplier 2–10×, across preview / recording / re-rendered export. (Algorithm concept referenced from Bilibili creator 蒙德·究史尼's open-source 光弧倍增器 script — with thanks; see Light-arc tool chain below)
+- **Afterimage (highlight trailing)**: multi-frame echo lengthens arcs, with "keep brightness / brightened trail" modes and a 2–10× multiplier; brightened trails support **Add / Subtract / Only / Except** color modes and double-tap palette reset across preview / recording / re-rendered export. (Algorithm concept referenced from Bilibili creator 蒙德·究史尼's open-source 光弧倍增器 script — with thanks; see Light-arc tool chain below)
 - **In-recording extract + arc merge + offline arc repair**: devices without a native slow tier still keep continuous arcs.
 
 **🎯 Practice comparison · practice standard moves**
+- **AI stance hints**: in preview, detects stance and speaks a per-slot correction ("left / right / forward / backward") with a character voice and a closing tag at the end of each polling round; done / missing / extra people and all-done each have their own prompt; polling rhythm (in-round / between-round intervals) and judgement precision are adjustable; GPU acceleration has three modes; pauses automatically while recording and resumes after.
 - **Split-screen reference**: one side plays a reference video (using its audio directly), the other records the subject, so the recorder can compare the subject's practice against the reference; the subject is being recorded and cannot watch-while-practicing, so the reference audio guides the rhythm.
 - **Dual-track comparison**: compare your practice side-by-side with the reference, switchable audio tracks, auto-aligned by audio.
 
@@ -85,6 +86,7 @@ Listed by category below, each with its **location**, **how to open it**, and **
 | Glow | Left dock "glow" pill | On/off + threshold / strength / blend; color modes "pixel's own / palette only"; preview and recording; GPU only |
 | Reference lines / grid | Left dock "reference line" button | Multi-select line types (thirds / diagonals / safe frame / grid, …); defaults in Settings → Reference lines |
 | Position lines | Top-bar right round button (left of the split button) | Tap to open the overlay for count / spacing, long-press to pick color; preview overlay only, not recorded, usable during recording |
+| AI stance hints | Top-bar right round button (left of the position-lines button) | Detects stance in preview and speaks a per-slot direction with a character voice (left / right / forward / backward); 1–5 people, auto / manual count, precision β, polling intervals (in-round / between rounds), night pre-brighten, GPU acceleration (auto / force / off) and model-pack import; settings persist immediately; pauses during recording and resumes after; **full variant only** — the lite build shows a guide on this button instead (see [Known Issues](#known-issues-and-limitations)) |
 | Level / pitch gauges | Right dock | Light vibration when level; toggle in Settings → Framing aids |
 | Readout block | Bottom-right readout block | Shutter / frame rate / bitrate / ISO / EV / white balance / zoom; per-item show/hide in Settings → Viewfinder persistent controls |
 | Custom control layout | Settings → Viewfinder persistent controls → Edit controls | Drag to place the docks and readout block; panels follow each control's anchor |
@@ -117,9 +119,13 @@ Listed by category below, each with its **location**, **how to open it**, and **
 | Feature | Location · How to open | Usage |
 |---|---|---|
 | In-recording extract + arc merge | Frame-rate readout panel (auto when no native 24/25 tier) | "Auto-extract with arc merging" keeps arcs continuous / "extract only"; dropped slots logged to a `.drops.json` sidecar |
-| Afterimage (highlight trailing) | Bottom dock left "afterimage" pill (hidden by default) | Enable in Settings → Viewfinder persistent controls; pick mode (keep brightness / brightened trail) and multiplier 2–10×; preview / recording / re-rendered export; GPU only |
+| Afterimage (highlight trailing) | Bottom dock left "afterimage" pill (hidden by default) | Enable in Settings → Viewfinder persistent controls; pick mode (keep brightness / brightened trail) and multiplier 2–10×; brightened trails have threshold / strength controls; preview / recording / re-rendered export; GPU only |
+| Trail color | Afterimage panel → Brightened trail; or Player → Clip → Re-render → Afterimage | Off by default; Add tints the trail, Subtract removes the selected color components; Only lets matching bright pixels trail, Except lets the other bright pixels trail, both retaining the source pixels' own colors; keep-brightness mode is unaffected |
+| Color tolerance / palette reset | Trail color controls | Tolerance 5–80%, adjustable only for Only / Except; double-tap the palette to restore "Off + white" without changing other parameters; export-panel adjustments apply to that export only |
 | Offline arc repair | Player → Arc repair | Pick the target rate, GPU or CPU; writes a new file, never overwrites the original |
 | Merge threshold | Frame-rate panel / arc-repair panel / Settings → Startup defaults | Default 12 (0–32); higher is more conservative, lower merges noise; same rule for recording and offline, CPU and GPU |
+
+Trail color affects the trail, not the current source image. White/gray and colored pixels are matched separately: widening the tolerance does not select white/gray as a color. "Except red" still allows white; use "Except white" to exclude neutral pixels. Color selection cannot recover the original hue of pixels already clipped to white; use Add to tint white trails. Bright multi-frame accumulation can still saturate to white.
 
 > The afterimage feature's **algorithm concept and product semantics** (multi-frame echo to lengthen arcs, keep-brightness / brightened-trail dual modes, multiplier tiers) reference the open-source script 光弧倍增器 (Light-arc Multiplier) by Bilibili creator [蒙德·究史尼](https://space.bilibili.com/8205741) — with sincere thanks. What was borrowed is the idea and semantics; **no source code was reused** — the shaders and implementation here were written independently, on a different technical approach (real-time GL feedback accumulation with arcs trailing behind the motion, rather than its offline Python sliding window that placed arcs ahead of it).
 
@@ -142,7 +148,11 @@ Planned / under research, not yet landed:
 
 ## Known Issues and Limitations
 
-An honest list of the currently known problem surface (verified through v0.0.12-r01; updated as feedback comes in):
+An honest list of the currently known problem surface (verified through v0.0.12-r05; updated as feedback comes in):
+
+- **AI stance hints are experimental (full variant carries them as of v0.0.12-r05)**: the detection model and judgement logic pass unit tests and model-tensor checks, but **on-device recognition accuracy has not been systematically verified** (especially in low light, at long distance, and with multiple people). The default safe-zone values come from a small set of PC-lab annotations; when moving to a new camera position or venue, adjust the precision β and "pre-brighten" first and treat the actual prompts as authoritative. The model pack can be replaced from a PC; a bad pack falls back to the built-in one automatically. The GPU "auto" mode is decided by the compatibility whitelist — GPUs outside it (e.g. some HiSilicon Maleoon devices) have been verified working on the "force" mode, with automatic fallback to CPU if runtime verification fails.
+
+- **Stance-hint voice is customizable (fork developers)**: the spoken prompts are 14 WAV files in `Android/WotaGeiCamApp/app/src/full/assets/voice/`, picked by filename contract: `num_1`–`num_5` (slot numbers), `dir_left` / `dir_right` / `dir_forward` / `dir_backward` (directions), `st_done` / `all_done` (done / all done), `st_missing` / `st_extra` (missing / extra), `end` (closing voice tag). Overwrite with same-named WAVs to customize — no code changes needed; full variant only, lite ships without them.
 
 - **Full-screen black after tapping back repeatedly on the settings page (fixed in r31–r41; upgrade if you are on an older build)**: device logs confirmed the cause is **not the camera** — with repeated back taps on the settings page, the second tap lands on the recording page that has just returned and pops it, and since it is the navigation start destination, the whole back stack is emptied; the UI framework then has nothing to draw: the screen is black with no controls, while the app stays alive and the back gesture still works. Since r40/r41 an in-page back can no longer pop the start destination (plus a 400 ms debounce), and any page whose UI gets torn down for more than 3 seconds recovers automatically; the camera pipeline now belongs to the window scope, so navigation races cannot touch camera state. On older builds (≤ v0.0.11-r30) please upgrade first.
 
@@ -169,14 +179,15 @@ Download from [Releases](https://github.com/himetuki/WotaGeiCam/releases/latest)
 
 | File | Platform / fit |
 |---|---|
-| `WotaGeiCam-vX.X.X-rYY-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-universal-release-Android.apk` | Android: all devices (pick universal if unsure) |
-| `WotaGeiCam-vX.X.X-rYY-arm64-v8a-release-Android.apk` | Android: 64-bit ARM (most phones since 2016) |
-| `WotaGeiCam-vX.X.X-rYY-armeabi-v7a-release-Android.apk` | Android: 32-bit ARM older devices |
+| `WotaGeiCam-vX.X.X-rYY-full-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-full-universal-release-Android.apk` | Android full: all devices, **with AI stance hints** (pick universal if unsure) |
+| `WotaGeiCam-vX.X.X-rYY-lite-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-lite-universal-release-Android.apk` | Android lite: **no AI stance hints** (~21 MB smaller; full and lite can overwrite-install each other keeping data; updates push per type) |
+| `WotaGeiCam-vX.X.X-rYY-full-arm64-v8a-release-Android.apk` / `-full-armeabi-v7a-…` | Android full per-ABI splits (arm64 for 2016+ phones, armeabi-v7a for older 32-bit devices) |
+| `WotaGeiCam-vX.X.X-rYY-compat-universal-release-Android.apk` | **Legacy-compatible** (**content = lite**, exactly 1 asset): for in-app auto-update of v0.0.12-r01 and earlier (their updater has no full/lite concept and picks the first asset containing "universal"); manual downloads should prefer the full / lite rows above |
 | `WotaGeiCam-vX.X.X-rYY-unsigned-Harmony.hap` | HarmonyOS (produced when signing Secrets are not configured; see installation notes below) |
 
 With HAP signing Secrets configured, the Release also includes `vX.X.X-rYY-signed-Harmony.hap` and a `SHA256SUMS`.
 
-The `X.X.X-rYY` in the file name is the full version name; the number after `r` is the checkpoint index, higher is newer; the in-app "check update" compares by the same rule. Historical versions (`v0.0.9-r05` and earlier) used the old naming `WotaGeiCam-vX.Y.Z-*.apk` and only had the Android four-piece set.
+The `X.X.X-rYY` in the file name is the full version name; the number after `r` is the checkpoint index, higher is newer; the in-app "check update" compares by the same rule and pushes per package type (full only gets full, lite only gets lite). Since v0.0.12-r05 each version ships 9 Android APKs (full 4 + lite 4 + legacy-compatible 1); **auto-update from ≤r01 lands on the legacy-compatible asset (= lite content)**. In-app updates try several public acceleration mirrors in order, re-rank them by measured speed and skip dead ones; if all fail, download manually. Historical versions (`v0.0.9-r05` and earlier) used the old naming `WotaGeiCam-vX.Y.Z-*.apk` and only had the Android four-piece set.
 
 ## Installation and upgrade
 

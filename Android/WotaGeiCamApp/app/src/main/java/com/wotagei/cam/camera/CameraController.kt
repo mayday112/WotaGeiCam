@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.media.ImageReader
 import android.view.Surface
@@ -99,6 +100,9 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
     }
 
     private var engine: Camera2Engine? = null
+
+    /** 当前站位分析槽（面, reader）；引擎重建/换渲染模式后据此复位（2026-11-07）。 */
+    private var analysisTarget: Pair<Surface, ImageReader?>? = null
     private var boundSink: PreviewSink? = null
     private var lensSlots: List<LensSlot> = emptyList()
     private var pendingStart = false
@@ -208,6 +212,11 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
             onPreviewStatus = { status -> publishOnMain { ui.value = ui.value.copy(preview = status) } },
             onFpsDowngraded = { to -> publishOnMain { fpsDowngrade.value = to } }
         ).also { it.attach() }
+        // 站位分析槽在引擎重建后要自动复位（预览自愈 forceRebind / 渲染模式切换都会换引擎）：
+        // 只还原仍有效的面；失效面由 StanceController 回场时重挂（onPageEnter 验 isSurfaceLive）。
+        analysisTarget?.let { (targetSurface, targetReader) ->
+            if (targetSurface.isValid) engine?.setAnalysisTarget(targetSurface, targetReader)
+        }
         if (pendingStart) start()
     }
 
@@ -559,6 +568,24 @@ class CameraController(app: Application) : AndroidViewModel(app), DefaultLifecyc
     /** record 包登记编码面；GPU 模式下引擎不会把它挂进相机会话（由 GL 承接） */
     fun setRecordingTarget(surface: Surface?, reader: ImageReader? = null) {
         engine?.setExtraTarget(surface, reader)
+    }
+
+    /** 站位分析流挂/摘（方案 32 M2）：独立槽位，GPU/DIRECT 两种渲染模式都进会话。
+     * 返回 false = 引擎还没建（调用方保持未挂，等就绪点补挂）；摘槽恒成功。 */
+    fun setAnalysisTarget(surface: Surface?, reader: ImageReader? = null): Boolean {
+        analysisTarget = if (surface != null) surface to reader else null
+        val e = engine ?: return surface == null
+        e.setAnalysisTarget(surface, reader)
+        return true
+    }
+
+    /**
+     * 当前镜头的 `CameraCharacteristics`（站位分析流选 YUV 尺寸用，2026-11-07）。
+     * 不在枚举完成窗口时返回 null——调用方回退 640x480 默认档，不猜能力。
+     */
+    fun currentCharacteristics(): CameraCharacteristics? {
+        val id = ui.value.currentSlot?.logicId ?: return null
+        return runCatching { cameraManager().getCameraCharacteristics(id) }.getOrNull()
     }
 
     /** 批量写多个参数后手动统一下发一次（引擎自身已按 5ms 合并，通常不需要调） */

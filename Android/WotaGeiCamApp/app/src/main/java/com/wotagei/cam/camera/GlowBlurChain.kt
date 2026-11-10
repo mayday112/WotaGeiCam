@@ -167,11 +167,12 @@ internal class GlowBlurChain(
      * @param frameWidthPx 相机帧宽（= 录制档；Glow 分档按它算，不按上屏档）
      * @param frameHeightPx 相机帧高
      * @param scale [com.wotagei.cam.core.glowScaleFor] 的分档（1/2/4）
-     * @param widthParam `GlowParams.width`（0..0.2，RT 短边为单位）
+     * @param widthParam `GlowParams.width`（0..0.08，RT 短边为单位；2026-11-08 由 0..0.2 收窄）
      * @param thresholdParam `GlowParams.threshold`（**亮部判定**：拷贝趟的 smoothstep 下界中心）
      * @param softParam `GlowParams.soft`（过渡带半宽；0 = 硬切；阈值接近 1 时在拷贝趟里向 1.0 收敛）
-     * @param tintParam 光晕颜色（`GlowParams.color` 的 RGB；`colorOnly=false` 时消费方需传白=不改变）
-     * @param colorOnlyParam true = 亮部直接取 tint 色（仅色盘颜色），false = 乘回原色
+     * @param tintParam 光晕颜色（`GlowParams.color` 的 RGB；**只在 colorOnly=true 时被采样**——
+     *   拷贝趟的 `mix(c, uTint, uColorOnly)` 在 false 时忽略 tint，传什么都行）
+     * @param colorOnlyParam true = 亮部直接取 tint 色（仅色盘颜色），false = 保留像素自身颜色
      * @return true = 本帧产出了可采样的光晕图
      */
     fun draw(
@@ -239,22 +240,35 @@ internal class GlowBlurChain(
 
         // ②③ 可分离高斯：横 → scratch，纵 → glow。sampler 单元与权重表在 buildPrograms 里传过，
         // 这里只剩每趟变化的 uOffset（与霜链同一套省法：uniform 属于 program，跨帧保留）
-        GLES20.glUseProgram(blurProgram)
-        if (fillGlowBlurOffset(offsetScratch, w, h, widthParam, horizontal = true)) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, scratchFbo)
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + GLOW_SRC_UNIT)
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, downTex)
-            if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, offsetScratch[0], offsetScratch[1])
-            drawQuad(blurAPosition, blurATexCoord, identityUv)
-            errors += drainGlError("glowBlurHorizontal")
+        //
+        // 9-tap 权重按 1 纹素间隔设计；width 大时 offset 远超间隔，单遍会退化成
+        // “远处亮斑的稀疏鬼影拷贝”——真机 2026-11-06：宽度拉满时整屏白色斑点云。
+        // 同核迭代模糊：多遍 H+V 卷积叠卷积，等效半径扩大且保持平滑；
+        // 迭代趟 H+V ping-pong，每趟后结果都回到 glowTex（合成趟的既定采样源）。
+        val blurPasses = 1 + when {
+            widthParam >= 0.12f -> 2
+            widthParam >= 0.05f -> 1
+            else -> 0
         }
-        if (fillGlowBlurOffset(offsetScratch, w, h, widthParam, horizontal = false)) {
-            GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, glowFbo)
-            GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + GLOW_SRC_UNIT)
-            GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, scratchTex)
-            if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, offsetScratch[0], offsetScratch[1])
-            drawQuad(blurAPosition, blurATexCoord, identityUv)
-            errors += drainGlError("glowBlurVertical")
+        GLES20.glUseProgram(blurProgram)
+        repeat(blurPasses) { pass ->
+            val srcTex = if (pass == 0) downTex else glowTex
+            if (fillGlowBlurOffset(offsetScratch, w, h, widthParam, horizontal = true)) {
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, scratchFbo)
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + GLOW_SRC_UNIT)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, srcTex)
+                if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, offsetScratch[0], offsetScratch[1])
+                drawQuad(blurAPosition, blurATexCoord, identityUv)
+                errors += drainGlError("glowBlurHorizontal")
+            }
+            if (fillGlowBlurOffset(offsetScratch, w, h, widthParam, horizontal = false)) {
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, glowFbo)
+                GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + GLOW_SRC_UNIT)
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, scratchTex)
+                if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, offsetScratch[0], offsetScratch[1])
+                drawQuad(blurAPosition, blurATexCoord, identityUv)
+                errors += drainGlError("glowBlurVertical")
+            }
         }
 
         restoreState(scissorWasEnabled)

@@ -6,7 +6,8 @@ import com.wotagei.cam.core.GlowParams
 import com.wotagei.cam.core.VideoDenoise
 import com.wotagei.cam.core.encodeEcho
 import com.wotagei.cam.core.encodeGlow
-import com.wotagei.cam.core.glowArgbFromHsv
+import com.wotagei.cam.player.SceneExportEffects
+import com.wotagei.cam.player.clipExportReady
 import com.wotagei.cam.player.sceneExportBitrate
 import com.wotagei.cam.player.sceneExportEffects
 import com.wotagei.cam.player.sceneExportEffectsOf
@@ -40,7 +41,18 @@ class SceneExportPlanTest {
         val e = sceneExportEffects(null, VideoDenoise.OFF)
         assertNull("缺键=出厂=关，不许凭空造出光晕", e.glow)
         assertFalse("降噪 OFF 不许应用双边", e.denoise)
-        assertFalse("无效果时 UI 应禁用后渲染模式（active=false）", e.active)
+        assertFalse("无效果时 active=false（UI 据此置灰导出钮；后渲染模式本身仍可选）", e.active)
+    }
+
+    @Test
+    fun `无效果时后渲染可进配置但导出钮不可点`() {
+        val none = SceneExportEffects(glow = null, denoise = false, echo = null)
+        assertTrue("无损恒可导出", clipExportReady(postRender = false, effects = none))
+        assertFalse(
+            "无效果的后渲染=白跑几分钟重编码，导出钮必须拦住",
+            clipExportReady(postRender = true, effects = none)
+        )
+        assertTrue("开一项效果就放行", clipExportReady(postRender = true, effects = none.copy(denoise = true)))
     }
 
     @Test
@@ -117,24 +129,6 @@ class SceneExportPlanTest {
         assertNotNull(on.echo)
         assertEquals(3, on.echo!!.multiplier)
         assertTrue(on.active)
-    }
-
-    @Test
-    fun `白色tint是恒等`() {
-        val e = sceneExportEffects(glowOn(0xFFFF_FFFFL), VideoDenoise.OFF)
-        val tint = e.glowTint
-        assertEquals(1f, tint[0], 1e-6f)
-        assertEquals(1f, tint[1], 1e-6f)
-        assertEquals(1f, tint[2], 1e-6f)
-    }
-
-    @Test
-    fun `色盘选色会进tint`() {
-        // 色盘选红：hue=0、sat=1 → 红通道 1、蓝通道 0（光晕"整体偏该色调"）
-        val red = glowArgbFromHsv(0f, 1f, 1f)
-        val tint = sceneExportEffects(glowOn(red), VideoDenoise.OFF).glowTint
-        assertTrue("红 tint 必须抬 r", tint[0] > 0.9f)
-        assertTrue("红 tint 必须压 b", tint[2] < 0.1f)
     }
 
     @Test

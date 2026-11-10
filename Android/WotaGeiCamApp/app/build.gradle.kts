@@ -26,6 +26,11 @@ base {
     archivesName.set(apkBaseNameProp?.let { "$it-v$appVersionName" } ?: "app")
 }
 
+// 双 flavor（docs/plan/33）：full/lite 产物分目录输出（outputs/apk/<flavor>/<buildType>/），
+// flavor 段由打包脚本/CI 在拷贝时按目录补进文件名（AGP Kotlin DSL 的 per-variant
+// outputFileName 重命名与 DomainObjectCollection.all 重载歧义冲突，不在 Gradle 侧做）。
+// versionName/versionCode 不动（同版本互相覆盖安装、数据保留，用户裁决）。
+
 android {
     namespace = "com.wotagei.cam"
     compileSdk = 34
@@ -46,6 +51,21 @@ android {
         }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
+    }
+
+    // 双 flavor（docs/plan/33，2026-11-07 用户口令）：full=有 AI 站位（模型组+推理+控件），
+    // lite=无 AI 站位（仅保留站位圆钮导流：点击弹宣传浮层）。同包名同 versionCode——
+    // 两包可互相覆盖安装（数据保留），应用内更新按 flavor 各推各包（更新互斥在更新器层）。
+    // lite 的 versionName 带 "-lite" 后缀便于辨识；versionCode 不分。
+    flavorDimensions += "ai"
+    productFlavors {
+        create("full") {
+            dimension = "ai"
+        }
+        create("lite") {
+            dimension = "ai"
+            versionNameSuffix = "-lite"
+        }
     }
 
     if (ciAbiSplits) {
@@ -173,6 +193,11 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    // 站位模型组（方案 32 M2）：tflite 不压缩——Interpreter mmap 加载要求未压缩 assets
+    androidResources {
+        noCompress += "tflite"
+    }
 }
 
 ksp {
@@ -210,6 +235,14 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+
+    // 站位检测（方案 32 M2 / 33 flavor 化）：LiteRT(tflite)——CPU XNNPACK 兜底 + GPU delegate；
+    // **仅 full 变体携带**（lite 无 AI 站位，连依赖都不进包）；minSdk 29 / arm64-v8a 满足；
+    // GPU delegate 兼容性由 GpuDelegate 内建白名单+失败回退 CPU
+    val tflite = "2.14.0"
+    "fullImplementation"("org.tensorflow:tensorflow-lite:$tflite")
+    "fullImplementation"("org.tensorflow:tensorflow-lite-gpu:$tflite")
+    "fullImplementation"("org.tensorflow:tensorflow-lite-gpu-api:$tflite")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

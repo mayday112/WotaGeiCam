@@ -15,7 +15,9 @@ import java.io.File
  * 2. **绝不做 RGB 曲线**：用户原话"不需要在内置播放器内做 RGB 曲线后渲染"——曲线是录制期
  *    scene layer，`GlRenderEngine.setCurve` 已把它烘进成片像素，离线再套一次就是双倍。
  *    所以整条离线链**不许出现任何曲线符号**（含 `KEY_CURVE_STACK` / `uCurve` / `setCurve`）；
- * 3. **无效果时不给用户"点了没反应"**：后渲染 chip 的 enabled 必须来自 `effects.active`。
+ * 3. **无效果时不给用户"点了没反应"**：后渲染 chip **恒可选**（冷态也要能进面板内的效果配置，
+ *    否则永远开不了效果）；无效果时由**导出钮**按 `clipExportReady` 置灰拦住重编码，且置灰
+ *    必须带 `valueColor`（`enabled` 本身不新造视觉，见 Widgets.kt 的注）。
  *
  * 另钉两条与 remux 路（[com.wotagei.cam.player.ClipExporter]）的**口径同源**，这两处一旦
  * 各写一份就会出"选了内录轨但没按偏移对齐"或"某类失败被谎报成重启可恢复"：
@@ -121,6 +123,26 @@ class SceneExportWiringGuardTest {
         assertTrue("GL 必须按 effects.echo 建乒乓累积面", glSrc.contains("if (effects.echo != null)"))
         assertTrue("累积趟必须读原始 2D 帧 curTex（与实时链读原始 OES 同口径）", glSrc.contains("GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, curTex)"))
         assertTrue("衰减必须走 echoDecayOf（与实时链同一换算）", glSrc.contains("echoDecayOf(echo.multiplier)"))
+        // 拖尾颜色补丁（docs/plan/35）：离线两趟的 uniform 取位置与设值必须真的接上，
+        // 推导与实时链同一组 core 纯函数（不许离线自造一套口径）。锚点用变量名与调用名——
+        // codeOnly 会遮蔽字符串字面量内容，`"uEchoTint"` 这种字面量锚在 glSrc 上永远落空。
+        for (loc in listOf(
+            "echoAccUTint = GLES20.glGetUniformLocation",
+            "echoAccUMask = GLES20.glGetUniformLocation",
+            "echoAccUTol = GLES20.glGetUniformLocation",
+            "echoCompUEchoTintMode = GLES20.glGetUniformLocation",
+            "echoCompUEchoTint = GLES20.glGetUniformLocation"
+        )) {
+            assertTrue("离线两趟必须取补丁 uniform 位置（$loc）", glSrc.contains(loc))
+        }
+        assertTrue("累积趟必须设 uEchoMask（择/除门）", glSrc.contains("glUniform1f(echoAccUMask"))
+        assertTrue("累积趟必须设 uEchoTint（补丁色）", glSrc.contains("glUniform3f(echoAccUTint"))
+        assertTrue("累积趟必须设 uEchoTol（容差）", glSrc.contains("glUniform1f(echoAccUTol"))
+        assertTrue("累积趟门模式必须走 echoTrailMaskOf", glSrc.contains("echoTrailMaskOf(echo)"))
+        assertTrue("累积趟容差必须走 echoTrailTolOf", glSrc.contains("echoTrailTolOf(echo)"))
+        assertTrue("合成趟必须设 uEchoTintMode（加/减）", glSrc.contains("glUniform1f(echoCompUEchoTintMode"))
+        assertTrue("合成趟必须设 uEchoTint（补丁色）", glSrc.contains("glUniform3f(echoCompUEchoTint"))
+        assertTrue("合成趟染色模式必须走 echoTrailTintOf", glSrc.contains("echoTrailTintOf(echo)"))
         assertTrue("合成必须用残影合成趟 echoCompProgram", glSrc.contains("GLES20.glUseProgram(echoCompProgram)"))
         // 渲染顺序：残影累积在 Glow 模糊之后，残影合成是写编码器面的最后一趟
         val render = KotlinSourceScan.flatten(KotlinSourceScan.bodyOf(glSrc, "render"))
@@ -146,6 +168,18 @@ class SceneExportWiringGuardTest {
         assertTrue("保持亮度档必须是 max(c, prev)", acc.contains("max(c, prev)"))
         assertTrue("提亮档必须做高光阈值切分", acc.contains("smoothstep("))
         assertTrue("亮度按 Rec601 加权", acc.contains("0.299, 0.587, 0.114"))
+        // r06 筛色回归：离线不能再保留会消灭彩色的旧色门；与实时链逐句一致。
+        for (u in listOf("uniform vec3 uEchoTint;", "uniform float uEchoMask;", "uniform float uEchoTol;")) {
+            assertTrue("累积趟缺补丁 uniform $u", acc.contains(u))
+        }
+        assertEquals(
+            "离线筛色与实时同源（实际像素由 GLES 脚本验证）",
+            shader("ECHO_ACCUM_FS").substringAfter("float luma =").substringBefore("gl_FragColor"),
+            acc.substringAfter("float luma =").substringBefore("gl_FragColor")
+        )
+        assertTrue("择除必须按峰值判亮", acc.contains("t = smoothstep(uEchoThreshold - 0.05, uEchoThreshold + 0.05, peak);"))
+        assertTrue("白灰与彩色必须独立分类", acc.contains("if (sat < 0.05 || tintSat < 0.05)"))
+        assertTrue("累积趟缺择/除分派", acc.contains("t *= (uEchoMask < 1.5) ? m : 1.0 - m;"))
 
         val comp = shader("SCENE_COMPOSITE_ECHO_FS")
         // 合成 = applyEcho(base + glow, echo)：残影包在 Glow 外层，与实时 echoFragment 同序
@@ -153,10 +187,20 @@ class SceneExportWiringGuardTest {
         assertTrue("残影必须作用在 withGlow 上", comp.contains("applyEcho(withGlow, e)"))
         assertTrue("保持亮度档 max", comp.contains("return max(c, e);"))
         assertTrue("提亮档加法叠回钳 1", comp.contains("return min(c + e * uEchoGain, vec3(1.0));"))
+        // 拖尾颜色补丁·加/减（docs/plan/35 U2/U3/E3）：算子与位置同实时 ECHO_DECL（KB 早退后、TRAIL 终写前）
+        assertTrue("合成趟缺染色模式 uniform", comp.contains("uniform float uEchoTintMode;"))
+        assertTrue("合成趟缺补丁色 uniform", comp.contains("uniform vec3 uEchoTint;"))
+        assertTrue("合成趟缺加/减算子", comp.contains("e *= (uEchoTintMode < 1.5) ? uEchoTint : (vec3(1.0) - uEchoTint);"))
+        assertTrue(
+            "合成趟的染色必须位于 KB 分支之后、TRAIL 终写之前",
+            comp.indexOf("return max(c, e);") < comp.indexOf("e *= (uEchoTintMode < 1.5)") &&
+                comp.indexOf("e *= (uEchoTintMode < 1.5)") < comp.indexOf("return min(c + e * uEchoGain, vec3(1.0));")
+        )
         // 实时链的 applyEcho 也要真的同源（反证：不是离线自造一套）
         val decl = shader("ECHO_DECL")
         assertTrue("实时 applyEcho 保持亮度档同源", decl.contains("return max(c, e);"))
         assertTrue("实时 applyEcho 提亮档同源", decl.contains("return min(c + e * uEchoGain, vec3(1.0));"))
+        assertTrue("实时 applyEcho 加/减算子同源", decl.contains("e *= (uEchoTintMode < 1.5) ? uEchoTint : (vec3(1.0) - uEchoTint);"))
     }
 
     // ---------------------------------------------------------------- 派发与 UI
@@ -174,17 +218,32 @@ class SceneExportWiringGuardTest {
     }
 
     @Test
-    fun `后渲染chip无效果时置灰而不是偷偷降级`() {
+    fun `无效果时后渲染仍可进配置_导出钮拦住且看得见`() {
         val popup = KotlinSourceScan.flatten(
             KotlinSourceScan.bodyOf(playerSrc, "ClipExportPopup")
         )
         assertTrue("弹层必须有导出方式的两个 chip", popup.contains("player_clip_mode_lossless"))
         assertTrue(popup.contains("player_clip_mode_scene"))
-        assertTrue(
-            "后渲染 chip 的 enabled 必须来自 effects.active（无效果时点它=点了没反应）",
+        // 2026-11-07 真机（内测 r05）「后渲染点了没反应」的两个成因，逐条钉死不许回退：
+        // ① WotaChip 的 enabled 不新造视觉（Widgets.kt 的注）——按 effects.active 置灰后
+        //    chip 看起来与可点态一样；
+        // ② 效果配置区只在 mode==1 出现——冷态（光晕/降噪/残影全关）进不了 mode 1，
+        //    也就永远打不开配置区里的效果开关（死锁）。
+        assertFalse(
+            "后渲染 chip 不许再按 effects.active 置灰（冷态就进不了面板内的效果配置）",
             popup.contains("enabled = sceneEffects.active")
         )
-        assertTrue("弹层必须能选模式", popup.contains("onPickMode("))
+        assertTrue("弹层必须能选模式（后渲染恒可选）", popup.contains("onPickMode("))
+        // 拦住重编码：无效果时导出钮不可点，且必须能看出来（enabled 只关点击、不新造视觉）
+        assertTrue(
+            "导出钮必须按 clipExportReady(mode==1, effects) 置灰",
+            popup.contains("val exportReady = clipExportReady(mode == 1, sceneEffects)")
+        )
+        assertTrue(popup.contains("enabled = exportReady"))
+        assertTrue(
+            "置灰必须带 valueColor（enabled 本身不新造视觉）",
+            popup.contains("valueColor = if (exportReady) null else WotaTextDim")
+        )
         // 文案必须真的登记（丢了编译会红，但显式锁住防资源被挪走后守卫空转）
         val xml = stringsXml().readText(Charsets.UTF_8)
         for (name in listOf(

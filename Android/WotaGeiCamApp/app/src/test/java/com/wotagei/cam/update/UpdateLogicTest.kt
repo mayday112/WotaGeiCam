@@ -181,7 +181,7 @@ class UpdateLogicTest {
         {
           "url": "https://api.github.com/assets/12",
           "name": "v0.0.8-r01-universal-release-Android.apk",
-          "browser_download_url": "https://github.com/mayday112/WotaGeiCam/releases/download/v0.0.8-r01/WotaGeiCam-v0.0.8-r01-universal-release-Android.apk",
+          "browser_download_url": "https://github.com/himetuki/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
           "size": 23456789
         },
         {
@@ -204,7 +204,7 @@ class UpdateLogicTest {
         assertEquals("v0.0.8-r01-universal-release-Android.apk", info.asset?.name)
         assertEquals(23456789L, info.asset?.sizeBytes)
         assertEquals(
-            "https://github.com/mayday112/WotaGeiCam/releases/download/v0.0.8-r01/WotaGeiCam-v0.0.8-r01-universal-release-Android.apk",
+            "https://github.com/himetuki/WotaGeiCam/releases/download/v0.0.8-r01/v0.0.8-r01-universal-release-Android.apk",
             info.asset?.url
         )
     }
@@ -229,6 +229,38 @@ class UpdateLogicTest {
         assertNull(ReleaseJson.parse("""{"tag_name": "v0.1.0"}""")?.asset)
         // 没有 tag_name
         assertNull(ReleaseJson.parse("""{"assets": []}"""))
+    }
+
+    /** 选包口径（9 枚资产，2026-11-09 用户裁决）：flavor 组内 universal 优先；旧版（无 flavor）
+     * 必须命中 compat 那枚——GitHub 的 assets 数组**按名字排序**返回，`-compat-` 字母序最前
+     * （'c' < 'f'(full) < 'l'(lite) < 'u'(universal)），所以"第一个含 universal 的资产"恒为它。 */
+    @Test
+    fun `选包_9枚资产_full与lite各取universal_旧版取compat包`() {
+        // 顺序 = GitHub API 返回顺序（按名字排序），不是上传顺序
+        val names = listOf(
+            // compat 兼容包（内容=lite）
+            "WotaGeiCam-v0.0.12-r05-compat-universal-release-Android.apk",
+            // full 四件
+            "WotaGeiCam-v0.0.12-r05-full-arm64-v8a-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-full-armeabi-v7a-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-full-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-full-universal-release-Android.apk",
+            // lite 四件
+            "WotaGeiCam-v0.0.12-r05-lite-arm64-v8a-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-lite-armeabi-v7a-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-lite-release-Android.apk",
+            "WotaGeiCam-v0.0.12-r05-lite-universal-release-Android.apk",
+        )
+        val assets = names.map { ReleaseAsset(it, "https://x/$it", 1L) }
+        assertEquals("full 必须取 universal（不是字母序在前的 arm64 分包）", names[4],
+            ReleaseJson.pickApkAsset(assets, "full")?.name)
+        assertEquals("lite 必须取 universal", names[8],
+            ReleaseJson.pickApkAsset(assets, "lite")?.name)
+        assertEquals("旧版（无 flavor）必须取 compat 包（=lite 内容）", names[0],
+            ReleaseJson.pickApkAsset(assets)?.name)
+        // 组内只有分包时退回该组第一个（不跨组、不放空）
+        assertEquals(names[1], ReleaseJson.pickApkAsset(listOf(assets[1], assets[2]), "full")?.name)
+        assertEquals(names[5], ReleaseJson.pickApkAsset(listOf(assets[5], assets[6]), "lite")?.name)
     }
 
     /** 突变自证：JSON 里 tag 换掉，提取必须跟着变（防提取器把常量焊死） */
@@ -281,6 +313,16 @@ class UpdateLogicTest {
         assertEquals(
             "https://github.com/mayday112/WotaGeiCam/releases/download/v0.0.8-r01/WotaGeiCam-v0.0.8-r01-universal-release-Android.apk",
             UpdateConfig.directDownloadUrl("v0.0.8-r01", "WotaGeiCam-v0.0.8-r01-universal-release-Android.apk")
+        )
+        // 双包 flavor 分支：flavor 段唯一 + 保留 universal（r05 首推此处曾漏 universal，
+        // 段 3 兜底 URL 会 404；CI 实际资产名 WotaGeiCam-v0.0.12-r05-full-universal-release-Android.apk）
+        assertEquals(
+            "WotaGeiCam-v0.0.12-r05-full-universal-release-Android.apk",
+            RedirectProbe.guessUniversalAssetName("v0.0.12-r05", "full")
+        )
+        assertEquals(
+            "WotaGeiCam-v0.0.12-r05-lite-universal-release-Android.apk",
+            RedirectProbe.guessUniversalAssetName("v0.0.12-r05", "lite")
         )
     }
 

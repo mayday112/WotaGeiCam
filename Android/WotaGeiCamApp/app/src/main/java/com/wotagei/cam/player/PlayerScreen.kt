@@ -136,11 +136,18 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.wotagei.cam.ui.anim.LocalMotion
 import com.wotagei.cam.core.EchoMode
 import com.wotagei.cam.core.EchoParams
+import com.wotagei.cam.core.EchoTrailColorMode
+import com.wotagei.cam.core.ECHO_TRAIL_COLOR_DEFAULT
+import com.wotagei.cam.core.ECHO_TRAIL_TOL_MAX
+import com.wotagei.cam.core.ECHO_TRAIL_TOL_MIN
 import com.wotagei.cam.core.GlowParams
 import com.wotagei.cam.core.decodeEcho
 import com.wotagei.cam.core.decodeGlow
 import com.wotagei.cam.ui.widget.percentLadder
+import com.wotagei.cam.ui.WotaColorWheel
 import com.wotagei.cam.ui.design.LikeHeart
+import com.wotagei.cam.ui.design.PillChoices
+import com.wotagei.cam.ui.design.PillOption
 import com.wotagei.cam.ui.design.PillSlider
 import com.wotagei.cam.ui.design.WotaChip
 import com.wotagei.cam.ui.design.WotaColor
@@ -1353,11 +1360,20 @@ private fun ClipExportPopup(
                     label = stringResource(R.string.player_track_cap),
                     selected = track == SelectedTrack.CAP,
                     enabled = dualReady,
+                    // enabled 本身不新造灰显视觉（Widgets.kt 的 [WotaChip] 注）：不补 valueColor
+                    // 就是"看起来能点、点了没反应"——双音轨片在引擎上报第二条音频组之前正是这个态
+                    valueColor = if (dualReady) null else WotaTextDim,
                     onClick = { onPickTrack(SelectedTrack.CAP) }
                 )
             }
             // 导出方式（2026-10-28）：无损 = 既有重封；后渲染 = 重编码并应用 Glow/降噪。
-            // 无效果时后渲染与无损结果一致，置灰而不是偷偷降级——"点了没反应"比置灰更糟
+            //
+            // 后渲染 chip **恒可点**（2026-11-07 真机「点后渲染没反应」修复）：此前这里按
+            // sceneEffects.active 置灰，但 WotaChip 的 enabled 不带视觉（Widgets.kt 的注），
+            // chip 看着与可点态一模一样；而效果配置区只在 mode==1 才出现 ⇒ 冷态（光晕/降噪/
+            // 残影全关）既点不进后渲染、也就永远打不开配置区里的效果开关（死锁）。
+            // 现在选进后渲染就露出配置区；一项效果都没开时由导出钮拦住（clipExportReady），
+            // 既不偷偷降级成无损，也不白跑几分钟重编码。
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1375,7 +1391,6 @@ private fun ClipExportPopup(
                 WotaChip(
                     label = stringResource(R.string.player_clip_mode_scene),
                     selected = mode == 1,
-                    enabled = sceneEffects.active,
                     onClick = { onPickMode(1) }
                 )
             }
@@ -1388,9 +1403,14 @@ private fun ClipExportPopup(
             if (mode == 1) {
                 ExportEffectConfig(glowCfg, denoiseOn, echoCfg, onGlowChange, onDenoiseChange, onEchoChange)
             }
+            val exportReady = clipExportReady(mode == 1, sceneEffects)
             WotaChip(
                 label = stringResource(R.string.player_clip_export),
-                selected = true,
+                selected = exportReady,
+                // 不可点必须看得见：WotaChip 的 enabled 不新造视觉，灰显由 valueColor 表达
+                //（Widgets.kt 的 [enabled] 注）；"为什么不能点"由上一行的 sceneEffectNote 讲。
+                enabled = exportReady,
+                valueColor = if (exportReady) null else WotaTextDim,
                 onClick = onExport
             )
         } else {
@@ -1450,13 +1470,14 @@ private fun ExportEffectConfig(
         )
     }
     if (glow.enabled) {
-        // 阈值 60..100（100% = 只给最亮像素加光晕）；强度/混合与录制页同名同义
+        // 阈值 80..100（2026-11-08 与录制页同口径收窄+细化：步长 5→1；100% = 只给最亮像素加光晕）；
+        // 强度/混合与录制页同名同义
         PillSlider(
-            value = glow.threshold * 100f, lo = 60f, hi = 100f,
+            value = glow.threshold * 100f, lo = 80f, hi = 100f,
             onValueChange = { onGlowChange(glow.copy(threshold = it / 100f)) },
             snapKey = null,
-            ladder = percentLadder(60, 100, 5),
-            step = 5f,
+            ladder = percentLadder(80, 100, 1),
+            step = 1f,
             label = stringResource(R.string.player_clip_cfg_threshold),
             format = { String.format(java.util.Locale.US, "%.0f%%", it) }
         )
@@ -1549,6 +1570,47 @@ private fun ExportEffectConfig(
             format = { String.format(java.util.Locale.US, "%.0f×", it) }
         )
         if (echo.mode == EchoMode.TRAIL) {
+            // 拖尾颜色补丁（plan/35，2026-11-09）：加/减/择/除 四模式 + 色盘 + 择色容差。
+            // 与阈值/强度同一条面板纪律：只写本地 clipEcho 副本，不反写落盘；双击色盘同样回 OFF+白
+            PillChoices(
+                options = listOf(
+                    EchoTrailColorMode.OFF to R.string.cam_echo_tcm_off,
+                    EchoTrailColorMode.ADD to R.string.cam_echo_tcm_add,
+                    EchoTrailColorMode.SUBTRACT to R.string.cam_echo_tcm_sub,
+                    EchoTrailColorMode.ONLY to R.string.cam_echo_tcm_only,
+                    EchoTrailColorMode.EXCEPT to R.string.cam_echo_tcm_except
+                ).map { PillOption(it.first.ordinal, stringResource(it.second)) },
+                selected = echo.trailColorMode.ordinal,
+                columns = 3,
+                onPick = { opt -> onEchoChange(echo.copy(trailColorMode = EchoTrailColorMode.values()[opt.value])) }
+            )
+            WotaColorWheel(
+                current = echo.trailColor,
+                editable = true,
+                labelRes = R.string.cam_echo_trail_color,
+                onPick = { onEchoChange(echo.copy(trailColor = it)) },
+                onDoubleTap = {
+                    onEchoChange(
+                        echo.copy(
+                            trailColorMode = EchoTrailColorMode.OFF,
+                            trailColor = ECHO_TRAIL_COLOR_DEFAULT
+                        )
+                    )
+                }
+            )
+            PillSlider(
+                value = echo.trailTol * 100f,
+                lo = ECHO_TRAIL_TOL_MIN * 100f, hi = ECHO_TRAIL_TOL_MAX * 100f,
+                onValueChange = { onEchoChange(echo.copy(trailTol = it / 100f)) },
+                snapKey = null,
+                ladder = percentLadder(5, 80, 5),
+                step = 5f,
+                // 只对择/除参与（加/减不筛源像素，E6）；整段已在 TRAIL 分支内，这里只灰择/除之外的模式
+                enabled = echo.trailColorMode == EchoTrailColorMode.ONLY ||
+                    echo.trailColorMode == EchoTrailColorMode.EXCEPT,
+                label = stringResource(R.string.cam_echo_trail_tol),
+                format = { String.format(java.util.Locale.US, "%.0f%%", it) }
+            )
             PillSlider(
                 value = echo.threshold * 100f, lo = 60f, hi = 100f,
                 onValueChange = { onEchoChange(echo.copy(threshold = it / 100f)) },

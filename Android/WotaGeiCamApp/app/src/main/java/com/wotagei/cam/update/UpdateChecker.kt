@@ -36,36 +36,49 @@ object UpdateConfig {
      * 见 [ReleaseJson.parseSha256FromNotes] 与 UpdateDownloader 的消费点）；③ 系统安装器的签名强校验
      * （与已装应用不同签名的包根本装不上）。代理被污染的最坏后果 = 更新失败，不是装上恶意软件。
      *
-     * 节点存活实测（2026-10-21，本机 curl：api 路径 + releases/download 全量 5.46MB）：
-     * - `gh-proxy.com`      API 200 ✓ / 下载 ✓（约 156KB/s）
-     * - `gh-proxy.org`      API 200 ✓ / 下载 ✓（约 1.9MB/s）
-     * - `gh.monlor.com`     API 404 ✗ / 下载 ✓（约 2.3MB/s）
-     * - `ghproxy.imciel.com` API 404 ✗ / 下载 ✓（约 1.8MB/s）
-     * - `ghproxy.net`       API 403 ✗ / 下载 ✓（约 182KB/s）
+     * **名单来源与地区差异（2026-11-09 用户裁决：不许只以本机宿主网络测试为准）**：
+     * 用户分布在不同地区/运营商，任何单点实测都不能代表"对别人可用"。所以名单按
+     * "公开常见公益加速前缀（社区长期提及）+ 本机 2026-10-21 实测可用的起点" 组合，
+     * 并且**不把单点实测当作淘汰依据**——本机不通的也保留在后排（可能是地区/时段问题）。
+     * 真正的裁决交给运行时：
+     * - 下载前【并发测速 6 秒预算】按实测字节率降序重排（见 [UpdateDownloader.rankChannelsBySpeed]）；
+     * - 连不上/非 2xx/首块不是 APK 魔数/超预算 → 记 0 垫底但**仍会被尝试**；
+     * - 全部失败才判下载失败（UI 同时给出 Release 页手动下载指引）。
      *
-     * 清退：ghproxy.link（307 后回 HTML 落地页，下载必失败）、ghfast.top / github.moeyy.xyz /
-     * ghproxy.cc / gh.llkk.cc / ghps.cc / gh.api.99988866.xyz / ghproxy.cfd / gh-proxy.net 等实测
-     * 连不上或只回落地页；gh.ddlc.top 恒 429。教育网方向（同日实测）：`mirrors.cernet.edu.cn` 与
-     * 清华/中科大/南大镜像站的 `github-release` 目录只收录白名单仓库（本仓库 404），各校
-     * `ghproxy.*.edu.cn` 域名全部不存在——CERNET 没有可代理任意仓库的通道，无法落地。
+     * 本机 2026-10-21 起点记录（仅供参考，不代表其它地区）：gh-proxy.com（API+下载 ✓）、
+     * gh-proxy.org（API+下载 ✓）、gh.monlor.com（下载 ✓）、ghproxy.imciel.com（下载 ✓）、
+     * ghproxy.net（下载 ✓ 慢）。历史清退原因只有一类是硬伤：**307 后回 HTML 落地页**
+     * （首块非 PK 魔数，探测/测速都会判该渠道无效，自动跳过）；ghproxy.*.edu.cn 类域名不存在。
      *
-     * 顺序 = **测速前的兜底顺序**；下载时按实测速度重排（见 [UpdateDownloader.rankChannelsBySpeed]）。
+     * 顺序 = **测速前的兜底顺序**（直连永远第一，见 [UpdateDownloader.downloadCandidates]）；
+     * 下载时按实测速度重排。名单变长不会拖慢成功路径（并发测速 + 6 秒总预算），
+     * 只会在"全表都慢"时多试几秒。
      */
     val MIRROR_PREFIXES = listOf(
+        // —— 起点（本机 2026-10-21 实测可用；仅起点参考，非地区保证）——
         "https://gh-proxy.com/",
         "https://gh-proxy.org/",
         "https://gh.monlor.com/",
         "https://ghproxy.imciel.com/",
         "https://ghproxy.net/",
+        // —— 公开常见前缀（社区长期提及；本机旧测部分不通，保留给其它地区/时段）——
+        "https://ghfast.top/",
+        "https://gh.llkk.cc/",
+        "https://ghproxy.cc/",
+        "https://gh-proxy.net/",
+        "https://hub.gitmirror.com/",
+        "https://ghps.cc/",
     )
 
     /**
-     * 能代理 **api.github.com** 的镜像（探测段 2 专用）：下载能用 ≠ API 能用。实测
-     * gh.monlor.com / ghproxy.imciel.com 的 API 路径 404、ghproxy.net 403，放进探测链只会白等超时。
+     * 能代理 **api.github.com** 的镜像（探测段 2 专用）：下载能用 ≠ API 能用。
+     * 探测段 2 是**逐节点短超时**尝试，所以这里只放"公开资料普遍认为支持 api 代理"的前缀；
+     * 失败节点 0 成本跳过，不进下载名单（下载走 [MIRROR_PREFIXES] 全表）。
      */
     val API_MIRROR_PREFIXES = listOf(
         "https://gh-proxy.com/",
         "https://gh-proxy.org/",
+        "https://ghfast.top/",
     )
 
     fun directDownloadUrl(tag: String, assetName: String): String = "$DOWNLOAD_BASE/$tag/$assetName"
@@ -225,9 +238,34 @@ object ReleaseJson {
         return true
     }
 
-    /** 挑 APK 附件：优先 universal（四件套里的通用包），没有则第一个 .apk；无 .apk 返回 null */
-    fun pickApkAsset(assets: List<ReleaseAsset>): ReleaseAsset? {
+    /**
+     * 挑 APK 附件：[flavor] 三态更新互斥（2026-11-07 用户裁决——有 AI 的只更新有 AI 包，
+     * 无 AI 的只更新无 AI 包）：
+     * - lite：**只在 -lite- 附件里挑，且 universal 优先**（绝不推 full/兼容包——lite 用户装 full
+     *   会改变功能集）；无 lite 附件 → null（不提示，保守：CompareVersions 同款保守哲学）；
+     * - full：优先 -full- 附件（universal 优先），其次通用包（历史发版无 flavor 后缀），
+     *   **绝不推 -lite- 包**；
+     * - null（旧调用/单测兼容）：旧行为（优先 universal，无则第一个 .apk）。
+     *
+     * **universal 优先是硬要求**（2026-11-09 修）：12 枚资产里 ABI 分包名按字母序排在 universal
+     * 之前（-arm64-v8a- / -armeabi-v7a-），只按"第一个含 flavor 段"会挑到 arm64 分包，
+     * armeabi-v7a 设备直接装不上。选包顺序固定为 flavor 组内 universal → 组内第一个。
+     */
+    fun pickApkAsset(assets: List<ReleaseAsset>, flavor: String? = null): ReleaseAsset? {
         val apks = assets.filter { isSafeReleaseAssetName(it.name) }
+        if (flavor == "lite") {
+            val lite = apks.filter { it.name.contains("-lite-", ignoreCase = true) }
+            return lite.firstOrNull { it.name.contains("universal", ignoreCase = true) } ?: lite.firstOrNull()
+        }
+        if (flavor == "full") {
+            val full = apks.filter { it.name.contains("-full-", ignoreCase = true) }
+            if (full.isNotEmpty()) {
+                return full.firstOrNull { it.name.contains("universal", ignoreCase = true) } ?: full.first()
+            }
+            // 历史发版（无 flavor 后缀）：退回通用包，仍排除 lite
+            val notLite = apks.filterNot { it.name.contains("-lite", ignoreCase = true) }
+            return notLite.firstOrNull { it.name.contains("universal", ignoreCase = true) } ?: notLite.firstOrNull()
+        }
         return apks.firstOrNull { it.name.contains("universal", ignoreCase = true) } ?: apks.firstOrNull()
     }
 
@@ -240,24 +278,45 @@ object ReleaseJson {
      * 当真会把合法更新判废；说明文字没有这个顾虑（只展示、不参与判断）。
      * 说明文本的书写约定见发版流程：一行 `SHA256: <64位十六进制>`。
      */
-    fun parse(json: String, extractSha256: Boolean): ReleaseInfo? {
+    fun parse(json: String, extractSha256: Boolean, flavor: String? = null): ReleaseInfo? {
         val tag = parseTag(json) ?: return null
         // body 只读一次：sha256 与 notes 取自同一段文本
         val body = stringValueAfterKey(json, "body")
         return ReleaseInfo(
             tag = tag,
-            asset = pickApkAsset(parseAssets(json)),
-            sha256 = if (extractSha256) body?.let { parseSha256FromNotes(it) } else null,
+            asset = pickApkAsset(parseAssets(json), flavor),
+            sha256 = if (extractSha256) body?.let { parseSha256FromNotes(it, flavor) } else null,
             notes = body
         )
     }
 
     /**
-     * 从 Release 说明文本提取 SHA-256（纯函数）：找 `SHA256` 后跟冒号（中英文皆容）与空白、
-     * 再跟**恰好 64** 位十六进制的第一处（尾随不能再是 hex，防 65 位串误命中前 64 位）；
-     * 命中返回**小写** hex，否则 null。
+     * 从 Release 说明文本提取 SHA-256（纯函数）：找 `SHA256`（可带 `-full`/`-lite` 后缀）后跟冒号
+     * （中英文皆容）与空白、再跟**恰好 64** 位十六进制的第一处（尾随不能再是 hex，防 65 位串误命中
+     * 前 64 位）；命中返回**小写** hex，否则 null。
+     *
+     * **三行语义（2026-11-09 用户裁决：旧版兼容包=lite）**：
+     * - `SHA256:`      **旧版更新器唯一认识的一行**（≤v0.0.12-r01 只读这行，且无 flavor 概念）。
+     *   它必须指向「旧版会挑到的那个包」——即**无 flavor 命名的 lite 包**（CI 产出 12 枚资产里的
+     *   旧命名四件套，内容=lite）。所以通用行 = **lite universal 的哈希**，不是 full！
+     * - `SHA256-full:` full 变体专用行（full 更新器只认这行，**无则判无哈希**，绝不回退通用行——
+     *   通用行现在是 lite 的哈希，回退必错配）。
+     * - `SHA256-lite:` lite 变体专用行（同上，只认本行）。
+     *
+     * [flavor]=null（旧调用/未知）：按通用行解析（历史语义保留）。
      */
-    fun parseSha256FromNotes(notes: String): String? {
+    fun parseSha256FromNotes(notes: String, flavor: String? = null): String? {
+        if (flavor == "lite") {
+            val lite = Regex("SHA256-lite\\s*[:：]\\s*([0-9a-fA-F]{64})(?![0-9a-fA-F])").find(notes)
+                ?: return null
+            return lite.groupValues[1].lowercase()
+        }
+        if (flavor == "full") {
+            // 不回退通用行：r05 起通用行是 lite 的哈希（旧版兼容口径），回退会让 full 必然校验失败。
+            val full = Regex("SHA256-full\\s*[:：]\\s*([0-9a-fA-F]{64})(?![0-9a-fA-F])").find(notes)
+                ?: return null
+            return full.groupValues[1].lowercase()
+        }
         val m = Regex("SHA256\\s*[:：]\\s*([0-9a-fA-F]{64})(?![0-9a-fA-F])").find(notes) ?: return null
         return m.groupValues[1].lowercase()
     }
@@ -380,8 +439,8 @@ object ReleaseNotes {
     /** 弹窗最多展示的字数（绝对字面量；约 100 行，远超本项目单次发布说明的实际长度） */
     const val MAX_DISPLAY_CHARS = 4000
 
-    /** 机器用的哈希行：`SHA256: <64 位十六进制>`（整行隐去） */
-    private val HASH_LINE = Regex("SHA256\\s*[:：]\\s*[0-9a-fA-F]{64}(?![0-9a-fA-F])")
+    /** 机器用的哈希行：`SHA256:` / `SHA256-full:` / `SHA256-lite:` + 64 位十六进制（整行隐去） */
+    private val HASH_LINE = Regex("SHA256(-full|-lite)?\\s*[:：]\\s*[0-9a-fA-F]{64}(?![0-9a-fA-F])")
 
     /** 只有标签、哈希在下一行的写法（发版说明的真实形态：`- universal 包 SHA256：`） */
     private val HASH_LABEL_ONLY = Regex("^.*SHA256\\s*[:：]\\s*$")
@@ -446,13 +505,15 @@ object RedirectProbe {
     }
 
     /**
-     * 段 3 无 JSON 资产列表，universal 包名从 tag 推导。命名以 CI workflow（build-apk.yml 产物四件套）
-     * 为准：资产名 = `WotaGeiCam-<tag>-universal-release-Android.apk`——**项目名前缀（2026-10-25 用户
-     * 裁决：资产名必须带项目名）+ v 前缀、扩展名前平台后缀 -Android**
-     * （如 `WotaGeiCam-v0.0.11-r01-universal-release-Android.apk`）。
-     * 旧版资产（≤0.0.10-r05）不带项目名——更新器只匹配最新 release，新版上线自然切换，无兼容逻辑。
+     * 段 3 无 JSON 资产列表，universal 包名从 tag 推导。命名以 CI workflow（build-apk.yml 产物）
+     * 为准：资产名 = `WotaGeiCam-<tag>-<flavor>-universal-release-Android.apk`（双包）或
+     * `WotaGeiCam-<tag>-universal-release-Android.apk`（单包旧版）——**项目名前缀（2026-10-25 用户
+     * 裁决：资产名必须带项目名）+ v 前缀、扩展名前平台后缀 -Android、flavor 段只有一个**。
+     * （旧版资产 ≤0.0.10-r05 不带项目名——更新器只匹配最新 release，新版上线自然切换，无兼容逻辑。）
      */
-    fun guessUniversalAssetName(tag: String): String = "WotaGeiCam-$tag-universal-release-Android.apk"
+    fun guessUniversalAssetName(tag: String, flavor: String? = null): String =
+        if (flavor == "full" || flavor == "lite") "WotaGeiCam-$tag-$flavor-universal-release-Android.apk"
+        else "WotaGeiCam-$tag-universal-release-Android.apk"
 }
 
 /** 探测结论：UI 只消费这个，不再自己比版本 */
@@ -493,26 +554,27 @@ fun probeLatestRelease(
     localVersionName: String,
     fetchJson: (String) -> String?,
     fetchRedirectLocation: (String) -> String?,
-    isCancelled: () -> Boolean = { false }
+    isCancelled: () -> Boolean = { false },
+    flavor: String? = null
 ): ProbeResult {
     // 段 1：直连 GitHub API（官方端点：Release 说明 body 可信——提取 SHA-256 供下载后校验，
     // 同时把说明原文带给更新弹窗）
     if (isCancelled()) return ProbeResult.Cancelled
-    jsonNode(fetchJson(UpdateConfig.REPO_API_LATEST), localVersionName, extractSha256 = true)?.let { return it }
+    jsonNode(fetchJson(UpdateConfig.REPO_API_LATEST), localVersionName, extractSha256 = true, flavor = flavor)?.let { return it }
     // 段 2：镜像前缀逐个代理同一 API（gh-proxy 系对 api 路径支持不一，失败快速跳过）。
     // extractSha256=false：镜像可改写 body，转发来的哈希没有可信度，宁可不校验也不拿假哈希当真；
     // 说明原文照读（只用于弹窗展示，装不装得上仍由哈希与系统签名决定）。
     val chain = MirrorChain.probeChain()
     while (!chain.exhausted) {
         if (isCancelled()) return ProbeResult.Cancelled
-        jsonNode(fetchJson(chain.urlFor(UpdateConfig.REPO_API_LATEST)), localVersionName, extractSha256 = false)?.let { return it }
+        jsonNode(fetchJson(chain.urlFor(UpdateConfig.REPO_API_LATEST)), localVersionName, extractSha256 = false, flavor = flavor)?.let { return it }
         chain.advance()
     }
-    // 段 3：302 → tag → 推导 universal 资产名（无 size，下载时用 Content-Length）
+    // 段 3：302 → tag → 推导资产名（无 size，下载时用 Content-Length）
     if (isCancelled()) return ProbeResult.Cancelled
     fetchRedirectLocation(UpdateConfig.RELEASES_LATEST_PAGE)?.let { loc ->
         RedirectProbe.tagFromLocation(loc)?.let { tag ->
-            val assetName = RedirectProbe.guessUniversalAssetName(tag)
+            val assetName = RedirectProbe.guessUniversalAssetName(tag, flavor)
             return decide(
                 ReleaseInfo(tag, ReleaseAsset(assetName, UpdateConfig.directDownloadUrl(tag, assetName), null)),
                 localVersionName
@@ -528,9 +590,9 @@ fun probeLatestRelease(
  * [extractSha256] 只在段 1（api.github.com 官方端点）为 true：只有那时 body 里的 SHA-256 才可信；
  * 说明原文（notes）两段都读，只用于弹窗展示。
  */
-private fun jsonNode(json: String?, localVersionName: String, extractSha256: Boolean = false): ProbeResult? {
+private fun jsonNode(json: String?, localVersionName: String, extractSha256: Boolean = false, flavor: String? = null): ProbeResult? {
     json ?: return null
-    val info = ReleaseJson.parse(json, extractSha256 = extractSha256) ?: return null
+    val info = ReleaseJson.parse(json, extractSha256 = extractSha256, flavor = flavor) ?: return null
     return when {
         !CompareVersions.isNewerAvailable(localVersionName, info.tag) -> ProbeResult.UpToDate
         info.asset != null -> {

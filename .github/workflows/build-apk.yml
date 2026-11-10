@@ -87,19 +87,30 @@ jobs:
       # 所以每遍跑完立刻拷进 apk-out 暂存，最后统一校验。
       # apkBaseName=WotaGeiCam：Gradle 产物名 WotaGeiCam-v<版本>-*.apk（用户 10-25 裁决：
       # 资产名必须带项目名）。下面 Rename 步骤统一改为 WotaGeiCam-v<版本>-*-Android.apk。
-      - name: Build split APKs (universal / arm64-v8a / armeabi-v7a)
+      - name: Build split APKs (full / lite × universal / arm64-v8a / armeabi-v7a)
         working-directory: Android/WotaGeiCamApp
         run: |
-          ./gradlew :app:assembleRelease -PabiSplits=true -PapkBaseName=WotaGeiCam $EXTRA_PROPS --stacktrace
+          ./gradlew :app:assembleFullRelease :app:assembleLiteRelease -PabiSplits=true -PapkBaseName=WotaGeiCam $EXTRA_PROPS --stacktrace
           mkdir -p ../../apk-out
-          cp app/build/outputs/apk/release/*.apk ../../apk-out/
+          # Gradle 产物名已含 flavor 段（WotaGeiCam-v<ver>-<flavor>[-<abi>]-release.apk），
+          # cp 不得再追加 -$d——否则名变 -full-universal-release-full-（双段），
+          # 下游 Publish 定位 universal 与更新器资产匹配都会错位。
+          for d in full lite; do
+            for f in app/build/outputs/apk/$d/release/*.apk; do
+              cp "$f" "../../apk-out/"
+            done
+          done
 
       # 第二遍：不分包的普通 release（复用编译缓存，只重新打包，很快）
-      - name: Build plain release APK
+      - name: Build plain release APKs (full / lite)
         working-directory: Android/WotaGeiCamApp
         run: |
-          ./gradlew :app:assembleRelease -PapkBaseName=WotaGeiCam $EXTRA_PROPS --stacktrace
-          cp app/build/outputs/apk/release/*.apk ../../apk-out/
+          ./gradlew :app:assembleFullRelease :app:assembleLiteRelease -PapkBaseName=WotaGeiCam $EXTRA_PROPS --stacktrace
+          for d in full lite; do
+            for f in app/build/outputs/apk/$d/release/*.apk; do
+              cp "$f" "../../apk-out/"
+            done
+          done
 
       # 统一改名（产物最终名）：WotaGeiCam-v0.0.11-r01-release.apk → WotaGeiCam-v0.0.11-r01-release-Android.apk。
       # 剥 WotaGeiCam- 暂存前缀、在 .apk 前插平台后缀 -Android；Gradle 侧 apkBaseName 保持不动。
@@ -117,12 +128,53 @@ jobs:
           echo "renamed $renamed APK(s)"
           ls -la apk-out
 
-      - name: Verify four APKs staged
+      # 旧版兼容单枚（2026-11-09 用户裁决）：≤v0.0.12-r01 的更新器没有 flavor 概念，
+# 只按「第一个含 universal 的资产」挑包；而 GitHub Release 的资产数组**按名字排序**返回
+# （实测：legacy 组创建最早，id 最小，但仍排在 full 之后——上传顺序不影响挑选）。
+# 所以兼容包必须起一个字母序最前的名字：`-compat-universal-release-Android.apk`
+# （'c' < 'f'(full) < 'l'(lite)）——旧版段 1/2 必然挑到它。内容=lite（旧版功能集等于 lite），
+# 正文通用 `SHA256:` 行回填的也正是 lite 哈希。
+      - name: Stage legacy-compat APK (content = lite)
+        run: |
+          set -euo pipefail
+          src=$(ls apk-out/WotaGeiCam-v*-lite-universal-release-Android.apk 2>/dev/null | head -n 1)
+          if [ -z "$src" ]; then
+            echo "::error::lite universal APK 缺失，无法生成旧版兼容包"
+            ls -la apk-out
+            exit 1
+          fi
+          dst="${src/-lite-universal-/-compat-universal-}"
+          cp "$src" "$dst"
+          cmp -s "$src" "$dst" || { echo "::error::compat copy differs: $dst"; exit 1; }
+          echo "staged compat: $(basename "$dst")"
+          ls -la apk-out
+
+      - name: Verify APKs staged (full / lite × splits + compat)
         run: |
           ls -la apk-out
-          count=$(ls apk-out/*.apk | wc -l)
-          if [ "$count" -ne 4 ]; then
-            echo "::error::expected 4 APKs, got $count"
+          # 9 枚口径（2026-11-09 用户裁决）：full 四件套 + lite 四件套 + 旧版兼容 compat 一枚。
+          # docs/plan/33：各 flavor 的 split 三件套 + plain 一枚 = 4；
+          # 名形 -<flavor>[-<abi>]-release-Android.apk → flavor 后还有 release 段，
+          # 故 glob 必须用 *-$flavor-*-Android.apk（r05 复推踩过：旧双段名恰好让
+          # *-$flavor-Android.apk 命中尾部 flavor，单段名后该模式恒 0 枚）。
+          for flavor in full lite; do
+            count=$(ls apk-out/*-$flavor-*-Android.apk 2>/dev/null | wc -l)
+            if [ "$count" -ne 4 ]; then
+              echo "::error::expected 4 $flavor APKs, got $count"
+              exit 1
+            fi
+          done
+          # 旧版兼容单枚（内容=lite，名字字母序最前：-compat- < -full- < -lite-）
+          compat=$(ls apk-out/*-compat-universal-release-Android.apk 2>/dev/null | wc -l)
+          if [ "$compat" -ne 1 ]; then
+            echo "::error::expected 1 compat APK, got $compat"
+            ls -la apk-out
+            exit 1
+          fi
+          total=$(ls apk-out/*.apk 2>/dev/null | wc -l)
+          if [ "$total" -ne 9 ]; then
+            echo "::error::expected 9 staged APKs, got $total"
+            ls -la apk-out
             exit 1
           fi
           # 最终名必须是 WotaGeiCam-v*-Android.apk（项目名是 10-25 用户裁决，不许再丢）
@@ -138,7 +190,8 @@ jobs:
           name: android-${{ github.ref_name }}-apks
           path: |
             apk-out/*.apk
-            Android/WotaGeiCamApp/app/build/outputs/mapping/release/mapping.txt
+            Android/WotaGeiCamApp/app/build/outputs/mapping/fullRelease/mapping.txt
+            Android/WotaGeiCamApp/app/build/outputs/mapping/liteRelease/mapping.txt
           if-no-files-found: error
 
       # 与 build-hap.yml 共用同一个 v* Release：谁先跑完谁创建，另一个只上传资产。
@@ -167,28 +220,73 @@ jobs:
                 || gh release view "$GITHUB_REF_NAME" >/dev/null
             fi
           fi
-          gh release upload "$GITHUB_REF_NAME" apk-out/*.apk --clobber
+          # 上传（2026-11-09 9 枚口径）：compat 单枚先传、其余 8 枚后传（只影响 created_at，
+          # 便于人工核对）。**旧版能选中 lite 内容靠的是名字字母序**（`-compat-` < `-full-` < `-lite-`
+          # < `-universal-`），不是上传先后——GitHub 的 assets 数组按名字排序返回，实测传入顺序无效。
+          shopt -s nullglob
+          compat_files=(); rest=()
+          for f in apk-out/*.apk; do
+            case "$(basename "$f")" in
+              *-compat-*) compat_files+=("$f") ;;
+              *) rest+=("$f") ;;
+            esac
+          done
+          if [ "${#compat_files[@]}" -ne 1 ]; then
+            echo "::error::compat APK 组应为 1 枚，实为 ${#compat_files[@]}"
+            ls -la apk-out
+            exit 1
+          fi
+          for f in "${compat_files[@]}"; do
+            gh release upload "$GITHUB_REF_NAME" "$f" --clobber
+          done
+          for f in "${rest[@]}"; do
+            gh release upload "$GITHUB_REF_NAME" "$f" --clobber
+          done
 
-          # 应用内更新从 Release 说明的 `SHA256: <64位hex>` 行取 universal 包的校验值
+          # 应用内更新从 Release 说明的 SHA256 行取 universal 包的校验值
           # （UpdateChecker.parseSha256FromNotes，只认官方端点段 1 的 body）。CI 不能预先知道
-          # 哈希，故构建完在此回填：以手写说明（若有）或现有 body 为底 → 去掉旧哈希行
-          # → 追加本次 universal 包的哈希。无此行的更新仍可下载，但会退回"仅大小/名称"防线。
-          UNI=$(ls apk-out/*universal-release-Android.apk | head -n 1)
-          SHA=$(sha256sum "$UNI" | cut -d' ' -f1)
+          # 哈希，故构建完在此回填。**三行语义（2026-11-09 用户裁决）**：
+          #   SHA256:      <compat 包哈希>——旧版更新器（≤v0.0.12-r01，无 flavor 概念）**唯一**认识
+          #                的一行；旧版挑到的正是 compat 那枚（内容=lite），故它必须=lite 哈希。
+          #   SHA256-full: <full universal 哈希>——full 变体专用行（只认本行，不回退通用行）。
+          #   SHA256-lite: <lite universal 哈希>——lite 变体专用行（只认本行）。
+          # 回填逻辑：以手写说明（若有）或现有 body 为底 → 去掉旧哈希行 → 追加本次三行。
+          # 资产名形态：WotaGeiCam-v<tag>-<flavor|compat>[-<abi>]-release-Android.apk。
+          # 定位不到或不一致就硬失败——绝不让空哈希/错配哈希进 Release 正文
+          # （r05 首推踩过：模式写死单段名却匹配不到双段名，sha256sum '' 静默产出空行）。
+          FULL_UNI=$(ls apk-out/*-full-universal-release-Android.apk 2>/dev/null | head -n 1)
+          LITE_UNI=$(ls apk-out/*-lite-universal-release-Android.apk 2>/dev/null | head -n 1)
+          COMPAT_UNI=$(ls apk-out/*-compat-universal-release-Android.apk 2>/dev/null | head -n 1)
+          if [ -z "$FULL_UNI" ] || [ -z "$LITE_UNI" ] || [ -z "$COMPAT_UNI" ]; then
+            echo "::error::universal APK 定位失败（full='$FULL_UNI' lite='$LITE_UNI' compat='$COMPAT_UNI'），哈希无法回填"
+            ls -la apk-out
+            exit 1
+          fi
+          cmp -s "$LITE_UNI" "$COMPAT_UNI" || {
+            echo "::error::compat universal 与 lite universal 内容不一致"
+            exit 1
+          }
+          SHA_FULL=$(sha256sum "$FULL_UNI" | cut -d' ' -f1)
+          SHA_LITE=$(sha256sum "$LITE_UNI" | cut -d' ' -f1)
+          SHA_COMPAT="$SHA_LITE"
           BODY=/tmp/release-body.md
           if [ -f "$NOTES" ]; then
-            grep -vE '(^|[[:space:]>*-])SHA256[[:space:]]*[:：]' "$NOTES" > "$BODY" || true
+            grep -vE '(^|[[:space:]>*-])SHA256(-full|-lite)?[[:space:]]*[:：]' "$NOTES" > "$BODY" || true
           else
             gh release view "$GITHUB_REF_NAME" --json body --jq '.body // ""' \
-              | grep -vE '(^|[[:space:]>*-])SHA256[[:space:]]*[:：]' > "$BODY" || true
+              | grep -vE '(^|[[:space:]>*-])SHA256(-full|-lite)?[[:space:]]*[:：]' > "$BODY" || true
           fi
-          # 手写说明里若已带"校验和"小节标题就不再重复加，只补哈希行
+          # 手写说明里若已带"校验和"小节标题就不再重复加，只补标签行
           if ! grep -qE '^##+ .*校验和' "$BODY"; then
-            printf '\n## 校验和\n\n- universal 包 SHA256：\n' >> "$BODY"
-          elif ! grep -qE 'universal 包 SHA256' "$BODY"; then
-            printf '\n- universal 包 SHA256：\n' >> "$BODY"
+            printf '\n## 校验和\n\n- 兼容旧版（=lite 内容）SHA256：\n- full 包 SHA256：\n- lite 包 SHA256：\n' >> "$BODY"
+          else
+            grep -q '兼容旧版（=lite 内容）SHA256' "$BODY" || printf '\n- 兼容旧版（=lite 内容）SHA256：\n' >> "$BODY"
+            grep -q 'full 包 SHA256' "$BODY" || printf '\n- full 包 SHA256：\n' >> "$BODY"
+            grep -q 'lite 包 SHA256' "$BODY" || printf '\n- lite 包 SHA256：\n' >> "$BODY"
           fi
-          printf 'SHA256: %s\n' "$SHA" >> "$BODY"
+          printf 'SHA256: %s\n' "$SHA_COMPAT" >> "$BODY"
+          printf 'SHA256-full: %s\n' "$SHA_FULL" >> "$BODY"
+          printf 'SHA256-lite: %s\n' "$SHA_LITE" >> "$BODY"
           gh release edit "$GITHUB_REF_NAME" --notes-file "$BODY"
-          echo "release body finalized from ${NOTES} with universal sha256=$SHA"
+          echo "release body finalized: compat(lite)=$SHA_COMPAT full=$SHA_FULL lite=$SHA_LITE"
 

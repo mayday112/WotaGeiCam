@@ -18,6 +18,10 @@ import com.wotagei.cam.camera.nativeFloatBuffer
 import com.wotagei.cam.core.EchoMode
 import com.wotagei.cam.core.GlowParams
 import com.wotagei.cam.core.echoDecayOf
+import com.wotagei.cam.core.echoTrailMaskOf
+import com.wotagei.cam.core.echoTrailTintOf
+import com.wotagei.cam.core.echoTrailTintRgbOf
+import com.wotagei.cam.core.echoTrailTolOf
 import com.wotagei.cam.core.glowRgb
 import com.wotagei.cam.diag.Diag as Log
 import java.util.concurrent.CountDownLatch
@@ -62,6 +66,14 @@ internal class SceneExportGl(
 
         /** 双边降噪的亮度差 σ（与实时链 GlRenderEngine 同一量级：0.12 偏保边，夜景暗部够用） */
         private const val BILATERAL_SIGMA_R = 0.12f
+
+        /**
+         * 合成趟 tint 恒等（白，与实时链 GLOW_TINT_WHITE 同口径）：颜色**只**由亮部趟的
+         * `mix(c, uTint, uColorOnly)` 决定（false = 像素自身颜色 / true = 色盘颜色），模糊不改色。
+         * 2026-11-08 修复：旧实现 colorOnly=false 时合成趟传色盘色，把本应跟随像素自身颜色的
+         * 光晕又乘了一遍色盘色（色盘一动光晕跟着变色）。
+         */
+        private val TINT_WHITE = floatArrayOf(1f, 1f, 1f)
     }
 
     private val thread = HandlerThread("WotaSceneExportGl").apply { start() }
@@ -152,6 +164,9 @@ internal class SceneExportGl(
     private var echoAccUDecay = -1
     private var echoAccUMode = -1
     private var echoAccUThreshold = -1
+    private var echoAccUTint = -1
+    private var echoAccUMask = -1
+    private var echoAccUTol = -1
 
     // 残影合成趟（SCENE_COMPOSITE_ECHO_FS：base + glow + echo）
     private var echoCompProgram = 0
@@ -168,6 +183,8 @@ internal class SceneExportGl(
     private var echoCompUFreq = -1
     private var echoCompUEchoMode = -1
     private var echoCompUEchoGain = -1
+    private var echoCompUEchoTintMode = -1
+    private var echoCompUEchoTint = -1
 
     private var glReady = false
 
@@ -487,6 +504,9 @@ internal class SceneExportGl(
             echoAccUDecay = GLES20.glGetUniformLocation(echoAccProgram, "uEchoDecay")
             echoAccUMode = GLES20.glGetUniformLocation(echoAccProgram, "uEchoMode")
             echoAccUThreshold = GLES20.glGetUniformLocation(echoAccProgram, "uEchoThreshold")
+            echoAccUTint = GLES20.glGetUniformLocation(echoAccProgram, "uEchoTint")
+            echoAccUMask = GLES20.glGetUniformLocation(echoAccProgram, "uEchoMask")
+            echoAccUTol = GLES20.glGetUniformLocation(echoAccProgram, "uEchoTol")
             echoCompAPos = GLES20.glGetAttribLocation(echoCompProgram, "aPosition")
             echoCompATex = GLES20.glGetAttribLocation(echoCompProgram, "aTexCoord")
             echoCompUMatrix = GLES20.glGetUniformLocation(echoCompProgram, "uTexMatrix")
@@ -500,6 +520,8 @@ internal class SceneExportGl(
             echoCompUFreq = GLES20.glGetUniformLocation(echoCompProgram, "uFreq")
             echoCompUEchoMode = GLES20.glGetUniformLocation(echoCompProgram, "uEchoMode")
             echoCompUEchoGain = GLES20.glGetUniformLocation(echoCompProgram, "uEchoGain")
+            echoCompUEchoTintMode = GLES20.glGetUniformLocation(echoCompProgram, "uEchoTintMode")
+            echoCompUEchoTint = GLES20.glGetUniformLocation(echoCompProgram, "uEchoTint")
         }
         drainGlError("sceneBuildPrograms")
         return true
@@ -559,22 +581,32 @@ internal class SceneExportGl(
             if (!brightOk) return false
             val dx = glow.width * minOf(1f, heightPx.toFloat() / widthPx)
             val dy = glow.width * minOf(1f, widthPx.toFloat() / heightPx)
-            val hOk = drawTo(glowBFbo, blurProgram, blurAPos, blurATex, blurUMatrix, identity) {
-                GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + UNIT_A)
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glowATex)
-                if (blurUSrc >= 0) GLES20.glUniform1i(blurUSrc, UNIT_A)
-                if (blurUMatrix >= 0) GLES20.glUniformMatrix4fv(blurUMatrix, 1, false, identity, 0)
-                if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, dx, 0f)
+            // 离线无实时帧预算；width 大时单遍 9-tap 抽样过远会退化成远处亮斑的鬼影拷贝
+            // （真机 2026-11-06）——同核迭代模糊（与实时链 GlowBlurChain 同一方案），多遍
+            // H+V 卷积叠卷积：等效半径扩大且保持平滑。
+            val blurPasses = 1 + when {
+                glow.width >= 0.12f -> 2
+                glow.width >= 0.05f -> 1
+                else -> 0
             }
-            if (!hOk) return false
-            val vOk = drawTo(glowAFbo, blurProgram, blurAPos, blurATex, blurUMatrix, identity) {
-                GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + UNIT_A)
-                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glowBTex)
-                if (blurUSrc >= 0) GLES20.glUniform1i(blurUSrc, UNIT_A)
-                if (blurUMatrix >= 0) GLES20.glUniformMatrix4fv(blurUMatrix, 1, false, identity, 0)
-                if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, 0f, dy)
+            repeat(blurPasses) {
+                val hOk = drawTo(glowBFbo, blurProgram, blurAPos, blurATex, blurUMatrix, identity) {
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + UNIT_A)
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glowATex)
+                    if (blurUSrc >= 0) GLES20.glUniform1i(blurUSrc, UNIT_A)
+                    if (blurUMatrix >= 0) GLES20.glUniformMatrix4fv(blurUMatrix, 1, false, identity, 0)
+                    if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, dx, 0f)
+                }
+                if (!hOk) return false
+                val vOk = drawTo(glowAFbo, blurProgram, blurAPos, blurATex, blurUMatrix, identity) {
+                    GLES20.glActiveTexture(GLES20.GL_TEXTURE0 + UNIT_A)
+                    GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glowBTex)
+                    if (blurUSrc >= 0) GLES20.glUniform1i(blurUSrc, UNIT_A)
+                    if (blurUMatrix >= 0) GLES20.glUniformMatrix4fv(blurUMatrix, 1, false, identity, 0)
+                    if (blurUOffset >= 0) GLES20.glUniform2f(blurUOffset, 0f, dy)
+                }
+                if (!vOk) return false
             }
-            if (!vOk) return false
         }
         // 2.5) 残影累积（R2 第三路）：读**原始 2D 帧** curTex（与实时链读原始 OES 同口径，
         // 降噪/Glow 不改累积源）+ 上一枚累积面 → 新累积面，乒乓交换。逐帧顺序 ⇒ 拖尾连续。
@@ -590,6 +622,11 @@ internal class SceneExportGl(
                 if (echoAccUDecay >= 0) GLES20.glUniform1f(echoAccUDecay, echoDecayOf(echo.multiplier))
                 if (echoAccUMode >= 0) GLES20.glUniform1f(echoAccUMode, if (echo.mode == EchoMode.TRAIL) 1f else 0f)
                 if (echoAccUThreshold >= 0) GLES20.glUniform1f(echoAccUThreshold, echo.threshold)
+                // 拖尾颜色补丁·择/除（docs/plan/35 U4/U5）：与实时链 drawEchoPass 同一推导（core 纯函数）
+                if (echoAccUMask >= 0) GLES20.glUniform1f(echoAccUMask, echoTrailMaskOf(echo).toFloat())
+                val echoTintRgb = echoTrailTintRgbOf(echo)
+                if (echoAccUTint >= 0) GLES20.glUniform3f(echoAccUTint, echoTintRgb[0], echoTintRgb[1], echoTintRgb[2])
+                if (echoAccUTol >= 0) GLES20.glUniform1f(echoAccUTol, echoTrailTolOf(echo))
             }
             if (!accOk) return false
             echoAccIdx = 1 - echoAccIdx
@@ -613,14 +650,15 @@ internal class SceneExportGl(
             if (echoCompUEcho >= 0) GLES20.glUniform1i(echoCompUEcho, UNIT_C)
             if (echoCompUMatrix >= 0) GLES20.glUniformMatrix4fv(echoCompUMatrix, 1, false, identity, 0)
             if (glow != null) {
-                val tint = if (glow.colorOnly) floatArrayOf(1f, 1f, 1f) else effects.glowTint
+                // 合成趟 tint 恒白：颜色已在亮部趟按 uColorOnly 定死（见 TINT_WHITE 注）
+                val tint = TINT_WHITE
                 if (echoCompUTint >= 0) GLES20.glUniform3f(echoCompUTint, tint[0], tint[1], tint[2])
                 if (echoCompUGain >= 0) GLES20.glUniform1f(echoCompUGain, glow.gain)
                 if (echoCompUAdd >= 0) GLES20.glUniform1f(echoCompUAdd, glow.add)
                 if (echoCompUBlend >= 0) GLES20.glUniform1f(echoCompUBlend, glow.blend)
                 if (echoCompUFreq >= 0) GLES20.glUniform1f(echoCompUFreq, glow.freq)
             } else {
-                if (echoCompUTint >= 0) GLES20.glUniform3f(echoCompUTint, 1f, 1f, 1f)
+                if (echoCompUTint >= 0) GLES20.glUniform3f(echoCompUTint, TINT_WHITE[0], TINT_WHITE[1], TINT_WHITE[2])
                 if (echoCompUGain >= 0) GLES20.glUniform1f(echoCompUGain, 0f)
                 if (echoCompUAdd >= 0) GLES20.glUniform1f(echoCompUAdd, 0f)
                 if (echoCompUBlend >= 0) GLES20.glUniform1f(echoCompUBlend, 0f)
@@ -628,6 +666,10 @@ internal class SceneExportGl(
             }
             if (echoCompUEchoMode >= 0) GLES20.glUniform1f(echoCompUEchoMode, if (echo.mode == EchoMode.TRAIL) 1f else 0f)
             if (echoCompUEchoGain >= 0) GLES20.glUniform1f(echoCompUEchoGain, echo.gain)
+            // 拖尾颜色补丁·加/减（docs/plan/35 U2/U3/E3）：与实时链 drawPass 同一推导（E7：KB 档 tintMode 恒 0）
+            if (echoCompUEchoTintMode >= 0) GLES20.glUniform1f(echoCompUEchoTintMode, echoTrailTintOf(echo).toFloat())
+            val compTintRgb = echoTrailTintRgbOf(echo)
+            if (echoCompUEchoTint >= 0) GLES20.glUniform3f(echoCompUEchoTint, compTintRgb[0], compTintRgb[1], compTintRgb[2])
             drawQuad(echoCompAPos, echoCompATex)
         } else if (glow != null) {
             GLES20.glUseProgram(compProgram)
@@ -638,8 +680,9 @@ internal class SceneExportGl(
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, glowATex)
             if (compUGlow >= 0) GLES20.glUniform1i(compUGlow, UNIT_B)
             if (compUMatrix >= 0) GLES20.glUniformMatrix4fv(compUMatrix, 1, false, identity, 0)
-            // colorOnly 时亮部趟已按色盘色采样，这里传白（与实时链 GL_TINT_WHITE 同口径）
-            val tint = if (glow.colorOnly) floatArrayOf(1f, 1f, 1f) else effects.glowTint
+            // 合成趟 tint 恒白：颜色已在亮部趟按 uColorOnly 定死（像素自身色 / 色盘色），
+            // 2026-11-08 修复 colorOnly=false 误传色盘色（与实时链同口径，见 TINT_WHITE 注）
+            val tint = TINT_WHITE
             if (compUTint >= 0) GLES20.glUniform3f(compUTint, tint[0], tint[1], tint[2])
             if (compUGain >= 0) GLES20.glUniform1f(compUGain, glow.gain)
             if (compUAdd >= 0) GLES20.glUniform1f(compUAdd, glow.add)

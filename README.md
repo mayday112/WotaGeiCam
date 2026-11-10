@@ -40,10 +40,11 @@
 
 **🌟 光弧工具链 · 把光弧拍好看**
 - 强制低速快门 **1/24 · 1/25** 满窗长曝光保光弧连贯；**等号档曝光纠偏**自动留读出余量防掉帧。
-- **残影（高光拖影）**：多帧回波拉长光弧，「保持亮度 / 提亮拖尾」双模式、倍数 2~10×，预览 / 成片 / 后渲染导出三路。（算法思路参考自 B 站「蒙德·究史尼」的「光弧倍增器」开源脚本，特此致谢）
+- **残影（高光拖影）**：多帧回波拉长光弧，「保持亮度 / 提亮拖尾」双模式、倍数 2~10×；提亮拖尾支持**加色 / 减色 / 择色 / 除色**与色盘双击复位，覆盖预览 / 成片 / 后渲染导出三路。（算法思路参考自 B 站「蒙德·究史尼」的「光弧倍增器」开源脚本，特此致谢）
 - **录制期抽帧补弧 + 离线光弧修复**：无原生低速档的机型也能保住连贯光弧。
 
 **🎯 训练对照 · 把动作练标准**
+- **AI 站位提示**：预览态自动识别站位，角色语音逐号位报「往左 / 往右 / 往前 / 往后」校正，完成 / 缺人 / 多人 / 全员完成各有提示、句尾带角色口癖；轮播节奏（轮询内 / 轮询间间隔）与判定精确度可调；GPU 加速三态可选；录制开始自动暂停，停录恢复。
 - **分屏对照**：一侧播放参考视频（直接采用其音频）、另一侧录制被摄者，供录制者对照参考观察被摄者的练习状态；被摄者正被录制、无法边看边练，由参考视频的声音引导节奏。
 - **双轨对比播放**：把自己的练习与参考并排比对，音轨可切、按音频自动对齐。
 
@@ -85,6 +86,7 @@
 | 光晕 Glow | 左竖 Dock「光晕」胶囊 | 开关 + 阈值 / 强度 / 混合；颜色分「像素自身色 / 仅色盘色」；预览与成片都带；仅 GPU |
 | 参考线 / 网格 | 左竖 Dock「参考线」圆钮 | 多选线型（三分法 / 对角线 / 安全框 / 网格等）；默认样式在 设置 → 参考线默认 |
 | 站位线 | 顶栏右端圆钮（分屏钮左侧） | 点按开浮层调条数 / 间距、长按选色；仅预览叠加、不进成片，录制中可用 |
+| AI 站位提示 | 顶栏右端圆钮（站位线钮左侧） | 预览态识别站位并角色语音逐号位报方向（往左 / 往右 / 往前 / 往后），支持 1~5 人、自动 / 手动人数、精确度 β、轮播双间隔（轮询内 / 轮询间）、夜间预处理提亮、GPU 加速三态（自动 / 强制 / 关）与模型组导入；开关与参数即改即存，录制中自动暂停、停录恢复；**仅 full 变体携带**，lite 变体该按钮显示获取 full 版的引导（见[已知问题](#已知问题与限制)） |
 | 水平仪 / 俯仰仪 | 右竖 Dock | 回正瞬间轻震；开关在 设置 → 取景辅助 |
 | 读数块 | 右下读数块 | 快门 / 帧率 / 码率 / ISO / EV / 白平衡 / 变焦，逐项显隐在 设置 → 取景器常驻功能 |
 | 控件布局自定义 | 设置 → 取景器常驻功能 → 编辑控件 | 拖拽摆放 Dock 与读数块；调节面板跟随控件锚点 |
@@ -117,9 +119,13 @@
 | 功能 | 位置 · 调出 | 用法 |
 |---|---|---|
 | 录制期抽帧补弧 | 帧率读数面板（无 24/25 原生档时自动触发） | 「自动抽帧补弧」并入被抽帧保光弧连贯 / 「仅抽帧」；抽帧位次记入同名 `.drops.json` |
-| 残影（高光拖影） | 底栏左侧「残影」胶囊（默认隐藏） | 先在 设置 → 取景器常驻功能 勾出；选模式（保持亮度 / 提亮拖尾）与倍数 2~10×；预览 / 成片 / 后渲染导出三路；仅 GPU |
+| 残影（高光拖影） | 底栏左侧「残影」胶囊（默认隐藏） | 先在 设置 → 取景器常驻功能 勾出；选模式（保持亮度 / 提亮拖尾）与倍数 2~10×；提亮拖尾可调阈值 / 强度；预览 / 成片 / 后渲染导出三路；仅 GPU |
+| 拖尾颜色 | 残影面板 → 提亮拖尾；或播放器 → 剪辑 → 后渲染 → 残影 | 默认关；加色给拖尾染色，减色去掉所选颜色分量；择色仅让匹配颜色的亮像素拖尾，除色仅让其余颜色的亮像素拖尾，两者保留来源自身颜色；保持亮度档不受影响 |
+| 择色容差 / 色盘复位 | 拖尾颜色控件 | 容差 5%~80%，仅择色 / 除色可调；双击色盘回到「关 + 白色」，不改其他参数；导出面板中的调整仅作用本次导出 |
 | 离线光弧修复 | 播放器 → 光弧修复 | 选目标帧率，GPU / CPU 二选一；存新文件不覆盖原片 |
 | 并入门槛 | 帧率弹层 / 光弧修复弹层 / 设置 → 开机初始值 | 默认 12（0–32），调大更保守、调小并入噪点；录制与离线、CPU 与 GPU 同一判据 |
+
+拖尾颜色仅作用于拖尾，不给当前原画面染色。白灰与彩色分开匹配，放宽容差不会把白灰当作彩色选入；「除红」仍允许白色，「除白」才排除白灰。过曝成白的像素无法靠择色还原原色，需要给白尾染色可用加色；多帧累积过亮仍可能发白。
 
 > 残影功能的**算法思路与双模式等产品语义**参考自 B 站[@蒙德·究史尼](https://space.bilibili.com/8205741)的开源脚本「光弧倍增器」，在此致谢。借鉴范围是思路与语义，**未复用其任何源代码**：本项目的着色器与实现均为独立编写，技术路线亦不同——GL 实时反馈累积、回波拖在运动方向后方，而非其 Python 离线滑窗（回波朝运动方向前方）。
 
@@ -139,10 +145,16 @@
 
 - [ ] **R1 · 测光模式选择**：可选评价 / 中央重点 / 点测光等测光模式；效果是否可见依设备 HAL 实现。
 - [ ] **光弧修复小模型**：修复光弧的死区 / 断点，自相邻帧延长补全，让光弧更连贯。
+- [ ] **硬件能力轮（方案 34 暂存）**：EDGE 锐化并入降噪、镜头暗角并入色调、风格化 GL LUT 预设（黑柔 / WOTA 艺向）、分屏副镜头同录（双文件）；方案已成文待实施。
+- [ ] **鸿蒙 AI 站位**：待麒麟 NPU 推理接口研究落地后，出携带 AI 站位的 HarmonyOS 包（当前鸿蒙包与 lite 口径同步）。
 
 ## 已知问题与限制
 
-按"如实说"的口径列出当前已知的问题面（核对至 v0.0.12-r01；这条清单会随反馈更新）：
+按"如实说"的口径列出当前已知的问题面（核对至 v0.0.12-r05；这条清单会随反馈更新）：
+
+- **AI 站位提示为实验性功能（v0.0.12-r05 起，full 变体携带）**：检测模型与判定逻辑已过单测和模型张量校验，但**真机识别精度尚未系统验证**（尤其暗光、远景、多人场景）。安全区默认值来自 PC 试验台的少量标注，换机位 / 换场地建议先用精确度 β 与「预处理提亮」调，并以实际播报为准；模型组可从电脑导入替换，坏包会自动回退内置。GPU 加速的「自动」档按兼容性白名单裁决——白名单未收录的 GPU（如部分麒麟 Maleoon 机型）在「强制」档下实测可用，推理验证失败会自动回退 CPU 并提示。
+
+- **AI 站位提示语音可自定义（fork 开发者）**：播报语音是仓库内 `Android/WotaGeiCamApp/app/src/full/assets/voice/` 下的 14 个 WAV（单声道），按文件名契约取用：`num_1`～`num_5`（号位）、`dir_left` / `dir_right` / `dir_forward` / `dir_backward`（方向）、`st_done` / `all_done`（完成 / 全员完成）、`st_missing` / `st_extra`（缺人 / 多人）、`end`（一轮播报结尾的口癖）。用同名 WAV 覆盖即可生效，无需改代码；只进 full 变体，lite 不携带。
 
 - **设置页连点返回导致的整屏黑（r31～r41 已修，更早版本请升级）**：真机日志确认根因**不在相机**——连点设置页返回时，第二下落在刚回到的录制页上，把导航的起始页面弹掉，返回栈被清空，界面框架从此没有内容可画：整屏黑、无控件，但应用活着、返回可用。r40/r41 起页内返回不再能弹掉起始页（另有 400ms 防抖），任何页面若界面被拆掉超过 3 秒会自动恢复；相机管线也已上收窗口作用域，导航竞争动不到相机状态。旧版本（≤ v0.0.11-r30）遇到请先升级。
 
@@ -169,14 +181,15 @@
 
 | 文件 | 平台 / 适配 |
 |---|---|
-| `WotaGeiCam-vX.X.X-rYY-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-universal-release-Android.apk` | Android：全设备通用（拿不准选 universal） |
-| `WotaGeiCam-vX.X.X-rYY-arm64-v8a-release-Android.apk` | Android：64 位 ARM（2016 年后的绝大多数手机） |
-| `WotaGeiCam-vX.X.X-rYY-armeabi-v7a-release-Android.apk` | Android：32 位 ARM 老设备 |
-| `WotaGeiCam-vX.X.X-rYY-unsigned-Harmony.hap` | HarmonyOS（未配置签名 Secrets 时产出；见下节安装注意） |
+| `WotaGeiCam-vX.X.X-rYY-full-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-full-universal-release-Android.apk` | Android full：全设备通用，**含 AI 站位提示**（拿不准选 universal） |
+| `WotaGeiCam-vX.X.X-rYY-lite-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-lite-universal-release-Android.apk` | Android lite：**无 AI 站位**（体积小约 21MB；与 full 可互相覆盖安装保留数据，更新各推各包） |
+| `WotaGeiCam-vX.X.X-rYY-full-arm64-v8a-release-Android.apk` / `WotaGeiCam-vX.X.X-rYY-full-armeabi-v7a-release-Android.apk` | Android full：按 ABI 分包（lite 同样有分包，命名把 full 换 lite） |
+| `WotaGeiCam-vX.X.X-rYY-compat-universal-release-Android.apk` | **兼容旧版**（**内容 = lite**，仅 1 枚）：给 v0.0.12-r01 及更早版本的应用内自动更新用（那时的更新器没有 full/lite 概念，按"第一个含 universal 的资产"挑包）；手动下载请优先选上面 full / lite |
+| `WotaGeiCam-vX.X.X-rYY-unsigned-Harmony.hap` | HarmonyOS（未配置签名 Secrets 时产出；见下节安装注意）——当前与 lite 同功能口径 |
 
 配置 HAP 签名 Secrets 后，Release 里会另有 `vX.X.X-rYY-signed-Harmony.hap`，并附 `SHA256SUMS`。
 
-文件名中的 `X.X.X-rYY` 即完整版本名，`r` 后的数字是检查点序号，越大越新；应用内「检查更新」按同一规则比较。历史版本（`v0.0.9-r05` 及更早）使用旧命名 `WotaGeiCam-vX.Y.Z-*.apk`，且只有 Android 四件套。
+文件名中的 `X.X.X-rYY` 即完整版本名，`r` 后的数字是检查点序号，越大越新；应用内「检查更新」按同一规则比较，并按包类型（full / lite）只推对应安装包。v0.0.12-r05 起一个版本共 9 枚 Android APK（full 4 + lite 4 + 兼容旧版 1）；**旧版（≤r01）自动更新会拿到兼容旧版那枚（=lite 内容）**。应用内更新会依次尝试多个公共加速节点并按实测速度重排，节点失效自动跳过；全部失败请手动下载。历史版本（`v0.0.9-r05` 及更早）使用旧命名 `WotaGeiCam-vX.Y.Z-*.apk`，且只有 Android 四件套。
 
 ## 安装与升级
 
@@ -198,22 +211,34 @@
 ```bash
 git clone https://github.com/himetuki/WotaGeiCam.git
 cd WotaGeiCam/Android/WotaGeiCamApp
-./gradlew :app:assembleDebug      # 日常构建
-./gradlew :app:assembleRelease    # 发布构建（签名说明见下）
+./gradlew :app:assembleFullDebug      # 日常构建（full = 有 AI 站位；lite = 无 AI 导流版）
+./gradlew :app:assembleFullRelease    # 发布构建（签名说明见下）
 
 # 打带检查点号的包（版本名 0.0.10-rNN，设置页可见；属性接受 05 或 r05 两种写法）
-./gradlew :app:assembleRelease -Prbuild=05
+# 双 flavor：full / lite 各出一枚（lite 包名相同、体积小，无 AI 站位）
+./gradlew :app:assembleFullRelease :app:assembleLiteRelease -Prbuild=05
 ```
 
 ```bash
-# 在 Android/WotaGeiCamApp/ 目录下执行。与 CI 一致的"四件套"
-# （plain / universal / arm64-v8a / armeabi-v7a）。
-# 分两遍构建：先分包三枚，拷出后再打不分包一枚——第二遍会清掉第一遍在输出目录的产物。
-./gradlew :app:assembleRelease -PabiSplits=true -PapkBaseName=WotaGeiCam -Prbuild=05
-mkdir -p ../../apk-out && cp app/build/outputs/apk/release/*.apk ../../apk-out/
-./gradlew :app:assembleRelease -PapkBaseName=WotaGeiCam -Prbuild=05
-cp app/build/outputs/apk/release/*.apk ../../apk-out/
+# 在 Android/WotaGeiCamApp/ 目录下执行。与 CI 一致的双 flavor 全套
+# （full / lite × plain / universal / arm64-v8a / armeabi-v7a，共 8 枚）。
+# 分两遍构建：先分包（按 flavor 分目录输出），拷出后再打不分包——第二遍会清掉第一遍的产物。
+./gradlew :app:assembleFullRelease :app:assembleLiteRelease -PabiSplits=true -PapkBaseName=WotaGeiCam -Prbuild=05
+mkdir -p ../../apk-out
+for d in full lite; do
+  for f in app/build/outputs/apk/$d/release/*.apk; do
+    b=$(basename "$f" .apk); cp "$f" "../../apk-out/${b}-$d.apk"
+  done
+done
+./gradlew :app:assembleFullRelease :app:assembleLiteRelease -PapkBaseName=WotaGeiCam -Prbuild=05
+for d in full lite; do
+  for f in app/build/outputs/apk/$d/release/*.apk; do
+    b=$(basename "$f" .apk); cp "$f" "../../apk-out/${b}-$d.apk"
+  done
+done
 ```
+
+> flavor 说明：full 与 lite 的 `applicationId` / `versionCode` 相同（可互相覆盖安装且保留数据），lite 的 versionName 带 `-lite` 后缀；应用内「检查更新」按版本类型各推各包（full 只收 full、lite 只收 lite）。
 
 签名说明：仓库不含签名材料。如需产出正式签名的 release 包，在 `Android/WotaGeiCamApp/` 下自备 `keystore.properties`（含 `storeFile` / `storePassword` / `keyAlias` / `keyPassword` 四项）与 keystore 文件；缺失时 release 变体自动回退 debug 签名，仅供本地测试。`Android/WotaGeiCamApp/gradle.properties` 里的 `org.gradle.java.home` 记的是打包机的 JDK 位置，机器上 JDK 位置不同时改这一行或删掉改用 `JAVA_HOME`（CI 也是这样处理的）。
 
