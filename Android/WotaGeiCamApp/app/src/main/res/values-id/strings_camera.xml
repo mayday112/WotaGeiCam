@@ -293,6 +293,15 @@
     <string name="cam_echo_gain">Kekuatan Ekor</string>
     <string name="cam_echo_broken">Efek jejak dinonaktifkan</string>
     <string name="cam_echo_direct">Beralih ke \"Gunakan GPU\" agar berfungsi</string>
+    <!-- Tambalan Warna Jejak (plan/35) -->
+    <string name="cam_echo_trail_color">Warna Jejak</string>
+    <string name="cam_echo_tcm_off">Nonaktif</string>
+    <string name="cam_echo_tcm_add">Tambah Warna</string>
+    <string name="cam_echo_tcm_sub">Kurang Warna</string>
+    <string name="cam_echo_tcm_only">Pilih Warna</string>
+    <string name="cam_echo_tcm_except">Kecualikan Warna</string>
+    <string name="cam_echo_tcm_note">Tambah = warnai jejak dengan warna pilihan; Kurang = hapus warna pilihan dari jejak; Pilih = hanya piksel dengan warna pilihan yang meninggalkan jejak; Kecualikan = hanya piksel selain warna pilihan yang meninggalkan jejak. Ketuk dua kali roda warna untuk reset</string>
+    <string name="cam_echo_trail_tol">Toleransi Warna</string>
     <string name="denoise_audio_off">Nonaktif</string>
     <string name="denoise_audio_system">Sistem</string>
     <string name="denoise_video_off">Nonaktif</string>

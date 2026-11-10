@@ -293,6 +293,15 @@
     <string name="cam_echo_gain">Trail Strength</string>
     <string name="cam_echo_broken">Echo disabled</string>
     <string name="cam_echo_direct">Switch to \"Use GPU\" to take effect</string>
+    <!-- Trail Color Patch (plan/35) -->
+    <string name="cam_echo_trail_color">Trail Color</string>
+    <string name="cam_echo_tcm_off">Off</string>
+    <string name="cam_echo_tcm_add">Add</string>
+    <string name="cam_echo_tcm_sub">Subtract</string>
+    <string name="cam_echo_tcm_only">Isolate</string>
+    <string name="cam_echo_tcm_except">Exclude</string>
+    <string name="cam_echo_tcm_note">Add = tint trail with selected color; Subtract = remove selected color from trail; Isolate = only pixels of selected color leave trails; Exclude = only pixels outside selected color leave trails. Double-tap color wheel to reset</string>
+    <string name="cam_echo_trail_tol">Color Tolerance</string>
     <string name="denoise_audio_off">Off</string>
     <string name="denoise_audio_system">System Denoise</string>
     <string name="denoise_video_off">Off</string>
