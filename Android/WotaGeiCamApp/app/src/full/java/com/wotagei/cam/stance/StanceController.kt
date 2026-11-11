@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.annotation.StringRes
+import com.wotagei.cam.R
+import com.wotagei.cam.ui.WotaSettings
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -36,6 +39,8 @@ import java.util.concurrent.Executors
 class StanceController private constructor(
     private val appContext: Context,
 ) {
+    private fun resString(@StringRes resId: Int, vararg args: Any): String =
+        WotaSettings.wrapContext(appContext).getString(resId, *args)
     /** UI 状态（CameraScreen 弹窗/叠加消费）。 */
     data class UiState(
         val enabled: Boolean = false,
@@ -160,7 +165,9 @@ class StanceController private constructor(
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Diag.w(TAG, "模型组装配失败：${e.message}")
-                    _state.value = _state.value.copy(fallbackTip = "模型组装配失败：${e.message}")
+                    _state.value = _state.value.copy(
+                        fallbackTip = resString(R.string.cam_stance_err_pack_init, e.message ?: "?")
+                    )
                 }
             }
         }
@@ -196,7 +203,7 @@ class StanceController private constructor(
             if (bMeta == null) throw e
             applyPack(builtin, bMeta, "builtin")
             _state.value = _state.value.copy(
-                fallbackTip = "用户模型组不可用（${e.message}），已回退内置模型组",
+                fallbackTip = resString(R.string.cam_stance_tip_pack_fallback, e.message ?: "?"),
             )
         }
     }
@@ -223,15 +230,32 @@ class StanceController private constructor(
             a.updateModel(det, head, marginsText)
             detector = det
             val headMeta = meta["head_meta"] as? Map<*, *>
-            val version = buildString {
-                append("模型组 ${meta["created_at"] ?: "?"}（$source）")
-                append("｜判定头 ${headMeta?.get("trained_at") ?: "?"} val_acc=${headMeta?.get("val_acc") ?: "?"}")
-                append("｜安全区 ${meta["margins_sessions"]?.toString()?.take(36)}…")
+            val bands = meta["bands"] as? Map<*, *>
+            val sourceLabel = if (source == "user") {
+                resString(R.string.cam_stance_pack_user)
+            } else {
+                resString(R.string.cam_stance_pack_builtin)
             }
+            val version = resString(
+                R.string.cam_stance_version_summary,
+                meta["created_at"] ?: sourceLabel,
+                meta["schema"]?.toString() ?: "?",
+                headMeta?.get("trained_at") ?: "?",
+                headMeta?.get("n")?.toString() ?: "?",
+                headMeta?.get("val_acc")?.toString() ?: "?",
+                bands?.get("left")?.toString() ?: "?",
+                bands?.get("right")?.toString() ?: "?",
+                bands?.get("bottom")?.toString() ?: "?",
+            )
+            val wantGpu = _state.value.gpuMode != StanceDetector.MODE_OFF
             _state.value = _state.value.copy(
                 backendName = det.backendName,
                 versionText = version,
-                fallbackTip = if (det.backendName.contains("回退")) "GPU 不可用已回退 CPU" else _state.value.fallbackTip,
+                fallbackTip = if (wantGpu && det.gpuFallbackReason != null) {
+                    resString(R.string.cam_stance_tip_gpu_fallback)
+                } else {
+                    _state.value.fallbackTip
+                },
             )
             syncEngineParams()
         } catch (e: Exception) {
@@ -260,7 +284,7 @@ class StanceController private constructor(
         if (recording) {
             // 录制窗口两向都拒绝：挂/摘槽都会重建相机会话（MediaRecorder 面在会话里）——
             // 状态保持录制前的样子（本功能录制时暂停，不是关闭），停录后自动恢复。
-            _state.value = _state.value.copy(fallbackTip = "录制中不可调整站位提示——停录后再试")
+            _state.value = _state.value.copy(fallbackTip = resString(R.string.cam_stance_tip_recording_locked))
             return
         }
         if (on && frontLens) {
@@ -268,7 +292,7 @@ class StanceController private constructor(
             _state.value = _state.value.copy(
                 enabled = false,
                 running = false,
-                fallbackTip = "前置镜头不提供站位提示——切回后置后再开",
+                fallbackTip = resString(R.string.cam_stance_tip_front_lens_locked),
             )
             return
         }
@@ -482,7 +506,9 @@ class StanceController private constructor(
             reloadAsync(context.applicationContext)
             true
         } catch (e: Exception) {
-            _state.value = _state.value.copy(fallbackTip = "导入失败：${e.message}（已保持内置模型组）")
+            _state.value = _state.value.copy(
+                fallbackTip = resString(R.string.cam_stance_tip_import_failed, e.message ?: "?")
+            )
             false
         }
     }
@@ -494,7 +520,9 @@ class StanceController private constructor(
             reloadAsync(context.applicationContext)
             true
         } catch (e: Exception) {
-            _state.value = _state.value.copy(fallbackTip = "导入失败：${e.message}（已保持内置模型组）")
+            _state.value = _state.value.copy(
+                fallbackTip = resString(R.string.cam_stance_tip_import_failed, e.message ?: "?")
+            )
             false
         }
     }

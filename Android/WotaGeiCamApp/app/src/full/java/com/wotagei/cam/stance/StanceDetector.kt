@@ -91,7 +91,7 @@ class StanceDetector : StanceAnalysis.FrameDetector, Closeable {
                     runtimeVerify(intp = interpreter!!)   // 运行期验证（force 路线的安全网）
                     delegate = d
                     gpuActive = true
-                    backendName = if (gpuMode == MODE_FORCE && !whitelistPass) "GPU（强制，白名单外）" else "GPU"
+                    backendName = if (gpuMode == MODE_FORCE && !whitelistPass) "GPU (Forced)" else "GPU"
                     Diag.i(TAG, "GPU delegate 就绪 mode=$gpuMode whitelist=$whitelistPass")
                 }
             } catch (e: Throwable) {
@@ -107,8 +107,12 @@ class StanceDetector : StanceAnalysis.FrameDetector, Closeable {
         }
         if (!gpuActive) {
             interpreter = Interpreter(cpuModel, cpuOpts)
-            // 回退标记：fallbackTip 依赖 backendName.contains("回退")——GPU 开着却回退必须让用户看见
-            backendName = if (gpuMode != MODE_OFF && gpuFile != null) "CPU（$gpuFallbackReason）" else "CPU"
+            // 回退标记：fallbackTip 依赖 gpuFallbackReason != null（或 backendName.contains）
+            backendName = if (gpuMode != MODE_OFF && gpuFile != null && gpuFallbackReason != null) {
+                "CPU ($gpuFallbackReason)"
+            } else {
+                "CPU"
+            }
         }
         return try {
             if (!gpuActive) bindTensorSpec()

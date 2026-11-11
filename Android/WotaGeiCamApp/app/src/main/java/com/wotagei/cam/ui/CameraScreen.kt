@@ -1936,7 +1936,7 @@ fun CameraScreen(
                     // 叠加/播报不进成片，且录制开始会自动关闭功能（§5.1）。
                     WotaIconButton(
                         image = Icons.Outlined.Accessibility,
-                        description = "站位提示",
+                        description = stringResource(R.string.cam_stance_title),
                         selected = stanceControlsOpen,
                         onClick = { stanceControlsOpen = !stanceControlsOpen },
                         modifier = Modifier

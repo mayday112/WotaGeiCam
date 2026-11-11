@@ -386,4 +386,55 @@
     <string name="marker_color_orange">橙色</string>
     <string name="cam_focus_manual_peaking_tip">手动对焦可配合监看·峰值对焦使用：合焦区域会高亮</string>
     <string name="cam_fps_downgraded_tip">本机跑不动该帧率，已自动退回 %1$d 帧</string>
+
+    <!-- 站位提示（方案 32 M3b） -->
+    <string name="cam_stance_title">站位提示</string>
+    <string name="cam_stance_sub">预览态专属 · 仅后置镜头 · 录制中自动暂停，停录恢复</string>
+    <string name="cam_stance_precision">精确度</string>
+    <string name="cam_stance_reset">重置</string>
+    <string name="cam_stance_precision_note">精确度说明：β 越小判定越严格（人微微偏移就报歪），越大越宽松（大幅偏移也不报）。改完立即生效；默认 0.30。</string>
+    <string name="cam_stance_count">人数</string>
+    <string name="cam_stance_count_auto">自动</string>
+    <string name="cam_stance_count_manual">手动</string>
+    <string name="cam_stance_intra_gap">轮询内间隔</string>
+    <string name="cam_stance_intra_gap_sub">流程内每号位播报的间隔</string>
+    <string name="cam_stance_inter_gap">轮询间间隔</string>
+    <string name="cam_stance_inter_gap_sub">两轮全流程播报之间的静默</string>
+    <string name="cam_stance_gpu_title">GPU/NPU 加速</string>
+    <string name="cam_stance_gpu_auto">自动</string>
+    <string name="cam_stance_gpu_force">强制</string>
+    <string name="cam_stance_gpu_off">关</string>
+    <string name="cam_stance_gpu_current">当前：%1$s%2$s</string>
+    <string name="cam_stance_gpu_direct_disabled">（设置页渲染模式为 DIRECT，不可用）</string>
+    <string name="cam_stance_gpu_note">自动=按兼容性白名单裁决；强制=跳过白名单实验（白名单未收录的新 GPU 如 Maleoon 可能可用，推理验证失败会自动回退并提示）。</string>
+    <string name="cam_stance_brighten">预处理提亮</string>
+    <string name="cam_stance_brighten_sub">夜间识别用；只进检测输入</string>
+    <string name="cam_stance_model_dir">模型目录</string>
+    <string name="cam_stance_scan_import">扫描目录导入</string>
+    <string name="cam_stance_model_note">模型更新：把 PC 试验台打出的 model_pack.zip 放进上面的模型目录，点「扫描目录导入」；或直接更新应用（新版应用通常随包附带新模型）。校验失败会自动回退内置模型组。</string>
+    <string name="cam_stance_lite_body">此版本为无AI站位指示版本，如需使用AI站位指示功能，请前往项目仓库获取</string>
+    <string name="cam_stance_lite_note">（full 变体内置 YOLO 站位检测、判定模型与安全区标定，可在录制前对站位偏差给出逐号位语音与画面提示）</string>
+    <string name="cam_stance_slot_ok">%1$d号 ✓</string>
+    <string name="cam_stance_slot_verdict">%1$d号 %2$s</string>
+    <string name="cam_stance_slot_missing">%1$d号缺</string>
+    <string name="cam_stance_verdict_left">往左</string>
+    <string name="cam_stance_verdict_right">往右</string>
+    <string name="cam_stance_verdict_forward">往前</string>
+    <string name="cam_stance_verdict_back">往后</string>
+    <string name="cam_stance_verdict_ok">完成</string>
+    <string name="cam_stance_verdict_missing">缺人</string>
+    <string name="cam_stance_verdict_extra">多人</string>
+    <string name="cam_stance_pack_builtin">内置</string>
+    <string name="cam_stance_pack_user">用户导入</string>
+    <string name="cam_stance_version_summary">模型组 %1$s（schema %2$s）｜判定头 %3$s（n=%4$s, %5$s）｜安全区 L[%6$s] R[%7$s] B[%8$s]</string>
+    <string name="cam_stance_err_pack_init">模型组装配失败：%1$s</string>
+    <string name="cam_stance_tip_pack_fallback">用户模型组不可用（%1$s），已回退内置模型组</string>
+    <string name="cam_stance_tip_gpu_fallback">GPU 不可用已回退 CPU</string>
+    <string name="cam_stance_tip_recording_locked">录制中不可调整站位提示——停录后再试</string>
+    <string name="cam_stance_tip_front_lens_locked">前置镜头不提供站位提示——切回后置后再开</string>
+    <string name="cam_stance_tip_import_failed">导入失败：%1$s（已保持内置模型组）</string>
+    <string name="cam_stance_backend_gpu_forced_unlisted">GPU（强制，白名单外）</string>
+    <string name="cam_stance_backend_cpu_with_reason">CPU（%1$s）</string>
+    <string name="cam_stance_gpu_fb_not_whitelisted">GPU 兼容列表不通过（该机型/环境白名单外），已自动回退 CPU</string>
+    <string name="cam_stance_gpu_fb_init_failed">初始化失败（%1$s），已自动回退 CPU</string>
 </resources>

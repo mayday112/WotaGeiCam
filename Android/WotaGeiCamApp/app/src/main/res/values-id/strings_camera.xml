@@ -328,4 +328,55 @@
     <string name="marker_color_orange">Oranye</string>
     <string name="cam_focus_manual_peaking_tip">Fokus manual dapat dipadukan dengan Monitor · Focus Peaking: area fokus akan disorot</string>
     <string name="cam_fps_downgraded_tip">Perangkat tidak mampu mempertahankan frame rate ini; otomatis diturunkan ke %1$d fps</string>
+
+    <!-- Panduan Posisi (Skema 32 M3b) -->
+    <string name="cam_stance_title">Panduan Posisi</string>
+    <string name="cam_stance_sub">Khusus pratinjau · Kamera belakang · Dijeda otomatis saat merekam</string>
+    <string name="cam_stance_precision">Presisi</string>
+    <string name="cam_stance_reset">Reset</string>
+    <string name="cam_stance_precision_note">Presisi (β): Makin kecil makin ketat (sedikit bergeser langsung diingatkan), makin besar makin longgar. Langsung aktif; bawaan 0.30.</string>
+    <string name="cam_stance_count">Jumlah Orang</string>
+    <string name="cam_stance_count_auto">Otomatis</string>
+    <string name="cam_stance_count_manual">Manual</string>
+    <string name="cam_stance_intra_gap">Jeda Antar Posisi</string>
+    <string name="cam_stance_intra_gap_sub">Jeda pengumuman antar nomor posisi dalam satu putaran</string>
+    <string name="cam_stance_inter_gap">Jeda Antar Putaran</string>
+    <string name="cam_stance_inter_gap_sub">Jeda hening di antara dua putaran pengumuman penuh</string>
+    <string name="cam_stance_gpu_title">Akselerasi GPU/NPU</string>
+    <string name="cam_stance_gpu_auto">Otomatis</string>
+    <string name="cam_stance_gpu_force">Paksa</string>
+    <string name="cam_stance_gpu_off">Mati</string>
+    <string name="cam_stance_gpu_current">Saat ini: %1$s%2$s</string>
+    <string name="cam_stance_gpu_direct_disabled"> (Tidak tersedia saat Mode Render diatur ke DIRECT)</string>
+    <string name="cam_stance_gpu_note">Otomatis = ikuti daftar putih kompatibilitas; Paksa = lewati daftar putih (eksperimental untuk GPU baru seperti Maleoon; otomatis kembali ke CPU jika verifikasi gagal).</string>
+    <string name="cam_stance_brighten">Cerahkan Pra-proses</string>
+    <string name="cam_stance_brighten_sub">Untuk deteksi malam; hanya memengaruhi input AI</string>
+    <string name="cam_stance_model_dir">Direktori Model</string>
+    <string name="cam_stance_scan_import">Pindai &amp; Impor</string>
+    <string name="cam_stance_model_note">Pembaruan model: Taruh model_pack.zip dari workbench PC ke direktori di atas lalu ketuk \"Pindai &amp; Impor\", atau perbarui aplikasi. Otomatis kembali ke model bawaan jika validasi gagal.</string>
+    <string name="cam_stance_lite_body">Versi Lite ini tidak menyertakan Panduan Posisi AI. Untuk menggunakan fitur deteksi posisi AI, silakan unduh versi Full dari repositori proyek.</string>
+    <string name="cam_stance_lite_note">(Varian Full dilengkapi deteksi posisi YOLO, model penilaian, dan kalibrasi zona aman untuk memberikan panduan suara &amp; visual per posisi sebelum merekam.)</string>
+    <string name="cam_stance_slot_ok">No.%1$d ✓</string>
+    <string name="cam_stance_slot_verdict">No.%1$d %2$s</string>
+    <string name="cam_stance_slot_missing">No.%1$d Kosong</string>
+    <string name="cam_stance_verdict_left">← Kiri</string>
+    <string name="cam_stance_verdict_right">Kanan →</string>
+    <string name="cam_stance_verdict_forward">↑ Maju</string>
+    <string name="cam_stance_verdict_back">↓ Mundur</string>
+    <string name="cam_stance_verdict_ok">Pas</string>
+    <string name="cam_stance_verdict_missing">Kosong</string>
+    <string name="cam_stance_verdict_extra">Lebih</string>
+    <string name="cam_stance_pack_builtin">Bawaan</string>
+    <string name="cam_stance_pack_user">Impor Pengguna</string>
+    <string name="cam_stance_version_summary">Model: %1$s (schema %2$s) | Head: %3$s (n=%4$s, %5$s) | Zona Aman L[%6$s] R[%7$s] B[%8$s]</string>
+    <string name="cam_stance_err_pack_init">Gagal memuat paket model: %1$s</string>
+    <string name="cam_stance_tip_pack_fallback">Paket model impor tidak tersedia (%1$s), kembali ke model bawaan</string>
+    <string name="cam_stance_tip_gpu_fallback">GPU tidak tersedia, kembali ke CPU</string>
+    <string name="cam_stance_tip_recording_locked">Tidak dapat mengubah Panduan Posisi saat merekam — hentikan rekaman dulu</string>
+    <string name="cam_stance_tip_front_lens_locked">Panduan Posisi tidak tersedia di kamera depan — ganti ke kamera belakang</string>
+    <string name="cam_stance_tip_import_failed">Impor gagal: %1$s (tetap memakai model bawaan)</string>
+    <string name="cam_stance_backend_gpu_forced_unlisted">GPU (Paksa, di luar daftar putih)</string>
+    <string name="cam_stance_backend_cpu_with_reason">CPU (%1$s)</string>
+    <string name="cam_stance_gpu_fb_not_whitelisted">GPU tidak masuk daftar putih kompatibilitas perangkat ini; kembali ke CPU</string>
+    <string name="cam_stance_gpu_fb_init_failed">Inisialisasi gagal (%1$s); kembali ke CPU</string>
 </resources>

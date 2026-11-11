@@ -13,6 +13,8 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.wotagei.cam.R
 
 /**
  * 号位叠加（M2c）：判定输出的可视化——画在 previewStage 的 Compose View 层
@@ -26,6 +28,20 @@ fun StanceOverlay(
 ) {
     if (output == null || output.slots.isEmpty()) return
     val measurer = rememberTextMeasurer()
+
+    val verdictTextMap = mapOf(
+        Verdict.LEFT to stringResource(R.string.cam_stance_verdict_left),
+        Verdict.RIGHT to stringResource(R.string.cam_stance_verdict_right),
+        Verdict.FORWARD to stringResource(R.string.cam_stance_verdict_forward),
+        Verdict.BACK to stringResource(R.string.cam_stance_verdict_back),
+        Verdict.OK to stringResource(R.string.cam_stance_verdict_ok),
+        Verdict.MISSING to stringResource(R.string.cam_stance_verdict_missing),
+        Verdict.EXTRA to stringResource(R.string.cam_stance_verdict_extra),
+    )
+    val slotOkPattern = stringResource(R.string.cam_stance_slot_ok)
+    val slotVerdictPattern = stringResource(R.string.cam_stance_slot_verdict)
+    val slotMissingPattern = stringResource(R.string.cam_stance_slot_missing)
+
     Canvas(modifier) {
         for (slot in output.slots) {
             val person = slot.person
@@ -42,7 +58,12 @@ fun StanceOverlay(
                 }
                 drawRoundRect(color, topLeft = Offset(x1, y1), size = Size(w, h),
                     cornerRadius = CornerRadius(12f, 12f), style = Stroke(width = 3f))
-                val label = if (slot.done) "${slot.slot}号 ✓" else "${slot.slot}号 ${slot.verdict.speak}"
+                val verdictLabel = verdictTextMap[slot.verdict] ?: slot.verdict.speak
+                val label = if (slot.done) {
+                    String.format(slotOkPattern, slot.slot)
+                } else {
+                    String.format(slotVerdictPattern, slot.slot, verdictLabel)
+                }
                 val text = measurer.measure(
                     label, TextStyle(fontSize = 14.sp, color = color, fontWeight = FontWeight.Bold)
                 )
@@ -60,7 +81,8 @@ fun StanceOverlay(
                     cornerRadius = CornerRadius(28f, 28f),
                     style = Stroke(width = 3f),
                 )
-                val text = measurer.measure("${slot.slot}号缺", TextStyle(fontSize = 13.sp, color = ghost))
+                val missingLabel = String.format(slotMissingPattern, slot.slot)
+                val text = measurer.measure(missingLabel, TextStyle(fontSize = 13.sp, color = ghost))
                 drawText(text, topLeft = Offset(anchorX - 30f, anchorY + 96f))
             }
         }

@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.wotagei.cam.R
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,14 +78,14 @@ class StanceFeature private constructor(private val appContext: Context) {
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text("站位提示", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.cam_stance_title), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
             Text(
-                "此版本为无AI站位指示版本，如需使用AI站位指示功能，请前往项目仓库获取",
+                stringResource(R.string.cam_stance_lite_body),
                 color = Color(0xFFDDDDDD),
                 fontSize = 13.sp,
             )
             Text(
-                "（full 变体内置 YOLO 站位检测、判定模型与安全区标定，可在录制前对站位偏差给出逐号位语音与画面提示）",
+                stringResource(R.string.cam_stance_lite_note),
                 color = Color(0xFF9A9AA6),
                 fontSize = 11.sp,
             )
