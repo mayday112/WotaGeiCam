@@ -4217,12 +4217,12 @@ private fun BoxScope.BottomBandChips(
     var rowWpx by remember { mutableIntStateOf(0) }
     val gapPx = with(density) { WotaSpace.s.toPx() }
     val edgePx = with(density) { HudEdgePad.toPx() }
-    // 贴卡片左缘紧凑排布：若左侧空间充裕则贴靠 Dock 左缘，若装不下则贴齐安全区左边缘 (edgePx)，
-    // 且垂直方向始终贴齐底部带基线，不向上浮空跳入画面中央。
     val hugX = dockLeftPx - gapPx - rowWpx
     val fits = rowWpx > 0 && hugX >= edgePx
     val x = if (fits) hugX else edgePx
-    val yOffPx = 0
+    val yOffPx = if (!fits && edgePx + rowWpx > dockLeftPx) {
+        with(density) { (dockStripH.dp + WotaSpace.s).toPx() }.roundToInt()
+    } else 0
     Row(
         modifier = Modifier
             .align(Alignment.BottomStart)
