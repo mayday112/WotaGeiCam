@@ -98,8 +98,12 @@
     <string name="player_clip_too_short">Segmen yang dipilih terlalu pendek; perpanjang rentang sebelum mengekspor</string>
     <string name="player_clip_export">Ekspor ke Galeri</string>
     <string name="player_clip_cancel">Batal Ekspor</string>
+    <string name="player_clip_percent">%1$d%%</string>
+    <string name="player_clip_preparing">Menyiapkan ekspor…</string>
+    <string name="player_clip_running">Mengekspor %1$d%%</string>
     <string name="player_clip_done">Potongan video berhasil diekspor ke galeri</string>
     <string name="player_clip_failed">Ekspor gagal, silakan coba lagi</string>
+    <string name="player_clip_busy">Ekspor sebelumnya masih menyelesaikan proses, coba lagi sebentar</string>
     <string name="player_clip_commit_kept">Ekspor selesai tetapi belum terindeks; file tetap tersimpan dan akan dipulihkan saat aplikasi dibuka ulang</string>
     <string name="player_clip_mode">Metode Ekspor</string>
     <string name="player_clip_mode_lossless">Tanpa Kompresi (Lossless)</string>

@@ -98,8 +98,12 @@
     <string name="player_clip_too_short">Selected segment too short; expand range before exporting</string>
     <string name="player_clip_export">Export to gallery</string>
     <string name="player_clip_cancel">Cancel export</string>
+    <string name="player_clip_percent">%1$d%%</string>
+    <string name="player_clip_preparing">Preparing export…</string>
+    <string name="player_clip_running">Exporting %1$d%%</string>
     <string name="player_clip_done">Trimmed clip exported to gallery</string>
     <string name="player_clip_failed">Export failed, please retry</string>
+    <string name="player_clip_busy">Previous export is still finalizing, please try again shortly</string>
     <!-- #4: commit failed but bytes kept -->
     <string name="player_clip_commit_kept">Export completed but unindexed; file preserved and will restore on app restart</string>
     <string name="player_clip_mode">Export Mode</string>
