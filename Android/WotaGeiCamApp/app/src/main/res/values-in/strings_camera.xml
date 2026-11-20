@@ -353,7 +353,7 @@
     <string name="cam_stance_brighten_sub">Untuk deteksi malam; hanya memengaruhi input AI</string>
     <string name="cam_stance_model_dir">Direktori Model</string>
     <string name="cam_stance_scan_import">Pindai &amp; Impor</string>
-    <string name="cam_stance_model_note">Pembaruan model: Taruh model_pack.zip dari workbench PC ke direktori di atas lalu ketuk \"Pindai &amp; Impor\", atau perbarui aplikasi. Otomatis kembali ke model bawaan jika validasi gagal.</string>
+    <string name="cam_stance_model_note">Pembaruan model: Taruh model_pack.zip dari workbench PC ke direktori di atas lalu ketuk \"Pindai &amp; Impor\", atau perbarui aplikasi. Hanya impor model yang Anda latih sendiri atau Anda percayai; SHA paket hanya memverifikasi keutuhan, bukan keaslian sumber. Batas 64 MiB per model, 128 MiB per paket; jika gagal, model sebelumnya tetap dipertahankan.</string>
     <string name="cam_stance_lite_body">Versi Lite ini tidak menyertakan Panduan Posisi AI. Untuk menggunakan fitur deteksi posisi AI, silakan unduh versi Full dari repositori proyek.</string>
     <string name="cam_stance_lite_note">(Varian Full dilengkapi deteksi posisi YOLO, model penilaian, dan kalibrasi zona aman untuk memberikan panduan suara &amp; visual per posisi sebelum merekam.)</string>
     <string name="cam_stance_slot_ok">No.%1$d ✓</string>

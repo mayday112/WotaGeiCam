@@ -109,7 +109,7 @@
     <string name="player_clip_mode_lossless">Tanpa Kompresi (Lossless)</string>
     <string name="player_clip_mode_scene">Render Ulang</string>
     <string name="player_clip_scene_lossless_note">Tanpa encode ulang; video sama persis seperti saat direkam (kurva, glow, dan denoise sudah menyatu)</string>
-    <string name="player_clip_scene_none">Glow, Denoise, dan Jejak tidak aktif; hasil render ulang sama dengan tanpa kompresi</string>
+    <string name="player_clip_scene_none">Glow, Denoise, dan Jejak semuanya mati — aktifkan salah satu efek di bawah dulu, atau beralih kembali ke Tanpa Kompresi</string>
     <string name="player_clip_scene_glow">Glow</string>
     <string name="player_clip_scene_denoise">Denoise</string>
     <string name="player_clip_scene_echo">Jejak</string>

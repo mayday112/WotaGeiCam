@@ -353,7 +353,7 @@
     <string name="cam_stance_brighten_sub">For low-light detection; affects AI input only</string>
     <string name="cam_stance_model_dir">Model Directory</string>
     <string name="cam_stance_scan_import">Scan &amp; Import</string>
-    <string name="cam_stance_model_note">Model update: Place model_pack.zip from the PC workbench into the directory above and tap \"Scan &amp; Import\", or update the app. Falls back to built-in models if validation fails.</string>
+    <string name="cam_stance_model_note">Model update: Place model_pack.zip from the PC workbench into the directory above and tap \"Scan &amp; Import\", or update the app. Only import models you trained yourself or trust; the pack SHA verifies integrity only, not provenance. Limits: 64 MiB per model, 128 MiB per pack; existing models are kept if import fails.</string>
     <string name="cam_stance_lite_body">This Lite build does not include the AI Stance Guide. To use AI Stance detection, please download the Full version from the project repository.</string>
     <string name="cam_stance_lite_note">(The Full variant includes built-in YOLO stance detection, judgement models, and safe-zone calibration to provide per-slot voice and visual cues before recording.)</string>
     <string name="cam_stance_slot_ok">#%1$d ✓</string>

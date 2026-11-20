@@ -114,9 +114,10 @@
 
     <!-- Akses Semua File -->
     <string name="set_group_storage">Akses Semua File</string>
-    <string name="set_storage_note">Setelah diaktifkan, tindakan hapus, pindah ke sampah, pulihkan, dan ubah nama berlaku langsung untuk semua video di perangkat tanpa dialog konfirmasi bahasa Inggris dari sistem; jika dinonaktifkan, hanya video rekaman aplikasi ini yang dapat dikelola.</string>
+    <string name="set_storage_note">Izin opsional, hanya untuk memudahkan hapus atau ubah nama video dari aplikasi lain; tidak diperlukan untuk merekam, menonton, atau mengelola video rekaman aplikasi ini. Jika aktif, hapus, sampah, pulihkan, dan ubah nama berjalan tanpa konfirmasi sistem berulang; jika nonaktif, hanya video aplikasi ini yang dapat diubah, dan dapat diatur ulang kapan saja di sini.</string>
     <string name="set_storage_open">Buka Pengaturan Sistem</string>
     <string name="set_storage_on">Sudah Aktif</string>
+    <string name="set_storage_open_failed">Tidak dapat membuka halaman izin sistem. Cari \"Akses aplikasi khusus → Akses semua file\" di Pengaturan Sistem. Anda tetap dapat mengelola video rekaman aplikasi ini tanpa mengaktifkannya.</string>
     <string name="set_storage_unsupported">Sistem saat ini (Android 10) tidak memiliki opsi \"Akses Semua File\"; tindakan hapus, sampah, dan ubah nama hanya berlaku untuk video yang direkam/diekspor oleh aplikasi ini.</string>
 
     <!-- Kapsul Kontrol Kamera -->

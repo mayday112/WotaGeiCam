@@ -114,9 +114,10 @@
 
     <!-- Storage Access -->
     <string name="set_group_storage">All Files Access</string>
-    <string name="set_storage_note">When enabled, delete, trash, restore, and rename operations apply directly to all device videos without system confirmation prompts. If disabled, only videos recorded by this app can be modified.</string>
+    <string name="set_storage_note">Optional permission, only needed to delete or rename videos from other apps; not required for recording, viewing, or managing this app\'s videos. When enabled, delete, trash, restore, and rename work without repeated system prompts; if disabled, only videos from this app can be modified, and you can toggle this here anytime.</string>
     <string name="set_storage_open">Enable in System Settings</string>
     <string name="set_storage_on">Enabled</string>
+    <string name="set_storage_open_failed">Unable to open the system permission page. Find \"Special app access → All files access\" in System Settings. You can still manage videos recorded by this app without enabling it.</string>
     <string name="set_storage_unsupported">Current system (Android 10) does not support \"All Files Access\". File actions only apply to videos recorded/exported by this app.</string>
 
     <!-- Camera Control Pills -->

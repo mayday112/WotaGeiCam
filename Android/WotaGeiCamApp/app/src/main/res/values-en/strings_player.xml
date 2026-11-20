@@ -110,7 +110,7 @@
     <string name="player_clip_mode_lossless">Lossless</string>
     <string name="player_clip_mode_scene">Post-render</string>
     <string name="player_clip_scene_lossless_note">No re-encoding; video stays exactly as recorded (curves, glow, and denoise are already baked in)</string>
-    <string name="player_clip_scene_none">Glow, Denoise, and Echo are all off; post-render produces the same result as lossless</string>
+    <string name="player_clip_scene_none">Glow, Denoise, and Echo are all off — enable any effect below first, or switch back to Lossless</string>
     <string name="player_clip_scene_glow">Glow</string>
     <string name="player_clip_scene_denoise">Denoise</string>
     <string name="player_clip_scene_echo">Echo</string>
