@@ -411,7 +411,7 @@
     <string name="cam_stance_brighten_sub">夜间识别用；只进检测输入</string>
     <string name="cam_stance_model_dir">模型目录</string>
     <string name="cam_stance_scan_import">扫描目录导入</string>
-    <string name="cam_stance_model_note">模型更新：把 PC 试验台打出的 model_pack.zip 放进上面的模型目录，点「扫描目录导入」；或直接更新应用（新版应用通常随包附带新模型）。校验失败会自动回退内置模型组。</string>
+    <string name="cam_stance_model_note">模型更新：把 PC 试验台打出的 model_pack.zip 放进上面的模型目录，点「扫描目录导入」；或直接更新应用。仅导入自己训练或确认可信的模型；包内 SHA 只校验一致性，不证明来源。单模型上限 64MiB、整包 128MiB；导入失败保留原模型组。</string>
     <string name="cam_stance_lite_body">此版本为无AI站位指示版本，如需使用AI站位指示功能，请前往项目仓库获取</string>
     <string name="cam_stance_lite_note">（full 变体内置 YOLO 站位检测、判定模型与安全区标定，可在录制前对站位偏差给出逐号位语音与画面提示）</string>
     <string name="cam_stance_slot_ok">%1$d号 ✓</string>

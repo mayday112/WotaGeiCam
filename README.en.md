@@ -22,6 +22,7 @@ If you need an English / Indonesian (Bahasa Indonesia) interface, his build is r
 
 **Contents**
 
+- [Scope and boundaries](#scope-and-boundaries)
 - [✨ Highlights](#-highlights)
 - [Features](#features)（[Shooting controls](#shooting-controls) · [Framing aids](#framing-aids) · [Interface and motion](#interface-and-motion) · [Recording](#recording) · [Light-arc tool chain](#light-arc-tool-chain) · [Playback and library](#playback-and-library)）
 - [Roadmap](#roadmap)
@@ -35,6 +36,15 @@ If you need an English / Indonesian (Bahasa Indonesia) interface, his build is r
 - [License](#license)
 
 > The number of devices verified long-term is small, and vendor camera HAL differences are far more than one person can fully explore. Known issues are listed honestly under [Known Issues and Limitations](#known-issues-and-limitations); if you hit odd behavior, please open an issue via the [issue template](.github/ISSUE_TEMPLATE/bug-report-feature-request.md) with your device model and symptoms (a diagnostic log helps). **For security matters, use the private channel in the [security policy](SECURITY.md), not a public issue.** Your feedback is the main way this project moves forward; please bear with the defects and rough edges.
+
+## Scope and boundaries
+
+This project only targets **daily WOTA-gei (ヲタ芸) practice and casual/temporary recordings**: a typical take is **1–4 minutes** (rarely over 5), a single move often lasts about 30 seconds, and the rest of a session goes to picking songs, setting positions, chatting and waiting.
+
+- **Not a general-purpose camera**: not recommended for planned events (企划) or formal performances that need complete, official coverage.
+- **Not professional camera software**: no features or targeted fixes will be added for professional photography workflows; feature decisions follow WOTA-gei practice needs.
+- **The tool chain is WOTA-gei-specific**: light arcs, afterimage, curves, glow and similar effects are tuned for glow-stick arcs and WOTA-gei movement, with no promise for general photography.
+- **Long recordings are a boundary case**: segment rotation only triggers at ~9 minutes at 50 Mbps; long-run thermals and endurance are likewise edge cases, not the design baseline.
 
 ## ✨ Highlights
 
@@ -54,7 +64,7 @@ If you need an English / Indonesian (Bahasa Indonesia) interface, his build is r
 **🎨 Real-time picture effects · baked into the recording**
 - **Glow**, **real-time RGB curve**, **picture denoise** (GPU bilateral, for night shadows).
 
-**🔍 Professional monitoring**
+**🔍 Monitoring aids**
 - **Zebras / focus peaking** · **reference lines / grid** · **position lines** (separate from reference lines) · **level / pitch gauges**.
 
 > Single-tree monorepo: `Android/WotaGeiCamApp/` is the Android project (the functional definition), `HarmonyOS/WotaGeiCamOHOS/` is the HarmonyOS port of the same product (still in progress, not yet installable for daily use). Features and UI iterate quickly; the latest version is on [Releases](https://github.com/himetuki/WotaGeiCam/releases/latest).
@@ -157,12 +167,12 @@ An honest list of the currently known problem surface (verified through v0.0.12-
 - **Full-screen black after tapping back repeatedly on the settings page (fixed in r31–r41; upgrade if you are on an older build)**: device logs confirmed the cause is **not the camera** — with repeated back taps on the settings page, the second tap lands on the recording page that has just returned and pops it, and since it is the navigation start destination, the whole back stack is emptied; the UI framework then has nothing to draw: the screen is black with no controls, while the app stays alive and the back gesture still works. Since r40/r41 an in-page back can no longer pop the start destination (plus a 400 ms debounce), and any page whose UI gets torn down for more than 3 seconds recovers automatically; the camera pipeline now belongs to the window scope, so navigation races cannot touch camera state. On older builds (≤ v0.0.11-r30) please upgrade first.
 
 - **The achieved frame rate is decided by the camera HAL; the app can only negotiate, never guarantee it.** The frame-rate decision only guarantees "the value we send was declared by the device"; low light, slow shutters, or vendor policy can push the achieved rate below the selected tier. The app warns with the measured value once the rate stays below ~70% of the target, but **does not force-lock the tier** — forcing it freezes the viewfinder on some devices (the lesson of another, already-fixed defect). Some vendor HALs also widen the range beyond a requested fixed tier: on one Huawei device a requested `[24,24]` came back as `[15,24]` on the result side.
-- **Old versions (≤ v0.0.10-r03) have a severe frame-drop defect on devices with "wide" frame-rate ranges**: in manual exposure the sensor frame duration was sent as the range's lower bound, physically locking the achieved rate to a low value (measured 4.98 fps into a 25 fps container on one vivo device; lowering resolution / bitrate does not avoid it — it has nothing to do with encoding load). Fixed in v0.0.11-r01 — if you see "it stutters as soon as I record / as soon as the show starts" on an old version, upgrade first.
+- **Old versions (≤ v0.0.10-r03) have a severe frame-drop defect on devices with "wide" frame-rate ranges**: in manual exposure the sensor frame duration was sent as the range's lower bound, physically locking the achieved rate to a low value (measured 4.98 fps into a 25 fps container on one vivo device; lowering resolution / bitrate does not avoid it — it has nothing to do with encoding load). Fixed in v0.0.11-r01 — if you see "it stutters as soon as I record / as soon as I play the accompaniment" on an old version, upgrade first.
 - **Manual white balance depends on the device**: color-temperature gains require the `TRANSFORM_MATRIX` capability, and some devices (notably HarmonyOS phones running Android apps through a compatibility layer) declare it without actually adopting the gains. Two-stage fix since v0.0.11-r28: (1) the root cause of "enabling manual mode turns the whole frame green and the sliders do nothing" is fixed (gains were sent together with an identity color matrix; the app now freezes the matrix the camera's own auto white balance last computed); (2) devices that cannot adopt gains fall back to a frame-layer algorithm with an honest notice ("this device does not accept manual WB gains"); the fallback is a relative offset from auto white balance, varies by device, and still has no closed-loop calibration data. Known residual: right after returning from the settings page, some devices may show a single transitional blended frame (the camera re-attaching on the compatibility layer); it does not affect subsequent frames.
-- **High-bitrate long recordings will rotate segments**: the per-segment cap is 3.5 GiB (FAT32-safe); at 50 Mbps that is ~9 minutes, so any recording over 10 minutes **will** rotate once (with a pre-warning at 85%). The rotation window is bounded, a blocked rotation fails loudly and is accounted — but the brief hitch at that moment is expected.
+- **High-bitrate long recordings will rotate segments (rare in practice)**: the per-segment cap is 3.5 GiB (FAT32-safe); at 50 Mbps that is reached at about 9 minutes. With the typical 1–4 minute practice take this should not trigger; if you do record past ~9 minutes it **will** rotate once (with a pre-warning at 85%). The rotation window is bounded, a blocked rotation fails loudly and is accounted — but the brief hitch at that moment is expected.
 - **Framing aids and scene effects depend on the GPU render path**: zebras, focus peaking, glow and afterimage do not work in DIRECT (non-GPU) mode (the app says so in place).
 - **HarmonyOS installation barrier**: the unsigned .hap is for structure verification only and will not install on retail devices; a signed profile must be issued by AGC/DevEco and include the target device's UDID.
-- **AI stance hints on 16KB-page devices**: the TFLite native libraries shipped in the full variant are still mapped for 4KB pages, so AI stance hints may fail on first load on some Android 15/16 devices with 16KB pages; 4KB-page devices and the lite variant are unaffected.
+- **16 KiB pages and full AI**: the published v0.0.12-r12 full build still uses older TFLite native libraries with 4 KiB alignment. The **unreleased source** now uses LiteRT 1.4.2; local release APKs pass ELF/ZIP/ABI structure checks (PT_LOAD ≥16 KiB, compressed native libraries extracted at installation). **The new runtime still needs on-device CPU/GPU regression, including 16 KiB-page devices**; structure checks are not device certification. The lite variant ships without these inference libraries.
 - **Limited test coverage**: long-term on-device verification covers only WIKO GAR-AN60, Huawei ALN-AL00 / ADY-AL00, vivo V2505A, and one emulator; low-end devices and niche ROMs are essentially untested, and the capability-negotiation code almost surely still has unseen behaviors there. If you hit one, the diagnostic log below is a huge help.
 
 
@@ -290,8 +300,9 @@ When something is "not working but hard to describe" (e.g. internal capture reje
 
 The same principle on both platforms: the permission and purpose details below are listed for Android; the HarmonyOS version implements them per the HarmonyOS permission model.
 
-- **The only network use is the in-app "check update / download update"**, and only when you tap it (reads the latest version from GitHub Releases and downloads the package, falling back along an HTTPS mirror chain on direct failure; after download the SHA-256 is recomputed locally and mismatches are discarded) — no auto-check, no background networking, no account system
-- No footage or usage data is uploaded: no analytics, no ads, no third-party analysis
+- **The app's own networking is limited to "check update / download update"**, and only when you tap it (reads the latest version from GitHub Releases and downloads the package, falling back along an HTTPS mirror chain on direct failure; after download the SHA-256 is recomputed locally and mismatches are discarded) — no auto-check, no background networking, no account system
+- The app does not upload footage or telemetry: no analytics, no ads, no third-party analysis
+- Android system backup / device transfer includes only allowlisted settings and favorite / tag matching metadata (relative directory, filename, size, duration), not footage, URIs, MediaStore IDs, or the entire database; it is controlled by the system and the user's backup settings
 - Footage is written only to local storage; sharing exposes only three file types — finished videos, update packages, diagnostic logs — never handing the whole storage to the system share component
 - The internal-capture track uses the system audio-capture mechanism, active only while recording (foreground service + persistent notification, one-tap stop)
 - Permissions and purposes (Android): camera / microphone (filming), media read (library), all-files access (so deleting or renaming footage not recorded by this app does not trigger a system authorization dialog), Bluetooth (discover and control an external speaker; on Android 10/11 the system requires location permission for Bluetooth device scanning, used only for that), notifications (Android 13+ internal-capture persistent notification), install unknown apps (in-app update install), network (only for update check and download; plus the playback component's own read-only "network state" permission, which produces no network traffic)
