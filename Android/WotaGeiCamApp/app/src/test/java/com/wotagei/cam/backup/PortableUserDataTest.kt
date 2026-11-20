@@ -79,18 +79,23 @@ class PortableUserDataTest {
 
     @Test fun `设置明确按键和类型白名单并排除设备绑定和未来字段`() {
         val approved = mapOf("motion_mode" to "FLUENT", "gallery_columns" to 4, "level_enabled" to true,
-            "default_zoom" to 1.25f, "correction_manual_ns" to 500000L)
+            "default_zoom" to 1.25f, "correction_manual_ns" to 500000L,
+            "app_language" to "id", "player_stay_awake" to false)
         val input = approved + mapOf("compare_history" to "content://media/external/video/media/42",
             "diag_enabled" to true, "diag_verbose" to true, "last_session" to "old-device",
             "lens_user_picked" to true, "stance_on" to true, "stance_gpu_mode" to "force",
             "future_secret" to "private", "default_iso" to "wrong type", "stance_beta" to Float.NaN)
         assertEquals(approved, PortableUserData.settingsOf(input))
         assertEquals(approved, PortableUserData.settingsOf(PortableUserData.settingsOf(input)))
+        assertEquals(emptyMap<String, Any>(), PortableUserData.settingsOf(
+            mapOf("app_language" to 123, "player_stay_awake" to "true")
+        ))
     }
 
     @Test fun `快照真实往返保留收藏标签且不携带媒体ID或本机URI`() {
         val key = PortableUserData.MediaKey("Movies/WotaGeiCam/Camera/", "练习.mp4", 123456L, 3456L)
-        val snapshot = PortableUserData.Snapshot(mapOf("gallery_columns" to 3),
+        val snapshot = PortableUserData.Snapshot(
+            mapOf("gallery_columns" to 3, "app_language" to "id", "player_stay_awake" to false),
             listOf(PortableUserData.Tag(key, "like", 123L), PortableUserData.Tag(key, "技巧", 124L)))
         val output = ByteArrayOutputStream()
         PortableUserData.write(snapshot, output)

@@ -366,17 +366,4 @@
     <string name="cam_stance_verdict_ok">OK</string>
     <string name="cam_stance_verdict_missing">Missing</string>
     <string name="cam_stance_verdict_extra">Extra</string>
-    <string name="cam_stance_pack_builtin">Built-in</string>
-    <string name="cam_stance_pack_user">Imported</string>
-    <string name="cam_stance_version_summary">Model: %1$s (schema %2$s) | Head: %3$s (n=%4$s, %5$s) | Safe Zone L[%6$s] R[%7$s] B[%8$s]</string>
-    <string name="cam_stance_err_pack_init">Failed to load model pack: %1$s</string>
-    <string name="cam_stance_tip_pack_fallback">Imported model pack unavailable (%1$s); reverted to built-in pack</string>
-    <string name="cam_stance_tip_gpu_fallback">GPU unavailable; fell back to CPU</string>
-    <string name="cam_stance_tip_recording_locked">Cannot toggle Stance Guide while recording — stop recording first</string>
-    <string name="cam_stance_tip_front_lens_locked">Stance Guide is unavailable on the front camera — switch to rear lens</string>
-    <string name="cam_stance_tip_import_failed">Import failed: %1$s (kept built-in model pack)</string>
-    <string name="cam_stance_backend_gpu_forced_unlisted">GPU (Forced, unlisted)</string>
-    <string name="cam_stance_backend_cpu_with_reason">CPU (%1$s)</string>
-    <string name="cam_stance_gpu_fb_not_whitelisted">GPU not on compatibility whitelist for this device; fell back to CPU</string>
-    <string name="cam_stance_gpu_fb_init_failed">Init failed (%1$s); fell back to CPU</string>
 </resources>

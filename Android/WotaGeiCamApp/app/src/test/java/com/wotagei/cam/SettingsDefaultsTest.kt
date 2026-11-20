@@ -149,4 +149,20 @@ class SettingsDefaultsTest {
         assertEquals("diag_enabled", WotaSettings.KEY_DIAG_ENABLED)
         assertEquals("diag_verbose", WotaSettings.KEY_DIAG_VERBOSE)
     }
+
+    @Test
+    fun `fork_language_and_player_stay_awake_defaults_and_locale_mapping`() {
+        val prefs = FakePrefs()
+        assertEquals(WotaSettings.LANG_ENGLISH, WotaSettings.language(prefs))
+        assertTrue(WotaSettings.playerStayAwake(prefs))
+
+        prefs.map[WotaSettings.KEY_LANGUAGE] = WotaSettings.LANG_INDONESIAN
+        prefs.map[WotaSettings.KEY_PLAYER_STAY_AWAKE] = false
+        assertEquals(WotaSettings.LANG_INDONESIAN, WotaSettings.language(prefs))
+        assertFalse(WotaSettings.playerStayAwake(prefs))
+
+        assertEquals(java.util.Locale.ENGLISH, WotaSettings.getLocale(WotaSettings.LANG_ENGLISH))
+        assertEquals(java.util.Locale("in", "ID"), WotaSettings.getLocale(WotaSettings.LANG_INDONESIAN))
+        assertEquals(java.util.Locale.SIMPLIFIED_CHINESE, WotaSettings.getLocale(WotaSettings.LANG_CHINESE))
+    }
 }

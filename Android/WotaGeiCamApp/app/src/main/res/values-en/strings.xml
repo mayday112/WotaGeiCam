@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">WotaGeiCam</string>
-    <string name="settings_title">Settings</string>
     <string name="language_title">Language</string>
     <string name="language_system">System Default</string>
     <string name="language_en">English</string>

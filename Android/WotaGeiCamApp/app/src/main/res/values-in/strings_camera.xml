@@ -366,17 +366,4 @@
     <string name="cam_stance_verdict_ok">Pas</string>
     <string name="cam_stance_verdict_missing">Kosong</string>
     <string name="cam_stance_verdict_extra">Lebih</string>
-    <string name="cam_stance_pack_builtin">Bawaan</string>
-    <string name="cam_stance_pack_user">Impor Pengguna</string>
-    <string name="cam_stance_version_summary">Model: %1$s (schema %2$s) | Head: %3$s (n=%4$s, %5$s) | Zona Aman L[%6$s] R[%7$s] B[%8$s]</string>
-    <string name="cam_stance_err_pack_init">Gagal memuat paket model: %1$s</string>
-    <string name="cam_stance_tip_pack_fallback">Paket model impor tidak tersedia (%1$s), kembali ke model bawaan</string>
-    <string name="cam_stance_tip_gpu_fallback">GPU tidak tersedia, kembali ke CPU</string>
-    <string name="cam_stance_tip_recording_locked">Tidak dapat mengubah Panduan Posisi saat merekam — hentikan rekaman dulu</string>
-    <string name="cam_stance_tip_front_lens_locked">Panduan Posisi tidak tersedia di kamera depan — ganti ke kamera belakang</string>
-    <string name="cam_stance_tip_import_failed">Impor gagal: %1$s (tetap memakai model bawaan)</string>
-    <string name="cam_stance_backend_gpu_forced_unlisted">GPU (Paksa, di luar daftar putih)</string>
-    <string name="cam_stance_backend_cpu_with_reason">CPU (%1$s)</string>
-    <string name="cam_stance_gpu_fb_not_whitelisted">GPU tidak masuk daftar putih kompatibilitas perangkat ini; kembali ke CPU</string>
-    <string name="cam_stance_gpu_fb_init_failed">Inisialisasi gagal (%1$s); kembali ke CPU</string>
 </resources>

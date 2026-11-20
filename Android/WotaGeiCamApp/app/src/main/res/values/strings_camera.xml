@@ -424,17 +424,4 @@
     <string name="cam_stance_verdict_ok">完成</string>
     <string name="cam_stance_verdict_missing">缺人</string>
     <string name="cam_stance_verdict_extra">多人</string>
-    <string name="cam_stance_pack_builtin">内置</string>
-    <string name="cam_stance_pack_user">用户导入</string>
-    <string name="cam_stance_version_summary">模型组 %1$s（schema %2$s）｜判定头 %3$s（n=%4$s, %5$s）｜安全区 L[%6$s] R[%7$s] B[%8$s]</string>
-    <string name="cam_stance_err_pack_init">模型组装配失败：%1$s</string>
-    <string name="cam_stance_tip_pack_fallback">用户模型组不可用（%1$s），已回退内置模型组</string>
-    <string name="cam_stance_tip_gpu_fallback">GPU 不可用已回退 CPU</string>
-    <string name="cam_stance_tip_recording_locked">录制中不可调整站位提示——停录后再试</string>
-    <string name="cam_stance_tip_front_lens_locked">前置镜头不提供站位提示——切回后置后再开</string>
-    <string name="cam_stance_tip_import_failed">导入失败：%1$s（已保持内置模型组）</string>
-    <string name="cam_stance_backend_gpu_forced_unlisted">GPU（强制，白名单外）</string>
-    <string name="cam_stance_backend_cpu_with_reason">CPU（%1$s）</string>
-    <string name="cam_stance_gpu_fb_not_whitelisted">GPU 兼容列表不通过（该机型/环境白名单外），已自动回退 CPU</string>
-    <string name="cam_stance_gpu_fb_init_failed">初始化失败（%1$s），已自动回退 CPU</string>
 </resources>

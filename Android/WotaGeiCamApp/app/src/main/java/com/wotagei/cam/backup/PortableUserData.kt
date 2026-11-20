@@ -32,7 +32,9 @@ internal object PortableUserData {
         "camera_brighten_delay_sec", "player_brighten_ramp_tenths", "player_top_bar_collapsed",
         "curve_panel_side_dp", "tone_params", "slider_continuous", "arc_convert_mode", "hud_frost_blur",
         "curve_stack", "compare_tick_ms", "stance_mode", "stance_n", "stance_beta", "stance_brighten",
-        "stance_line_interval_ms", "stance_poll_interval_ms"
+        "stance_line_interval_ms", "stance_poll_interval_ms",
+        // Fork settings: language & player stay awake
+        "app_language", "player_stay_awake"
         // 诊断开关、站位检测启动/GPU 模式保持新机默认；不自动激活日志或依赖本机模型的功能。
     )
 
@@ -50,7 +52,8 @@ internal object PortableUserData {
     class InvalidSnapshotException(message: String, cause: Exception? = null) : IOException(message, cause)
 
     private val BOOLEAN_KEYS = setOf("default_audio_muted", "correction_auto", "level_enabled",
-        "level_buzz_enabled", "player_top_bar_collapsed", "hud_frost_blur", "stance_brighten")
+        "level_buzz_enabled", "player_top_bar_collapsed", "hud_frost_blur", "stance_brighten",
+        "player_stay_awake")
     private val INT_KEYS = setOf("default_fps", "default_shutter_ns", "default_bitrate", "default_sample_rate",
         "default_iso", "default_ev", "default_wb_kelvin", "default_wb_tint", "default_zebra_density",
         "default_arc_merge_deadband", "default_ref_lines", "hud_items", "hud_pills", "hud_pills_schema",
