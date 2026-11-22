@@ -9,3 +9,10 @@
 
 # Media3：可选解码扩展（ffmpeg/av1/libvpx）按类名反射探测，本工程未打包它们，只压掉缺类告警
 -dontwarn androidx.media3.decoder.**
+
+# lifecycle-runtime-compose 2.8.x + Compose UI 1.6.x:
+# LocalLifecycleOwner melakukan lookup refleksi ke AndroidCompositionLocals_androidKt.getLocalLifecycleOwner().
+# Versi 2.8.2 punya typo consumer rule (`ProvidableCompositionLocal[]`) sehingga R8 tetap meng-obfuscate method ini.
+-keep public class androidx.compose.ui.platform.AndroidCompositionLocals_androidKt {
+    public static androidx.compose.runtime.ProvidableCompositionLocal getLocalLifecycleOwner();
+}
