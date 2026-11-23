@@ -88,6 +88,10 @@
     <string name="set_version">Versi</string>
     <string name="set_package">Nama Paket</string>
     <string name="set_about_note">Semua data disimpan di perangkat lokal; koneksi internet hanya diakses saat menekan tombol periksa pembaruan.</string>
+    <string name="set_group_feedback">Masukan &amp; Laporan</string>
+    <string name="set_feedback_open">WotaGeiCam issues</string>
+    <string name="set_feedback_note">Formulir Tencent Docs, dibuka di browser tanpa akun GitHub; bisa untuk lapor bug, minta fitur baru, atau saran perbaikan</string>
+    <string name="set_feedback_open_failed">Gagal membuka: tidak ada aplikasi di perangkat ini untuk membuka tautan</string>
 
     <!-- Pembaruan Aplikasi -->
     <string name="set_update">Periksa Pembaruan</string>
@@ -109,12 +113,21 @@
     <string name="set_update_install">Pasang</string>
     <string name="set_update_download_failed">Unduhan gagal, silakan coba lagi nanti</string>
     <string name="set_update_install_failed">Gagal membuka pemasang paket sistem</string>
+    <string name="set_update_install_retry">Coba Pasang Lagi</string>
+    <string name="set_update_install_reason_unreadable">Paket instalasi hilang atau tidak dapat dibaca; silakan unduh ulang</string>
+    <string name="set_update_install_reason_digest">Checksum paket tidak cocok (file mungkin telah berubah); silakan unduh ulang</string>
+    <string name="set_update_install_reason_package">Paket bukan milik aplikasi ini; instalasi ditolak</string>
+    <string name="set_update_install_reason_signer">Tanda tangan paket tidak cocok dengan aplikasi ini; instalasi ditolak</string>
+    <string name="set_update_install_reason_debuggable">Paket debuggable ditolak untuk dipasang</string>
+    <string name="set_update_install_reason_version">Versi paket tidak cocok dengan pembaruan yang dipilih; silakan unduh ulang</string>
+    <string name="set_update_install_reason_flavor">Varian paket tidak cocok dengan pembaruan yang dipilih; silakan unduh ulang</string>
+    <string name="set_update_install_reason_abi">ABI paket tidak cocok dengan perangkat ini; silakan unduh ulang</string>
     <string name="set_update_close">Tutup</string>
     <string name="set_update_size_unknown">Ukuran tidak diketahui</string>
 
     <!-- Akses Semua File -->
     <string name="set_group_storage">Akses Semua File</string>
-    <string name="set_storage_note">Izin opsional, hanya untuk memudahkan hapus atau ubah nama video dari aplikasi lain; tidak diperlukan untuk merekam, menonton, atau mengelola video rekaman aplikasi ini. Jika aktif, hapus, sampah, pulihkan, dan ubah nama berjalan tanpa konfirmasi sistem berulang; jika nonaktif, hanya video aplikasi ini yang dapat diubah, dan dapat diatur ulang kapan saja di sini.</string>
+    <string name="set_storage_note">Izin opsional. Di pengaturan sistem izin ini bernama \"Akses semua file\": jika diberikan, sistem mengizinkan aplikasi membaca/menulis seluruh file di penyimpanan bersama (bukan hanya video); aplikasi ini hanya memakainya untuk menghapus, memindahkan ke sampah, memulihkan, dan mengubah nama video dari aplikasi lain, serta tidak membaca atau mengunggah file lainnya. Tidak diperlukan untuk merekam, menonton, atau mengelola video rekaman sendiri. Jika tidak diberikan: video aplikasi ini tetap bisa dikelola normal; mengubah video aplikasi lain akan gagal dan mengarahkan Anda ke sini tanpa menaikkan izin otomatis. Dapat diatur kapan saja di sini.</string>
     <string name="set_storage_open">Buka Pengaturan Sistem</string>
     <string name="set_storage_on">Sudah Aktif</string>
     <string name="set_storage_open_failed">Tidak dapat membuka halaman izin sistem. Cari \"Akses aplikasi khusus → Akses semua file\" di Pengaturan Sistem. Anda tetap dapat mengelola video rekaman aplikasi ini tanpa mengaktifkannya.</string>

@@ -38,6 +38,9 @@
     <string name="set_diag_verbose_note">Only applies when "Record Logs" is enabled. By default only key events are recorded; enabling this includes detailed debug traces, increasing log volume.</string>
     <string name="set_diag_clear">Clear Logs</string>
     <string name="set_diag_cleared">Cleared</string>
+    <string name="set_diag_clear_partial">Partially cleared: deleted %1$d file(s), %2$d in use by system and could not be deleted; try again later</string>
+    <string name="set_diag_clear_failed">Clear failed: %1$d file(s) could not be deleted (may be in use by system); please retry</string>
+    <string name="set_diag_clear_error">Clear failed: operation error; logs may still occupy storage, please retry</string>
     <string name="set_diag_size">Log Storage</string>
     <string name="set_diag_path">Log Directory</string>
     <string name="set_diag_share">Share Directly</string>

@@ -104,6 +104,7 @@
     <string name="cam_shutter_correction_auto">Penyesuaian Otomatis</string>
     <string name="cam_shutter_correction_auto_hint">Sesuaikan eksposur otomatis untuk stabilitas frame</string>
     <string name="cam_shutter_correction_manual">Penyesuaian Manual</string>
+    <string name="cam_shutter_manual_no_room">Eksposur minimum pada frame rate ini melebihi satu frame; tidak ada opsi shutter manual yang tersedia (berjalan dalam eksposur otomatis)</string>
     <string name="cam_display_scale_note">Hanya memengaruhi resolusi tampilan jendela bidik; kualitas rekaman tetap utuh. Menurunkan opsi ini menghemat beban GPU untuk perekaman, perbaikan busur, dan denoise, mengurangi drop frame &amp; panas di 4K.</string>
     <string name="cam_display_scale_current">Saat ini: Asli</string>
     <string name="cam_display_scale_current_rt">Saat ini: %1$d (Layar %2$d×%3$d)</string>
@@ -195,9 +196,11 @@
     <string name="cam_record_saved_auto_battery">Baterai lemah, perekaman otomatis berhenti; tersimpan %1$s</string>
     <string name="cam_record_saved_auto_storage">Ruang penyimpanan penuh, perekaman otomatis berhenti; tersimpan %1$s</string>
     <string name="cam_record_saved_auto_camera_lost">Kamera dipakai aplikasi lain atau ditarik sistem, perekaman berhenti; tersimpan %1$s</string>
+    <string name="cam_record_saved_auto_gl_lost">Komponen render gambar dimulai ulang tak terduga, perekaman berhenti; tersimpan %1$s</string>
     <string name="cam_record_saved_auto_battery_short">; otomatis berhenti karena baterai lemah</string>
     <string name="cam_record_saved_auto_storage_short">; otomatis berhenti karena penyimpanan penuh</string>
     <string name="cam_record_saved_auto_camera_lost_short">; berhenti karena akses kamera ditarik</string>
+    <string name="cam_record_saved_auto_gl_context_lost_short">; berhenti karena render gambar dimulai ulang tak terduga</string>
     <string name="cam_record_saved_parts">Tersimpan %1$d bagian, durasi %2$s</string>
     <string name="cam_record_saved_uncommitted">; pendaftaran galeri tertunda, buka ulang galeri atau aplikasi</string>
     <string name="cam_record_saved_degraded">; penutupan berkas tidak sempurna, bagian akhir mungkin terpotong</string>
@@ -286,7 +289,6 @@
     <string name="cam_echo_mode_keep">Pertahankan Kecerahan</string>
     <string name="cam_echo_mode_trail">Ekor Terang</string>
     <string name="cam_echo_mode_hint">Pertahankan Kecerahan = lintasan panjang padat ala star trail, latar tidak berubah; Ekor Terang = hanya bagian terang yang meninggalkan ekor komet</string>
-    <string name="cam_echo_multiplier">Pengali Lintasan</string>
     <string name="cam_echo_multiplier_hint">Semakin tinggi semakin panjang lintasannya; hati-hati di nilai tinggi (gambar bisa blur)</string>
     <string name="cam_echo_threshold">Ambang Sorotan</string>
     <string name="cam_echo_threshold_hint">Hanya berlaku di mode \"Ekor Terang\"; 100% = hanya piksel paling terang yang meninggalkan jejak</string>
@@ -319,7 +321,6 @@
     <string name="cam_marker">Garis Posisi</string>
     <string name="cam_marker_add">Tambah garis posisi</string>
     <string name="cam_marker_remove">Kurangi garis posisi</string>
-    <string name="cam_marker_color_title">Warna Garis Posisi</string>
     <string name="marker_color_yellow">Kuning</string>
     <string name="marker_color_cyan">Sian (Cyan)</string>
     <string name="marker_color_magenta">Magenta</string>

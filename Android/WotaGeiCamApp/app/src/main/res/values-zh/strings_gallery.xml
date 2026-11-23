@@ -80,4 +80,8 @@
     <string name="gallery_part_prefix">第 %1$d 段</string>
     <!-- 网格组卡的子段弹层（#5 第 2 轮返修·乙）：顶部那行动作的作用范围是整组 -->
     <string name="gallery_group_ops">整组操作（全部 %1$d 段）</string>
+    <string name="gallery_media_permission">没有媒体读取权限，看不到视频。请到系统设置里允许读取媒体</string>
+    <string name="gallery_media_access_limited">仅授权了部分视频，其余视频在系统权限里不可见</string>
+    <string name="gallery_media_query_failed">无法读取媒体库，请稍后重试</string>
+    <string name="gallery_row_ambiguous">存在同号视频，无法确定要操作的是哪一条，本次操作已取消</string>
 </resources>

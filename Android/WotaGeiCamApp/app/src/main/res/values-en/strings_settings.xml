@@ -88,6 +88,10 @@
     <string name="set_version">Version</string>
     <string name="set_package">Package</string>
     <string name="set_about_note">All data is kept locally on this device. Internet is only accessed when checking for updates.</string>
+    <string name="set_group_feedback">Feedback</string>
+    <string name="set_feedback_open">WotaGeiCam issues</string>
+    <string name="set_feedback_note">Tencent Docs form, opens in browser, no GitHub account needed; report bugs, request features, or suggest improvements</string>
+    <string name="set_feedback_open_failed">Failed to open: no app available on this device to open links</string>
 
     <!-- App Update -->
     <string name="set_update">Check for Updates</string>
@@ -109,12 +113,21 @@
     <string name="set_update_install">Install</string>
     <string name="set_update_download_failed">Download failed, please try again later</string>
     <string name="set_update_install_failed">Unable to start package installer</string>
+    <string name="set_update_install_retry">Retry Install</string>
+    <string name="set_update_install_reason_unreadable">Installer package is missing or unreadable; please download again</string>
+    <string name="set_update_install_reason_digest">Package checksum mismatch (file may have been altered); please download again</string>
+    <string name="set_update_install_reason_package">Package does not belong to this app; installation rejected</string>
+    <string name="set_update_install_reason_signer">Package signature does not match this app; installation rejected</string>
+    <string name="set_update_install_reason_debuggable">Debuggable build rejected for installation</string>
+    <string name="set_update_install_reason_version">Package version does not match the selected update; please download again</string>
+    <string name="set_update_install_reason_flavor">Package variant does not match the selected update; please download again</string>
+    <string name="set_update_install_reason_abi">Package ABI does not match this device; please download again</string>
     <string name="set_update_close">Close</string>
     <string name="set_update_size_unknown">Size unknown</string>
 
     <!-- Storage Access -->
     <string name="set_group_storage">All Files Access</string>
-    <string name="set_storage_note">Optional permission, only needed to delete or rename videos from other apps; not required for recording, viewing, or managing this app\'s videos. When enabled, delete, trash, restore, and rename work without repeated system prompts; if disabled, only videos from this app can be modified, and you can toggle this here anytime.</string>
+    <string name="set_storage_note">Optional permission. In system settings this is called \"All files access\": once granted, Android allows this app to read/write all files in shared storage (not only videos); this app uses it solely to delete, trash, restore, and rename videos from other apps, and never reads or uploads other files. Not required to record, view, or manage this app\'s videos. If not granted: this app\'s own videos work normally; modifying other apps\' videos will fail and prompt you to enable it here without auto-escalating permissions. You can toggle this here anytime.</string>
     <string name="set_storage_open">Enable in System Settings</string>
     <string name="set_storage_on">Enabled</string>
     <string name="set_storage_open_failed">Unable to open the system permission page. Find \"Special app access → All files access\" in System Settings. You can still manage videos recorded by this app without enabling it.</string>

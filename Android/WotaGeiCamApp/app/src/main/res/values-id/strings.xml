@@ -38,6 +38,9 @@
     <string name="set_diag_verbose_note">Hanya berlaku jika \"Catat Log\" aktif: default hanya mencatat peristiwa penting, aktifkan opsi ini untuk mencatat detail debug tambahan (ukuran log akan membesar).</string>
     <string name="set_diag_clear">Hapus Log</string>
     <string name="set_diag_cleared">Berhasil Dihapus</string>
+    <string name="set_diag_clear_partial">Sebagian terhapus: %1$d file dihapus, %2$d sedang dipakai sistem dan gagal dihapus; coba lagi nanti</string>
+    <string name="set_diag_clear_failed">Gagal menghapus: %1$d file tidak dapat dihapus (mungkin sedang dipakai sistem); silakan coba lagi</string>
+    <string name="set_diag_clear_error">Gagal menghapus: terjadi kesalahan operasi; log mungkin masih memakai penyimpanan, silakan coba lagi</string>
     <string name="set_diag_size">Ukuran Log</string>
     <string name="set_diag_path">Direktori Log</string>
     <string name="set_diag_share">Bagikan Langsung</string>

@@ -33,6 +33,10 @@
     <string name="player_arc_no_need">源帧率不高于目标帧率，没有帧可抽</string>
     <string name="player_arc_running">修复中 %1$d%%</string>
     <string name="player_arc_busy">已有修复任务在跑</string>
+    <string name="player_arc_pending_publish">修复已完成，文件已保存待发布（相册暂不可见）</string>
+    <string name="player_arc_cancel">取消本次修复</string>
+    <string name="player_arc_cancelling">正在取消…</string>
+    <string name="player_arc_cancelled">修复已取消</string>
 
     <!-- 倍速档位（需求：0.1 / 0.3 / 0.5 / 0.75 / 1.0） -->
     <string name="player_speed_current">倍速 %1$s</string>
@@ -106,7 +110,10 @@
     <string name="player_clip_cancel">取消导出</string>
     <string name="player_clip_percent">%1$d%%</string>
     <string name="player_clip_preparing">正在准备导出…</string>
-    <string name="player_clip_running">导出中 %1$d%%</string>
+    <string name="player_clip_running">剪辑导出中 %1$d%%</string>
+    <string name="player_track_running">音轨导出中 %1$d%%</string>
+    <string name="player_clip_cancelling">正在结束导出…</string>
+    <string name="player_export_other_source">%1$s · %2$s</string>
     <string name="player_clip_done">剪辑已导出到媒体库</string>
     <string name="player_clip_failed">导出失败，请重试</string>
     <string name="player_clip_busy">上一轮导出仍在收尾，请稍后再试</string>

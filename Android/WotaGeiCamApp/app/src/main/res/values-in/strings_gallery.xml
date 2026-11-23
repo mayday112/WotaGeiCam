@@ -79,4 +79,8 @@
     <string name="gallery_desc_collapse_series">Ciutkan bagian rekaman</string>
     <string name="gallery_part_prefix">Bagian %1$d</string>
     <string name="gallery_group_ops">Tindakan grup (Semua %1$d bagian)</string>
+    <string name="gallery_media_permission">Tidak ada izin baca media sehingga video tidak terlihat. Izinkan akses media di Pengaturan Sistem</string>
+    <string name="gallery_media_access_limited">Hanya sebagian video yang diizinkan; video lainnya tersembunyi oleh izin sistem</string>
+    <string name="gallery_media_query_failed">Tidak dapat membaca pustaka media; silakan coba lagi nanti</string>
+    <string name="gallery_row_ambiguous">Terdapat video dengan ID yang sama sehingga target tidak dapat dipastikan; tindakan dibatalkan</string>
 </resources>

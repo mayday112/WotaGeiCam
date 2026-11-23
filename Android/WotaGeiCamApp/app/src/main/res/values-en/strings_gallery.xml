@@ -79,4 +79,8 @@
     <string name="gallery_desc_collapse_series">Collapse segments</string>
     <string name="gallery_part_prefix">Part %1$d</string>
     <string name="gallery_group_ops">Batch action (All %1$d segments)</string>
+    <string name="gallery_media_permission">No media read permission; videos cannot be shown. Please allow media access in System Settings</string>
+    <string name="gallery_media_access_limited">Only selected videos are allowed; other videos are hidden by system permissions</string>
+    <string name="gallery_media_query_failed">Unable to read media library; please try again later</string>
+    <string name="gallery_row_ambiguous">Multiple videos share the same ID; unable to determine target item, action cancelled</string>
 </resources>
