@@ -120,10 +120,10 @@ fun StancePopupContent(
             //    新 GPU 白名单未收录但有 GLES compute 能力，运行期验证失败自动回退） / 关）
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.cam_stance_gpu_title), color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                ModeChip(stringResource(R.string.cam_stance_gpu_auto), gpuAllowed && state.gpuMode == StanceDetector.MODE_AUTO) {
+                ModeChip(stringResource(R.string.cam_stance_gpu_auto), gpuAllowed && state.gpuMode == StanceDetector.MODE_AUTO, gpuAllowed) {
                     onGpuMode(StanceDetector.MODE_AUTO)
                 }
-                ModeChip(stringResource(R.string.cam_stance_gpu_force), gpuAllowed && state.gpuMode == StanceDetector.MODE_FORCE) {
+                ModeChip(stringResource(R.string.cam_stance_gpu_force), gpuAllowed && state.gpuMode == StanceDetector.MODE_FORCE, gpuAllowed) {
                     onGpuMode(StanceDetector.MODE_FORCE)
                 }
                 ModeChip(stringResource(R.string.cam_stance_gpu_off), !gpuAllowed || state.gpuMode == StanceDetector.MODE_OFF) {
@@ -203,15 +203,19 @@ private fun IntervalSlider(
 }
 
 @Composable
-private fun ModeChip(text: String, selected: Boolean, onClick: () -> Unit) {
+private fun ModeChip(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
     Text(
         text,
-        color = if (selected) Color(0xFF111118) else Color.White,
+        color = when {
+            !enabled -> Color(0xFF77777F)
+            selected -> Color(0xFF111118)
+            else -> Color.White
+        },
         fontSize = 12.sp,
         modifier = Modifier
             .clip(RoundedCornerShape(10.dp))
             .background(if (selected) Color(0xFFFFCC66) else Color(0xFF33333D))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }

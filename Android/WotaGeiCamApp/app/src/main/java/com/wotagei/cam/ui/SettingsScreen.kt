@@ -10,6 +10,8 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.LocaleList
+import android.net.Uri
+import android.os.Build
 import com.wotagei.cam.BuildConfig
 import com.wotagei.cam.diag.Diag
 import kotlinx.coroutines.CoroutineScope
@@ -40,7 +42,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -51,6 +53,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,8 +113,11 @@ import com.wotagei.cam.ui.widget.decodeContinuousSliders
 import com.wotagei.cam.ui.widget.encodeContinuousSliders
 import com.wotagei.cam.update.ProbeResult
 import com.wotagei.cam.update.ReleaseNotes
+import com.wotagei.cam.update.UpdateAttemptGate
 import com.wotagei.cam.update.UpdateDownloader
 import com.wotagei.cam.update.UpdateInstaller
+import com.wotagei.cam.update.UpdateInstaller.InstallRejection
+import com.wotagei.cam.update.UpdateInstaller.InstallResult
 import com.wotagei.cam.update.probeLatestRelease
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
@@ -701,7 +708,7 @@ fun SettingsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.set_back), tint = WotaText)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.set_back), tint = WotaText)
                 }
                 Text(
                     text = stringResource(R.string.set_title),
@@ -765,6 +772,7 @@ private fun BlockHost(block: SettingsBlock, prefs: SharedPreferences, onOpenHudE
         SettingsBlock.TEXT -> BlockText(prefs)
         SettingsBlock.PERM -> BlockPerm()
         SettingsBlock.ABOUT -> BlockAbout(prefs)
+        SettingsBlock.FEEDBACK -> BlockFeedback()
         SettingsBlock.DIAG -> BlockDiag(prefs)
     }
 }
@@ -779,11 +787,11 @@ private val LocalSettingsCardPad = compositionLocalOf { 12.dp }
 private fun BlockDefault(prefs: SharedPreferences) {
     // 帧率/快门两行已删（R1/2026-10-16 拍板）：这两项只在录制页改，由 ParamsPersistSession
     // 落盘到同一个 default_fps / default_shutter_ns 键（键与恢复链都没动），设置页不再重复出档
-    var defaultBitrate by remember { mutableStateOf(WotaSettings.defaultBitrate(prefs)) }
-    var defaultSampleRate by remember { mutableStateOf(WotaSettings.defaultSampleRate(prefs)) }
+    var defaultBitrate by remember { mutableIntStateOf(WotaSettings.defaultBitrate(prefs)) }
+    var defaultSampleRate by remember { mutableIntStateOf(WotaSettings.defaultSampleRate(prefs)) }
     var defaultRender by remember { mutableStateOf(WotaSettings.defaultRenderMode(prefs)) }
     var defaultMuted by remember { mutableStateOf(WotaSettings.defaultAudioMuted(prefs)) }
-    var defaultDeadband by remember { mutableStateOf(WotaSettings.arcMergeDeadband(prefs)) }
+    var defaultDeadband by remember { mutableIntStateOf(WotaSettings.arcMergeDeadband(prefs)) }
     // 并入门槛要写**同一个**总线 setter（参数域钳制 + 同步发布 ArcMergeDeadband 快照都在里面）：
     // 设置页本来不持有参数总线，照 HudLayoutEditor 的惯例造一份本地总线（开机默认档照常套上），别处不读它。
     val settingsParams = remember(prefs) {
@@ -961,8 +969,8 @@ private fun BlockMotion(prefs: SharedPreferences) {
 @Composable
 private fun BlockBrightness(prefs: SharedPreferences) {
     // 读侧已钳（29 §5.5），这里只管展示选中档；0 档 = 关闭（TierPicker 的 zeroValue 提供双击归零）
-    var brightenDelay by remember { mutableStateOf(WotaSettings.cameraBrightenDelaySec(prefs)) }
-    var playerRamp by remember { mutableStateOf(WotaSettings.playerBrightenRampTenths(prefs)) }
+    var brightenDelay by remember { mutableIntStateOf(WotaSettings.cameraBrightenDelaySec(prefs)) }
+    var playerRamp by remember { mutableIntStateOf(WotaSettings.playerBrightenRampTenths(prefs)) }
     var stayAwake by remember { mutableStateOf(WotaSettings.playerStayAwake(prefs)) }
     // TierPicker 的 items/format 是普通 lambda（非 composable 上下文），文案先在外面取好、
     // 带参格式化走 context.getString——stringResource 只能出现在组合里
@@ -1036,7 +1044,7 @@ private fun BlockBrightness(prefs: SharedPreferences) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
-    var hudMask by remember { mutableStateOf(WotaSettings.hudItems(prefs)) }
+    var hudMask by remember { mutableIntStateOf(WotaSettings.hudItems(prefs)) }
     var pillMask by remember { mutableIntStateOf(WotaSettings.hudPills(prefs)) }
     // 毛玻璃背板（#84 步骤 2）：默认关，只有这一颗 Switch 会把它打开（没有别的写入方）
     var frostBlur by remember { mutableStateOf(WotaSettings.frostBlurEnabled(prefs)) }
@@ -1243,7 +1251,7 @@ private fun BlockStorage() {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BlockRefline(prefs: SharedPreferences) {
-    var defaultRefLines by remember { mutableStateOf(WotaSettings.defaultRefLines(prefs)) }
+    var defaultRefLines by remember { mutableIntStateOf(WotaSettings.defaultRefLines(prefs)) }
 
     SettingGroup(stringResource(R.string.set_group_refline))
     Card {
@@ -1326,7 +1334,7 @@ private fun BlockLevel(prefs: SharedPreferences) {
 @Composable
 private fun BlockCompare(prefs: SharedPreferences) {
     // 对比播放编排节拍（r02）：越界脏值读侧已钳，这里只管展示选中档
-    var compareTick by remember { mutableStateOf(WotaSettings.compareTickMs(prefs)) }
+    var compareTick by remember { mutableIntStateOf(WotaSettings.compareTickMs(prefs)) }
 
     SettingGroup(stringResource(R.string.set_group_compare))
     Card {
@@ -1348,11 +1356,11 @@ private fun BlockCompare(prefs: SharedPreferences) {
 
 @Composable
 private fun BlockText(prefs: SharedPreferences) {
-    var scaleCamera by remember { mutableStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) }
+    var scaleCamera by remember { mutableFloatStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) }
     var scaleSettings by remember {
-        mutableStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS))
+        mutableFloatStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS))
     }
-    var scaleDialog by remember { mutableStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_DIALOG)) }
+    var scaleDialog by remember { mutableFloatStateOf(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_DIALOG)) }
 
     SettingGroup(stringResource(R.string.set_group_text))
     Card {
@@ -1392,7 +1400,7 @@ private fun BlockText(prefs: SharedPreferences) {
 @Composable
 private fun BlockPerm() {
     val context = LocalContext.current
-    var permTick by remember { mutableStateOf(0) }
+    var permTick by remember { mutableIntStateOf(0) }
     val perms = remember(context, permTick) { permissionRows(context) }
 
     // 从系统设置页返回后重新查一次权限状态
@@ -1627,6 +1635,66 @@ private fun LanguageSelectorRow(prefs: SharedPreferences) {
     }
 }
 
+// ------------------------------------------------------------------ 问题反馈
+
+/** 「WotaGeiCam issues」反馈收集表（腾讯文档，2026-11-23）链接字面量（改链先改守卫） */
+private const val FEEDBACK_FORM_URL = "https://docs.qq.com/form/page/DT2ZCckViZHJEdmh5"
+
+/**
+ * 问题反馈区块（2026-11-23 用户指令「加到日志导出与软件更新之间」，让不用 GitHub 的用户也能提交）：
+ * 一行链接入口交给**系统浏览器**打开腾讯文档收集表，三类反馈可选——报告问题、bug；请求新功能；功能改进建议。
+ * 本应用自身不发起任何网络请求（点击只是把 https 链接交给浏览器），
+ * 「网络只允许出现在 update/ 包」的红线（UpdateNetworkGuardTest / DiagGuardTest）不受影响。
+ */
+@Composable
+private fun BlockFeedback() {
+    val context = LocalContext.current
+    // 打开失败（无浏览器等极少数环境）在行下方如实提示，成功不占位
+    var openFailed by remember { mutableStateOf(false) }
+    SettingGroup(stringResource(R.string.set_group_feedback))
+    Card {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable {
+                    openFailed = false
+                    openFailed = runCatching {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(FEEDBACK_FORM_URL))
+                        )
+                    }.isFailure
+                }
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.set_feedback_open),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WotaText,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "›",
+                style = MaterialTheme.typography.bodyMedium,
+                color = WotaColor.textMid
+            )
+        }
+        Text(
+            text = stringResource(R.string.set_feedback_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = WotaColor.textMid
+        )
+        if (openFailed) {
+            Text(
+                text = stringResource(R.string.set_feedback_open_failed),
+                style = MaterialTheme.typography.bodySmall,
+                // 失败提示与权限「未授权」同一强调色（WotaRec），不新建色
+                color = WotaRec
+            )
+        }
+    }
+}
+
 // ------------------------------------------------------------------ 小件
 
 /**
@@ -1649,6 +1717,13 @@ private fun BlockDiag(prefs: SharedPreferences) {
     // 正在跑的动作（null = 空闲）：三颗按钮各自显示忙态，互不串台
     var busy by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
+    // B09：日志占用要枚举目录（磁盘 IO），不许在组合期同步跑在主线程。
+    // null = 还没算出来，显示占位；每次动作/清除后 bump [usageTick] 重算。
+    var usageBytes by remember { mutableStateOf<Long?>(null) }
+    var usageTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(usageTick) {
+        usageBytes = withContext(Dispatchers.IO) { Diag.usedBytes() }
+    }
     val ACTION_SHARE = "share"
     val ACTION_EXPORT = "export"
     val ACTION_CLEAR = "clear"
@@ -1705,7 +1780,10 @@ private fun BlockDiag(prefs: SharedPreferences) {
         )
         Spacer(Modifier.height(6.dp))
         Line()
-        InfoRow(stringResource(R.string.set_diag_size), formatBytes(Diag.usedBytes()))
+        InfoRow(
+            stringResource(R.string.set_diag_size),
+            usageBytes?.let { formatBytes(it) } ?: "…"
+        )
         Line()
         InfoRow(stringResource(R.string.set_diag_path), Diag.workingDir()?.absolutePath ?: "—")
         Spacer(Modifier.height(8.dp))
@@ -1728,6 +1806,7 @@ private fun BlockDiag(prefs: SharedPreferences) {
                             (context.applicationContext as? Application)?.let { Diag.exportForShare(it) }
                         }
                         busy = null
+                        usageTick++
                         if (res == null) {
                             status = context.getString(R.string.set_diag_share_failed)
                         } else {
@@ -1749,6 +1828,7 @@ private fun BlockDiag(prefs: SharedPreferences) {
                             (context.applicationContext as? Application)?.let { Diag.export(it) }
                         }
                         busy = null
+                        usageTick++
                         status = if (res == null) {
                             context.getString(R.string.set_diag_export_failed)
                         } else {
@@ -1761,8 +1841,9 @@ private fun BlockDiag(prefs: SharedPreferences) {
                     }
                 }
             )
-            // 清除（2026-10-13 用户裁决）：删净文件 + 清内存缓冲；清完 status 变更触发重组，
-            // 上方「日志占用」InfoRow 在重组时重读 Diag.usedBytes()，数字随之归零
+            // 清除（2026-10-13 用户裁决）：删净文件 + 清内存缓冲。
+            // Y50：按**实际删除结果**给成功/部分/失败文案，不再一律显示"已清除"；
+            // 同时 bump usageTick，占用行回到 IO 线程重算（B09）。
             ChipCell(
                 text = stringResource(R.string.set_diag_clear),
                 selected = false,
@@ -1771,9 +1852,20 @@ private fun BlockDiag(prefs: SharedPreferences) {
                     busy = ACTION_CLEAR
                     status = null
                     scope.launch {
-                        withContext(Dispatchers.IO) { Diag.clear() }
+                        val res = withContext(Dispatchers.IO) { Diag.clear() }
                         busy = null
-                        status = context.getString(R.string.set_diag_cleared)
+                        usageTick++
+                        status = when (res.state) {
+                            Diag.DiagClearState.CLEARED -> context.getString(R.string.set_diag_cleared)
+                            Diag.DiagClearState.PARTIAL -> context.getString(
+                                R.string.set_diag_clear_partial, res.removed, res.failed
+                            )
+                            Diag.DiagClearState.FAILED -> if (res.failed > 0) {
+                                context.getString(R.string.set_diag_clear_failed, res.failed)
+                            } else {
+                                context.getString(R.string.set_diag_clear_error)
+                            }
+                        }
                     }
                 }
             )
@@ -2031,8 +2123,13 @@ private data class UpdateDownloadState(
     val totalBytes: Long = -1L,
     val done: Boolean = false,
     val failed: Boolean = false,
-    val installFailed: Boolean = false,
-    val file: java.io.File? = null,
+    /**
+     * 安装启动失败是**独立终态**（Y46）：不与 done 并存，携带 [UpdateInstaller.InstallResult.Rejected]
+     * 的原因与下载产物；对话标题/动作行先判它，再判下载态。
+     */
+    val installFailure: InstallResult.Rejected? = null,
+    /** 下载产物（Done 携带选择绑定与实际摘要，安装/重试都复用它，不按文件名重建） */
+    val artifact: UpdateDownloader.DownloadOutcome.Done? = null,
     /** 正在给各渠道测速选路（还没开始真正下载，进度数字尚无意义） */
     val measuring: Boolean = false
 )
@@ -2056,6 +2153,9 @@ private fun UpdateSection() {
     // 行点击（检查）永不触碰下载标志——共享标志被新一轮复位会让旧下载协程复活/迟到回执弹框
     val probeCancelled = remember { AtomicBoolean(false) }
     var downloadGenFlag by remember { mutableStateOf<AtomicBoolean?>(null) }
+    // Y45 收口：每代提交闸。取消/顶替与「校验后发布」争同一把锁（见 UpdateAttemptGate），
+    // 新一代开跑前先把上一代闸顶替掉（旧代从此无法再提交发布，甚至还在校验中也一样）。
+    var downloadGate by remember { mutableStateOf<UpdateAttemptGate?>(null) }
 
     val statusRes = when (rowState) {
         UpdateRowState.Idle -> R.string.set_update_idle
@@ -2086,7 +2186,15 @@ private fun UpdateSection() {
                                 { url -> UpdateDownloader.fetchRedirectLocation(url, UpdateDownloader.PROBE_READ_TIMEOUT_MS) },
                                 isCancelled = { probeCancelled.get() },
                                 // 更新互斥（docs/plan/33）：full/lite 各推各包
-                                flavor = BuildConfig.FLAVOR
+                                flavor = BuildConfig.FLAVOR,
+                                // Y44：设备 ABI 顺序决定多个分包优先级；未知 ABI 段一律不选
+                                deviceAbis = Build.SUPPORTED_ABIS.toList(),
+                                // Y43：官方 API 正文只在最终落地主机仍属官方时可信（镜像段传 null 沿用旧流程）
+                                fetchJsonSource = { url, allowedHosts ->
+                                    UpdateDownloader.fetchJsonSource(
+                                        url, allowedHosts, UpdateDownloader.PROBE_READ_TIMEOUT_MS
+                                    )
+                                }
                             )
                         ) {
                             is ProbeResult.UpdateAvailable -> {
@@ -2130,15 +2238,19 @@ private fun UpdateSection() {
             onDownload = {
                 available = null
                 // 修复轮 P2：取消标志按代隔离——每轮下载新建 AtomicBoolean 捕获进协程闭包，
-                // 迟到的旧代回执以本代标志判生死，跨代复位从此不可能
+                // 迟到的旧代回执以本代标志判生死，跨代复位从此不可能。
+                // Y45 收口：本代同时领一枚提交闸；旧代闸先顶替（旧代从此进不了发布临界区）。
                 val genCancelled = AtomicBoolean(false)
+                val genGate = UpdateAttemptGate()
                 downloadGenFlag = genCancelled
+                downloadGate?.supersede()
+                downloadGate = genGate
                 download = UpdateDownloadState(measuring = true)
                 scope.launch(Dispatchers.IO) {
                     val outcome = UpdateDownloader.downloadApk(
                         context = context,
-                        directUrl = avail.downloadUrl,
-                        expectedSize = avail.sizeBytes,
+                        // Y43/Y44：把用户确认的 tag/flavor/资产名/ABI/该资产摘要作为一个不可变选择交给下载器
+                        selection = avail.selection,
                         onProgress = { read, total ->
                             // 修复轮 P3-1（末轮）：进度只许「本代仍是当前可见代」时写——
                             // 旧代迟到的进度不许碰新一代的进度对话框
@@ -2147,13 +2259,16 @@ private fun UpdateSection() {
                             }
                         },
                         isCancelled = { genCancelled.get() },
-                        expectedSha256 = avail.sha256,
                         // 测速选路结束（开始真正下载）：同一条按代隔离纪律
                         onSpeedTested = {
                             if (downloadGenFlag === genCancelled) {
                                 download = download?.copy(measuring = false)
                             }
-                        }
+                        },
+                        // Y45：下载器在摘要校验后的发布临界区再核一次本代是否仍是当前代
+                        isCurrent = { downloadGenFlag === genCancelled },
+                        // Y45 收口：本代提交闸——「校验通过 → 落地」的核对与发布在同一临界区完成
+                        publishGate = genGate
                     )
                     // 修复轮 P3-1（末轮）：回执写回前判代——旧代（已被新一代顶替）一律整体丢弃，
                     // 不许无条件清 download（那会把新一代的对话框清掉、令其隐形下载且不可取消）
@@ -2166,10 +2281,13 @@ private fun UpdateSection() {
                                     bytesRead = outcome.sizeBytes,
                                     totalBytes = outcome.sizeBytes,
                                     done = true,
-                                    file = outcome.file
+                                    artifact = outcome
                                 )
                             }
                         UpdateDownloader.DownloadOutcome.Cancelled -> download = null
+                        // 被同代/新一代顶替：本代回执不得清掉当前对话框（上面已判代，这里只在
+                        // 仍属当前代时收尾；正常路径不会到达）。
+                        UpdateDownloader.DownloadOutcome.Superseded -> download = null
                         UpdateDownloader.DownloadOutcome.Failed ->
                             // 同上：已取消的失败回执丢弃（对话框已关，别翻出来）
                             if (!genCancelled.get()) download = UpdateDownloadState(failed = true)
@@ -2184,18 +2302,33 @@ private fun UpdateSection() {
         UpdateDownloadDialog(
             state = dl,
             onCancel = {
-                // 只操作本代下载标志（修复轮 P2：按代隔离，行点击/新一轮探测永不触碰它）
+                // 只操作本代下载标志（修复轮 P2：按代隔离，行点击/新一轮探测永不触碰它）。
+                // Y45 收口：同时翻本代提交闸——闸把取消与发布收进同一把锁，正在临界区的提交
+                // 要么在取消生效前完成（回执按 genCancelled 丢弃）、要么被闸拒绝（旧包保留）。
+                // 锁内只有内存判断与短促改名，UI 线程不为下载 I/O 等待。
                 downloadGenFlag?.set(true)
+                downloadGate?.cancel()
                 download = null
             },
             onClose = { download = null },
             onInstall = {
-                val file = dl.file
-                if (file != null && UpdateInstaller.install(context, file)) {
-                    download = null
-                    rowState = UpdateRowState.Idle
+                // Y43：安装闸只接受下载产出的 Done（选择绑定 + 实际摘要都在里面），不再按文件名重建。
+                val artifact = dl.artifact
+                if (artifact == null) {
+                    download = dl.copy(
+                        done = false,
+                        installFailure = InstallResult.Rejected(InstallRejection.FILE_MISSING)
+                    )
                 } else {
-                    download = dl.copy(installFailed = true)
+                    when (val result = UpdateInstaller.install(context, artifact)) {
+                        InstallResult.Started -> {
+                            download = null
+                            rowState = UpdateRowState.Idle
+                        }
+                        // Y46：安装失败是独立终态——清掉 done，保留原因与产物（重试复用同一份字节）。
+                        is InstallResult.Rejected ->
+                            download = dl.copy(done = false, installFailure = result)
+                    }
                 }
             }
         )
@@ -2269,17 +2402,18 @@ private fun UpdatePromptDialog(
     }
 }
 
-/** 下载进度对话框：n% + 已下/总 MB + 取消；完成换「安装」，失败换「关闭」 */
+/** 下载进度对话框：n% + 已下/总 MB + 取消；完成换「安装」，失败/安装拒绝换「关闭 + 重试」 */
 @Composable
 private fun UpdateDownloadDialog(
     state: UpdateDownloadState,
     onCancel: () -> Unit,
     onClose: () -> Unit,
-    onInstall: () -> Unit
+    onInstall: () -> Unit,
+    onRetryInstall: () -> Unit = onInstall
 ) {
     // 修复轮 P3-1：下载中外部点击/返回键不再触发取消（误触会丢掉整个下载），
     // onDismissRequest 置空，取消只走显式「取消」钮；完成/失败态保留外部关闭
-    Dialog(onDismissRequest = { if (state.done || state.failed || state.installFailed) onClose() }) {
+    Dialog(onDismissRequest = { if (state.done || state.failed || state.installFailure != null) onClose() }) {
         Column(
             Modifier
                 .fillMaxWidth()
@@ -2287,20 +2421,41 @@ private fun UpdateDownloadDialog(
                 .background(WotaColor.surface)
                 .padding(20.dp)
         ) {
-            val title = when {
-                state.measuring -> stringResource(R.string.set_update_selecting_channel)
-                state.done -> stringResource(R.string.set_update_ready_to_install)
-                state.failed -> stringResource(R.string.set_update_download_failed)
-                state.installFailed -> stringResource(R.string.set_update_install_failed)
-                else -> stringResource(R.string.set_update_downloading)
+            // Y46：安装启动失败先于 done 判定——两态不再可能同时渲染成「下载完成」。
+            val title = when (updateDialogPhase(
+                installFailurePresent = state.installFailure != null,
+                measuring = state.measuring,
+                done = state.done,
+                failed = state.failed
+            )) {
+                UpdateDialogPhase.INSTALL_FAILED -> stringResource(R.string.set_update_install_failed)
+                UpdateDialogPhase.MEASURING -> stringResource(R.string.set_update_selecting_channel)
+                UpdateDialogPhase.DONE -> stringResource(R.string.set_update_ready_to_install)
+                UpdateDialogPhase.FAILED -> stringResource(R.string.set_update_download_failed)
+                UpdateDialogPhase.DOWNLOADING -> stringResource(R.string.set_update_downloading)
             }
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = if (state.failed || state.installFailed) WotaRec else WotaText
+                color = if (state.failed || state.installFailure != null) WotaRec else WotaText
             )
             Spacer(Modifier.height(10.dp))
             when {
+                state.installFailure != null -> {
+                    // 明确原因 + 重试入口：不是「下载完成」，而是安装闸拒绝/启动失败。
+                    Text(
+                        text = stringResource(installFailureText(state.installFailure.reason)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = WotaColor.textMid
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    UpdateDialogActions(
+                        listOf(
+                            stringResource(R.string.set_update_close) to onClose,
+                            stringResource(R.string.set_update_install_retry) to onRetryInstall
+                        )
+                    )
+                }
                 state.measuring -> {
                     // 测速选路：各渠道并发采样（每路至多 256KiB / 共约 1~6s），还没有可报的进度
                     LinearProgressIndicator(
@@ -2318,7 +2473,7 @@ private fun UpdateDownloadDialog(
                         listOf(stringResource(R.string.set_update_install) to onInstall)
                     )
                 }
-                state.failed || state.installFailed -> {
+                state.failed -> {
                     UpdateDialogActions(
                         listOf(stringResource(R.string.set_update_close) to onClose)
                     )
@@ -2345,7 +2500,7 @@ private fun UpdateDownloadDialog(
                     Spacer(Modifier.height(8.dp))
                     if (total > 0) {
                         LinearProgressIndicator(
-                            progress = (state.bytesRead.toFloat() / total.toFloat()).coerceIn(0f, 1f),
+                            progress = { (state.bytesRead.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -2356,6 +2511,46 @@ private fun UpdateDownloadDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Y46 更新弹窗的展示阶段（纯函数）：安装失败是独立终态，优先级高于 done/failed。
+ * 放在组合外是为了用真值表钉住「失败不能被下载完成文案盖掉」，而不是只靠源码字符串守卫。
+ */
+internal enum class UpdateDialogPhase { INSTALL_FAILED, MEASURING, DONE, FAILED, DOWNLOADING }
+
+internal fun updateDialogPhase(
+    installFailurePresent: Boolean,
+    measuring: Boolean,
+    done: Boolean,
+    failed: Boolean
+): UpdateDialogPhase = when {
+    installFailurePresent -> UpdateDialogPhase.INSTALL_FAILED
+    measuring -> UpdateDialogPhase.MEASURING
+    done -> UpdateDialogPhase.DONE
+    failed -> UpdateDialogPhase.FAILED
+    else -> UpdateDialogPhase.DOWNLOADING
+}
+
+/**
+ * 安装闸拒绝原因 → 用户可读文案（Y46）。原因是安装器暴露的稳定枚举，UI 只做映射；
+ * 技术细节（包名/版本/ABI 对照）留在日志里，弹窗只说用户下一步能做什么。
+ */
+@StringRes
+private fun installFailureText(reason: InstallRejection): Int {
+    return when (reason) {
+        InstallRejection.FILE_MISSING,
+        InstallRejection.UNREADABLE -> R.string.set_update_install_reason_unreadable
+        InstallRejection.DIGEST_MISMATCH -> R.string.set_update_install_reason_digest
+        InstallRejection.PACKAGE_MISMATCH -> R.string.set_update_install_reason_package
+        InstallRejection.SIGNER_MISMATCH -> R.string.set_update_install_reason_signer
+        InstallRejection.DEBUGGABLE_ARCHIVE -> R.string.set_update_install_reason_debuggable
+        InstallRejection.VERSION_MISMATCH -> R.string.set_update_install_reason_version
+        InstallRejection.FLAVOR_MISMATCH -> R.string.set_update_install_reason_flavor
+        InstallRejection.ABI_MISMATCH -> R.string.set_update_install_reason_abi
+        InstallRejection.PROVIDER_FAILED,
+        InstallRejection.LAUNCH_FAILED -> R.string.set_update_install_failed
     }
 }
 
