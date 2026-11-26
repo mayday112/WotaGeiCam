@@ -12,8 +12,8 @@ plugins {
 // 归一成 "-r08" 后缀拼进 appVersionName → versionName / BuildConfig.VERSION_NAME（设置页显示）
 // / archivesName（产物名 WotaGeiCam-v0.0.7-r08-release.apk）全部连锁携带；
 // versionCode 不含 r，r 变体之间覆盖安装不受影响。属性空白/缺失 → 无后缀，回退纯 appVersionBase。
-val appVersionCode = 12
-val appVersionBase = "0.0.12"
+val appVersionCode = 1
+val appVersionBase = "0.0.1"
 val rbuildProp = (project.findProperty("rbuild") as? String)?.trim().orEmpty().removePrefix("r")
 val rSuffix = if (rbuildProp.isEmpty()) "" else "-r$rbuildProp"
 val appVersionName = appVersionBase + rSuffix
@@ -57,7 +57,7 @@ android {
     val ciAbiSplits = (project.findProperty("abiSplits") as? String)?.toBoolean() ?: false
 
     defaultConfig {
-        applicationId = "com.wotagei.cam"
+        applicationId = "com.wotagei.cam.minimal"
         minSdk = 29
         targetSdk = 34
         versionCode = appVersionCode

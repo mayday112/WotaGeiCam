@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">WotaGeiCam</string>
+    <string name="app_name">WotaGeiCam Minimal</string>
     <string name="language_title">Bahasa</string>
     <string name="language_system">Ikuti Sistem</string>
     <string name="language_en">English</string>
