@@ -262,7 +262,6 @@ class GlowWiringGuardTest {
 
     private val pills by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/CameraPills.kt")) }
     private val hudLayer by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayer.kt")) }
-    private val hudLayout by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayout.kt")) }
     private val persist by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/ParamsPersist.kt")) }
 
     /**
@@ -295,11 +294,10 @@ class GlowWiringGuardTest {
             }
         }
         if (!hudLayer.contains("CamPill.GLOW -> PillKey.GLOW")) bad.add("HudEntry.pillKey 缺 GLOW")
-        if (!hudLayer.contains("ctx.glowUsable") || !hudLayer.contains("ctx.onGlowClick")) {
-            bad.add("HudEntryItem 的 GLOW 分支没接 ctx 字段")
+        val overlay = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/MinimalistHudOverlay.kt"))
+        if (!overlay.contains("ctx.glowUsable") || !overlay.contains("ctx.onGlowClick")) {
+            bad.add("MinimalistHudOverlay 的 GLOW 分支没接 ctx 字段")
         }
-        if (!hudLayout.contains("CamPill.GLOW -> HudZone.LEFT")) bad.add("GLOW 的默认容器必须是左竖 Dock")
-        if (!hudLayout.contains("HudEntry.of(CamPill.GLOW)")) bad.add("左竖 Dock 默认序必须登记 GLOW")
         if (!persist.contains("decodeGlow(")) bad.add("ParamsPersist.restore 没走 decodeGlow")
         if (!persist.contains("encodeGlow(")) bad.add("ParamsPersist.flush 没走 encodeGlow")
         return bad
@@ -323,13 +321,6 @@ class GlowWiringGuardTest {
             "glow_params 必须在 ParamsPersist.KEYS 白名单里（否则重启回默认）",
             com.wotagei.cam.ui.ParamsPersist.KEYS.contains(com.wotagei.cam.ui.WotaSettings.KEY_GLOW)
         )
-        // 默认落位：左竖 Dock 第 5 组（2026-10-28 起末位是 TONE，GLOW 在其前一位）
-        val leftOrder = com.wotagei.cam.ui.HudLayoutTable.defaultOrderOf(com.wotagei.cam.ui.HudZone.LEFT)
-        assertEquals(
-            com.wotagei.cam.ui.HudEntry.of(com.wotagei.cam.core.CamPill.GLOW),
-            leftOrder[leftOrder.lastIndex - 1]
-        )
-        assertEquals(com.wotagei.cam.ui.HudZone.LEFT, com.wotagei.cam.ui.HudEntry.of(com.wotagei.cam.core.CamPill.GLOW).homeZone)
     }
 
     @Test

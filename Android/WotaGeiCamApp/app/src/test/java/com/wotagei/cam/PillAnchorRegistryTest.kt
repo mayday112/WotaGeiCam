@@ -55,9 +55,11 @@ class PillAnchorRegistryTest {
         }
     }
 
+    private val allEntries = CamPill.ALL.map { HudEntry.of(it) } + HudItem.values().map { HudEntry.of(it) }
+
     @Test
     fun everyPillKeyIsOwnedByAnEntry() {
-        val owned = HudEntry.ALL.mapNotNull { it.pillKey() }.toSet()
+        val owned = allEntries.mapNotNull { it.pillKey() }.toSet()
         assertEquals(
             "有 PillKey 在 HudEntry.pillKey 里没有归属：那颗控件永远不会报锚点，浮层会弹到屏幕原点",
             PillKey.values().toSet(),
@@ -67,13 +69,13 @@ class PillAnchorRegistryTest {
 
     @Test
     fun entriesWithoutPillKeyAreExactlyTheReadOnlyOnes() {
-        val noKey = HudEntry.ALL.filter { it.pillKey() == null }.map { it.id }.toSet()
+        val noKey = allEntries.filter { it.pillKey() == null }.mapNotNull { it.pill }.toSet()
         assertEquals(
             "只有曲线（整块面板）与水平仪、音量表（纯读数）三条不该有就近浮层；多出来或少了都要改代码而不是改这里",
             setOf(
-                HudEntry.of(CamPill.CURVE).id,
-                HudEntry.of(CamPill.LEVEL).id,
-                HudEntry.of(CamPill.VOLUME).id
+                CamPill.CURVE,
+                CamPill.LEVEL,
+                CamPill.VOLUME
             ),
             noKey
         )
@@ -81,17 +83,13 @@ class PillAnchorRegistryTest {
 
     @Test
     fun zoomAnchorHasOneWriterPerState() {
-        // 变焦这颗有两个写入方按显隐接管（竖 Dock 那颗 / 读数块里那颗），登记在同一个 key 上要说得清，
-        // 两处同时抢写会让弹窗在两个坐标之间抖——这条约束写在表里，改动时别把它抹掉
         val zoom = pillAnchorWriters[PillKey.ZOOM].orEmpty()
         assertTrue(
-            "ZOOM 的登记要同时写明竖 Dock 那颗与读数块那棵的接管关系：'$zoom'",
+            "ZOOM 的登记要同时写明竖 Dock 与读数块的接管关系：'$zoom'",
             zoom.contains("HudReadoutZone")
         )
-        // 两个候选写入方确实都在条目表里（B4 之后"谁能弹"由位置表说了算，这里钉的是映射本身）
-        assertTrue(HudEntry.ALL.count { it.pillKey() == PillKey.ZOOM } == 2)
-        // 且都是"同名不同物"：CamPill.ZOOM 与 HudItem.ZOOM 各自一条（持久化串靠字母前缀分开）
-        val owners = HudEntry.ALL.filter { it.pillKey() == PillKey.ZOOM }.map { it.id }.toSet()
-        assertEquals(setOf(HudEntry.of(CamPill.ZOOM).id, HudEntry.of(HudItem.ZOOM).id), owners)
+        assertTrue(allEntries.count { it.pillKey() == PillKey.ZOOM } == 2)
+        val owners = allEntries.filter { it.pillKey() == PillKey.ZOOM }
+        assertEquals(listOf(HudEntry.of(CamPill.ZOOM), HudEntry.of(HudItem.ZOOM)), owners)
     }
 }

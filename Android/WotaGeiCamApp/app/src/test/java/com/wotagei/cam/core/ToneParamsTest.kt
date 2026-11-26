@@ -185,12 +185,8 @@ class ToneParamsTest {
 
     @Test
     fun `homeZone与默认序_左Dock第6组_默认掩码不含TONE`() {
-        val layout = mainSource("ui/HudLayout.kt")
-        assertTrue("HudEntry.homeZone 必须把 TONE 归左 Dock", layout.contains("CamPill.TONE -> HudZone.LEFT"))
-        assertTrue(
-            "左 Dock 默认序必须以 TONE 收尾（GLOW 之后）",
-            layout.contains("HudEntry.of(CamPill.TONE)")
-        )
+        val overlay = mainSource("ui/MinimalistHudOverlay.kt")
+        assertTrue("MinimalistHudOverlay 必须挂载 CamPill.TONE", overlay.contains("CamPill.TONE"))
         val constants = mainSource("core/Constants.kt")
         assertTrue("DEFAULT_MASK 必须减去 TONE 位（默认关）", constants.contains("and TONE.bit.inv()"))
         // 2026-11-05（R2）：ECHO 再加一位 ⇒ schema 4；TONE/ECHO 都不自动补位，表不变

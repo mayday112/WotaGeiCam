@@ -255,10 +255,8 @@ private fun rememberReducedMotionPreferred(): Boolean {
 
 @Composable
 fun WotaMotionProvider(mode: MotionMode, content: @Composable () -> Unit) {
-    // 倍率来自 #73 的取证钩子：关闭态恒 1f，所以正常渲染下 spec 与接钩子之前是同一份。
     // reduced 来自系统设置（#81 第 4 条）：true 时一切动画 0 时长直达
-    val timeScale = MergeDebugHook.timeScale
     val reduced = rememberReducedMotionPreferred()
-    val spec = remember(mode, timeScale, reduced) { MotionSpec(mode, timeScale, reduced) }
+    val spec = remember(mode, reduced) { MotionSpec(mode, 1f, reduced) }
     CompositionLocalProvider(LocalMotion provides spec, content = content)
 }

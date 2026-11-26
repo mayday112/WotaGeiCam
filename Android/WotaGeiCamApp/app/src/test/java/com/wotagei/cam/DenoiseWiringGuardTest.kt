@@ -13,10 +13,6 @@ import com.wotagei.cam.core.effectiveVideoDenoise
 import com.wotagei.cam.core.videoDenoiseActive
 import com.wotagei.cam.source.KotlinSourceScan
 import com.wotagei.cam.source.KotlinSourceScan.codeOnly
-import com.wotagei.cam.ui.HudEntry
-import com.wotagei.cam.ui.bandLeftPx
-import com.wotagei.cam.ui.HudLayoutTable
-import com.wotagei.cam.ui.HudZone
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
@@ -98,76 +94,6 @@ class DenoiseWiringGuardTest {
         // NoiseSuppressor 只能挂在自采 AudioRecord 上；MediaRecorder 没有挂载点 ⇒ 选型必须跟着走
         assertEquals(false, audioDenoiseNeedsCodec(AudioDenoise.OFF))
         assertEquals(true, audioDenoiseNeedsCodec(AudioDenoise.SYSTEM))
-    }
-
-    @Test
-    fun `降噪胶囊默认落底栏左侧且属于显隐列表`() {
-        val denoise = HudEntry.of(CamPill.DENOISE)
-        assertTrue("降噪必须在胶囊显隐列表（CamPill.ALL 就是那张表）", CamPill.DENOISE in CamPill.ALL)
-        assertEquals("归属容器 = 底栏", HudZone.BOTTOM, CamPill.DENOISE.homeZoneOf())
-        // 2026-11-05（R2）：残影加进底栏且排降噪左侧 ⇒ 默认序变【残影 → 降噪 → 镜头】
-        assertEquals(
-            "底栏默认序必须【残影 → 降噪 → 镜头】：两颗伴随条目都在 Dock 左侧（ordinal 序在镜头之后，顺序显式写死）",
-            listOf(HudEntry.of(CamPill.ECHO), denoise, HudEntry.of(CamPill.LENS)),
-            HudLayoutTable.default().orderOf(HudZone.BOTTOM)
-        )
-        // 位掩码：新位必须是**新加的一位**，不能挤占既有位（旧配置的 hud_pills 靠位序读回来）
-        assertEquals(8192, CamPill.DENOISE.bit)
-        assertTrue(CamPill.DENOISE.bit > CamPill.STORAGE.bit)
-    }
-
-    @Test
-    fun `隐藏降噪不回默认位置`() {
-        // 隐藏不改表（与其余条目同一条纪律）：再打开还在原位（R2 后 = 残影右侧、镜头左侧）
-        val t = HudLayoutTable.default()
-        val visible = HudEntry.ALL.toSet() - HudEntry.of(CamPill.DENOISE)
-        assertTrue(
-            "隐藏后不许出现在可见序列里",
-            HudEntry.of(CamPill.DENOISE) !in t.visibleOrderOf(HudZone.BOTTOM, visible)
-        )
-        assertEquals(
-            "重新打开必须回到默认序原位（表没被隐藏动作改过）",
-            listOf(HudEntry.of(CamPill.ECHO), HudEntry.of(CamPill.DENOISE), HudEntry.of(CamPill.LENS)),
-            t.visibleOrderOf(HudZone.BOTTOM, HudEntry.ALL.toSet())
-        )
-    }
-
-    // ------------------------------------------------------------------ ② 源码接线
-
-    /**
-     * 两页底栏容器的渲染槽检查。判据吃 `codeOnly` 之后的源码（注释与字符串已被遮蔽）——
-     * 于是"把渲染代码注释掉"这种最像"做了"的假实现当场红。
-     */
-    private fun bandRenderIssues(sources: List<Pair<String, String>>): List<String> {
-        val bad = ArrayList<String>()
-        for ((label, src) in sources) {
-            if (KotlinSourceScan.occurrences(src, "bandExtra =").isEmpty()) {
-                bad.add("$label 的 HudZoneBox(BOTTOM) 没挂 bandExtra——降噪那颗在底栏就渲染不出来")
-            }
-            if (KotlinSourceScan.occurrences(src, "HudBottomBandEntry(").isEmpty()) {
-                bad.add("$label 没走共用渲染入口 HudBottomBandEntry（档位/ghost/锚点会各写一份）")
-            }
-        }
-        return bad
-    }
-
-    private fun hudSources() = listOf(
-        "ui/CameraScreen.kt" to codeOnly(KotlinSourceScan.mainSourceText("ui/CameraScreen.kt")),
-        "ui/HudLayoutEditor.kt" to codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayoutEditor.kt"))
-    )
-
-    @Test
-    fun `两页底栏都挂了降噪那颗的渲染槽`() {
-        val issues = bandRenderIssues(hudSources())
-        assertEquals("底栏伴随条目的渲染问题：\n${issues.joinToString("\n")}", emptyList<String>(), issues)
-    }
-
-    @Test
-    fun `尺子自己能红_摘掉渲染槽必报红`() {
-        val clean = hudSources()
-        assertEquals("真身必须绿", emptyList<String>(), bandRenderIssues(clean))
-        val mutated = clean.map { (label, src) -> label to src.replace("bandExtra =", "bandExtraX =") }
-        assertTrue("摘掉渲染槽的突变必须被守卫抓到", bandRenderIssues(mutated).isNotEmpty())
     }
 
     /**
@@ -391,16 +317,4 @@ class DenoiseWiringGuardTest {
         assertEquals(once, CamPill.migrateMask(once, CamPill.MASK_SCHEMA))
         assertEquals("新位确实登记进了 ADDED_IN_SCHEMA", CamPill.DENOISE.bit, CamPill.ADDED_IN_SCHEMA[1])
     }
-
-    @Test
-    fun `底栏伴随条目的左缘只看绝对定位那一支`() {
-        // 底栏默认位与"只认 y"的落位：槽是 fillMaxWidth + Center ⇒ 左缘 =（槽宽 − 卡片宽）/2
-        assertEquals("默认位（Dock 居中）", 216, bandLeftPx(1080, 648, false))
-        assertEquals("Dock 被搬到绝对 y：仍居中，不是 0（本轮 P1 的回归点）", 216, bandLeftPx(1080, 648, false))
-        // 只有绝对定位那一支（槽 TopStart）才是 0
-        assertEquals(0, bandLeftPx(1080, 648, true))
-    }
 }
-
-/** [CamPill] 的归属容器就是它在 [HudEntry] 里的 homeZone（测试里只读这一处口径，不另抄一张表） */
-private fun CamPill.homeZoneOf(): HudZone = HudEntry.of(this).homeZone

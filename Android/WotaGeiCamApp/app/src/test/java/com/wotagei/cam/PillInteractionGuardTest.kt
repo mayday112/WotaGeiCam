@@ -27,27 +27,20 @@ import org.junit.Test
  */
 class PillInteractionGuardTest {
 
-    private val hud by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayer.kt")) }
+    private val hud by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/MinimalistHudOverlay.kt")) }
     private val pills by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/CameraPills.kt")) }
     private val screen by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/CameraScreen.kt")) }
     private val audioPanel by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/dialog/AudioSourcePanel.kt")) }
     private val btPanel by lazy { codeOnly(KotlinSourceScan.mainSourceText("ui/dialog/BtSpeakerPanel.kt")) }
 
-    /** HudLayer 里点按/长按的接线问题；空 = 干净 */
+    /** MinimalistHudOverlay 里点按开弹窗的接线问题；空 = 干净 */
     private fun hudTapIssues(src: String): List<String> {
         val bad = ArrayList<String>()
-        val entry = flatten(bodyOf(src, "HudEntryItem"))
-        if (!entry.contains("onClick = gatedClick(clicksAccepted) { ctx.onReadoutOpen(item) }")) {
+        if (!src.contains("ctx.onReadoutOpen(item)")) {
             bad.add("读数条目 onClick 不是 onReadoutOpen（点按循环可能回潮）")
         }
-        if (!entry.contains("onLongClick = gatedClick(clicksAccepted) { ctx.onReadoutOpen(item) }")) {
-            bad.add("读数条目 onLongClick 不是 onReadoutOpen（长按开窗断裂）")
-        }
-        if (!entry.contains("onClick = gatedClick(clicksAccepted, ctx.onOpenLensPanel)")) {
+        if (!src.contains("onClick = ctx.onOpenLensPanel")) {
             bad.add("镜头胶囊 onClick 不是 onOpenLensPanel（点按切镜可能回潮）")
-        }
-        if (!entry.contains("onLongClick = if (clicksAccepted) ctx.onOpenLensPanel else null")) {
-            bad.add("镜头胶囊 onLongClick 不是 onOpenLensPanel（长按开窗断裂）")
         }
         return bad
     }
@@ -332,16 +325,16 @@ class PillInteractionGuardTest {
     @Test
     fun `尺子自己能红`() {
         assertEquals("良品先绿", emptyList<String>(), hudTapIssues(hud))
-        // 突变 1：读数长按改回别的回调 -> 必红
+        // 突变 1：读数点按改回别的回调 -> 必红
         assertTrue(
-            "长按开窗被拆必须红",
-            hudTapIssues(hud.replace("onLongClick = gatedClick(clicksAccepted) { ctx.onReadoutOpen(item) }", "onLongClick = null"))
-                .any { it.contains("onLongClick") }
+            "读数开窗被拆必须红",
+            hudTapIssues(hud.replace("ctx.onReadoutOpen(item)", "Unit"))
+                .any { it.contains("onClick") }
         )
         // 突变 2：镜头点按改回切镜 -> 必红
         assertTrue(
             "镜头点按开窗被拆必须红",
-            hudTapIssues(hud.replace("onClick = gatedClick(clicksAccepted, ctx.onOpenLensPanel)", "onClick = gatedClick(clicksAccepted) { }"))
+            hudTapIssues(hud.replace("onClick = ctx.onOpenLensPanel", "onClick = {}"))
                 .any { it.contains("onClick") }
         )
         // 突变 3：只读总闸被拆 -> 必红

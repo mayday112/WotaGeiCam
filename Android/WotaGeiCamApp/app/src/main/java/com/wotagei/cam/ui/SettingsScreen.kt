@@ -258,16 +258,6 @@ object WotaSettings {
      * 所以由 `MainActivity.applyPageMode()` 每次换页直读 prefs。
      */
     const val KEY_UI_ORIENTATION = "ui_orientation"
-    /**
-     * 可拖动容器的位置表（13 号计划第 5、8 条）：版本化的「容器 id → (x, y) + 容器内条目顺序」，
-     * 编解码与钳制全在 [HudLayoutTable]，一条紧凑串存进同一个 prefs 文件。
-     *
-     * 与 `hud_items` / `ui_orientation` 同一类**纯 UI 设置**：消费方每次组合直读 prefs，
-     * **不走 [applyDefaultsOnce]**（那条链进程内只套一次，会把编辑页"保存即生效"与设置页的改动挡掉）。
-     * 缺键 = [HudLayoutTable.default]，也就是 B1–B3 的定稿位置；控件被隐藏再打开显示时不回默认，
-     * 落点在 [HudLayoutTable.visibleOrderOf]（过滤只读表、不改表）。
-     */
-    const val KEY_HUD_LAYOUT = "hud_layout"
     const val KEY_TEXT_SCALE_CAMERA = "text_scale_camera"
     const val KEY_TEXT_SCALE_SETTINGS = "text_scale_settings"
     const val KEY_TEXT_SCALE_DIALOG = "text_scale_dialog"
@@ -557,30 +547,6 @@ object WotaSettings {
         prefs.edit().putString(KEY_UI_ORIENTATION, orientation.persistValue).commit()
     }
 
-    /** 位置表：坏串由 [HudLayoutTable.decode] 吞掉并回落默认表，不抛（与 [curveStack] 同一条纪律） */
-    fun hudLayout(prefs: SharedPreferences): HudLayoutTable =
-        HudLayoutTable.decode(prefs.getString(KEY_HUD_LAYOUT, null))
-
-    /**
-     * 同 [setUiOrientation]：**同步 `commit()`**。位置是用户"拖完就杀进程验一次"的东西，
-     * `apply()` 的异步落盘会被 `am force-stop` 吃掉，验收时就会把"没落盘"误读成"位置没保存住"。
-     *
-     * @return `commit()` 的结果，也就是**这次改动是否真的写进了磁盘**。写入方必须把它当"保存回执"用：
-     * 返回 false 就不许再对用户说"已保存"。低频拖动的松手/点保存，一次同步 IO 的代价可以接受。
-     */
-    @Suppress("ApplySharedPref")
-    fun setHudLayout(prefs: SharedPreferences, table: HudLayoutTable): Boolean =
-        prefs.edit().putString(KEY_HUD_LAYOUT, table.encode()).commit()
-
-    /**
-     * 重置：整张表清回默认（删键，缺键就是 [HudLayoutTable.default]）。
-     * 「即时可重做」靠的是调用方留着重置前那一份串，写回 [setHudLayout] 就是撤销。
-     * 与 [setHudLayout] 同理走同步 `commit()`，返回值是"这次删除是否真落盘"的回执。
-     */
-    @Suppress("ApplySharedPref")
-    fun clearHudLayout(prefs: SharedPreferences): Boolean =
-        prefs.edit().remove(KEY_HUD_LAYOUT).commit()
-
     /** 各屏文本高度缩放系数；100% 即工程默认排版，越界值钳回区间内 */
     fun textScale(prefs: SharedPreferences, key: String): Float =
         (prefs.getInt(key, 100).coerceIn(TEXT_SCALE_PCTS.first(), TEXT_SCALE_PCTS.last()) / 100f)
@@ -687,7 +653,6 @@ object WotaSettings {
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onOpenHudEditor: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -719,7 +684,7 @@ fun SettingsScreen(
             }
             Spacer(Modifier.height(6.dp))
             Line()
-            SettingsBody(plan, prefs, onOpenHudEditor)
+            SettingsBody(plan, prefs)
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -734,21 +699,20 @@ fun SettingsScreen(
 @Composable
 private fun SettingsBody(
     plan: SettingsLayoutPlan,
-    prefs: SharedPreferences,
-    onOpenHudEditor: () -> Unit
+    prefs: SharedPreferences
 ) {
     // 两栏时卡片外距收到 6dp（左右两块各 6dp，合计仍是约 12dp 的视觉间距）；单栏维持 12dp 不动
     val cardPad = if (plan.columns == 2) 6.dp else 12.dp
     CompositionLocalProvider(LocalSettingsCardPad provides cardPad) {
         if (plan.columns == 1) {
-            plan.left.forEach { BlockHost(it, prefs, onOpenHudEditor) }
+            plan.left.forEach { BlockHost(it, prefs) }
         } else {
             Row(Modifier.fillMaxWidth()) {
                 Column(Modifier.weight(1f)) {
-                    plan.left.forEach { BlockHost(it, prefs, onOpenHudEditor) }
+                    plan.left.forEach { BlockHost(it, prefs) }
                 }
                 Column(Modifier.weight(1f)) {
-                    plan.right.forEach { BlockHost(it, prefs, onOpenHudEditor) }
+                    plan.right.forEach { BlockHost(it, prefs) }
                 }
             }
         }
@@ -757,13 +721,13 @@ private fun SettingsBody(
 
 /** 区块枚举 → 具名 composable 的派发口：[SettingsBody] 只认 [SettingsBlock]，具体挂载点收在这里 */
 @Composable
-private fun BlockHost(block: SettingsBlock, prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
+private fun BlockHost(block: SettingsBlock, prefs: SharedPreferences) {
     when (block) {
         SettingsBlock.DEFAULT -> BlockDefault(prefs)
         SettingsBlock.ORIENTATION -> BlockOrientation(prefs)
         SettingsBlock.MOTION -> BlockMotion(prefs)
         SettingsBlock.BRIGHTNESS -> BlockBrightness(prefs)
-        SettingsBlock.HUD -> BlockHud(prefs, onOpenHudEditor)
+        SettingsBlock.HUD -> BlockHud(prefs)
         SettingsBlock.SLIDER -> BlockSlider(prefs)
         SettingsBlock.STORAGE -> BlockStorage()
         SettingsBlock.REFLINE -> BlockRefline(prefs)
@@ -1043,7 +1007,7 @@ private fun BlockBrightness(prefs: SharedPreferences) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
+private fun BlockHud(prefs: SharedPreferences) {
     var hudMask by remember { mutableIntStateOf(WotaSettings.hudItems(prefs)) }
     var pillMask by remember { mutableIntStateOf(WotaSettings.hudPills(prefs)) }
     // 毛玻璃背板（#84 步骤 2）：默认关，只有这一颗 Switch 会把它打开（没有别的写入方）
@@ -1104,19 +1068,6 @@ private fun BlockHud(prefs: SharedPreferences, onOpenHudEditor: () -> Unit) {
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
-        // 位置编辑入口（键 hud_layout）：只列上面开着显示的控件，入口文案必须把这条说清楚
-        Text(
-            text = stringResource(R.string.set_hud_editor_note),
-            style = MaterialTheme.typography.labelSmall,
-            color = WotaTextDim
-        )
-        Spacer(Modifier.height(6.dp))
-        ChipCell(
-            text = stringResource(R.string.set_hud_editor),
-            selected = false,
-            onClick = onOpenHudEditor
-        )
         Spacer(Modifier.height(10.dp))
         // 毛玻璃背板开关（键 hud_frost_blur，#84 步骤 2 · A2 混合）。
         // ⚠ 本轮**唯一**没走 `res/values/strings_settings.xml` 的两条 UI 文案：那个文件不在本刀的

@@ -103,10 +103,6 @@ class MarkerWiringGuardTest {
             flat.contains("markerAnchorRect = r") && flat.contains("boundsInWindow()")
         )
         assertTrue(
-            "右 Dock 槽必须回报窗口矩形当右侧保留区",
-            flat.contains("rightDockSlotRect = r")
-        )
-        assertTrue(
             "两个浮层都要把保留区左缘喂给定位器",
             KotlinSourceScan.occurrences(flat, "rightKeepOutPx = rightDockSlotRect?.left?.roundToInt()").size >= 2
         )

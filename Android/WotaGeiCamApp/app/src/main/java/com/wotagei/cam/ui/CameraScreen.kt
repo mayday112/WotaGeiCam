@@ -242,7 +242,6 @@ import com.wotagei.cam.record.rotateFailLedgerLine
 import com.wotagei.cam.record.shouldDiscardAbandonedSink
 import com.wotagei.cam.record.streamHealthVerdict
 import com.wotagei.cam.ui.anim.LocalMotion
-import com.wotagei.cam.ui.anim.MergeDebugBadge
 import com.wotagei.cam.ui.design.WotaChip
 import com.wotagei.cam.ui.design.LocalPreviewOverlaysOn
 import com.wotagei.cam.ui.design.WotaColor
@@ -1374,50 +1373,14 @@ fun CameraScreen(
     // 竖 Dock 的宽度跟着标签与字体缩放变（字体 120% 时比 100% 宽约两成），写死的宽度账两次都没算对。
     // 初值一律给兜底常量或预测值：首帧量不到时按兜底避让，量到之后由实测值接管。
     val hudDensity = LocalDensity.current
-    // 编辑页「保存」走 commit()（同步落盘，理由见 WotaSettings.setHudLayout），这条监听在写入返回后立刻
-    // 打到 → 录制页实时生效，杀进程重进读的是同一份 prefs
-    val hudLayout = rememberHudLayout(settingsPrefs)
     var topBarH by remember { mutableIntStateOf(TopBarSpace.value.roundToInt()) }
-    // 安全区实测尺寸就是位置表 (x, y) 的坐标参考（"root 的安全区"）：挖孔与系统栏让掉的那条边**已经包含**
-    // 在这份尺寸里，所以它同时是钳制上限、顶栏容量段取档、读数块取档的同一个可用宽来源（旧写法在这里
-    // 另扣一笔写死的 34dp 右缘让位，而那条带会随横屏 90/270 换边 ⇒ 两个姿态必错一次，已删，见 §九·补）。
-    // 初值取 configuration 的运行时估算（不是新写的机型魔法数），量到之后由 onSizeChanged 接管；
-    // 旋转换档先按新方向估算，下一帧实测校正
     var safeW by remember(configuration.orientation) { mutableIntStateOf(configuration.screenWidthDp) }
     var safeH by remember(configuration.orientation) { mutableIntStateOf(configuration.screenHeightDp) }
-    // #70 A 定版「横屏永远同行」的判据：就用这两行已经在用的那个 orientation（同一个真源，不另造第二套
-    // "横屏"定义，比如按窗口宽高比现推——那会和这里复位 safeW/safeH 的条件分叉）
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    // §59/§74：容量段取档的可用宽 = 安全区实测宽 − 顶栏右端固定件预留。它必须与胶囊组自己的布局上限
-    // topBarMaxWidthDp 同一条账、同一个来源（都吃下面这枚**实际预留**），否则判据比实际盒子宽。
-    // 10-01 文本实测化：删掉了"再按录制页文本高度折算回 100% 基准"那一步除法 —— 判据另一侧的两段文案宽
-    // 是 TextMeasurer 按**实际** style 量的（TextScaleLayer 的文本高度缩放与系统 fontScale 都已含在
-    // 量出来的 px 里），两边必须同为"真机上真实的 dp"，再除一次缩放就是双重折算。
-    // 分屏入口与设置齿轮**同排**（都在顶栏右端）⇒ 录制页的右端固定件比 core 里那枚 66f 多一枚图标钮
-    // 加一枚同排间距。增量只加在录制页这一侧：编辑页没有分屏入口，它继续用 core 的 66f（两页固定件不同）。
     val splitChromeReserveDp = WotaHit.iconButton.value + TopRowGap.value
     val topBarChromeReserveDp = TOP_BAR_CHROME_RESERVE_DP + splitChromeReserveDp
     val topBarRoomDp = (safeW - topBarChromeReserveDp).coerceAtLeast(0f)
-    // 五枚卡片本体在窗口里的实测矩形：钳制要的容器尺寸与第 8 条要的"底栏现在在哪"都只读这一份。
-    // ⚠ 必须**随方向复位**（与上面 safeW/safeH 同一个 key）：旋转那一刻这批矩形还是上一副姿态的尺寸，
-    // 而 #70 A 的读数块决策吃的正是里面的宽度（底板宽、块宽）。不复位的话，竖屏按整幅排出来的
-    // 294dp 块宽会在新姿态的首帧被当成"实测越线"，配合退化档的自反馈就把读数永久闩在错误那一档
-    // （#70 修复批次第 1 条点名的帮凶）。复位后首帧退回 [BottomDockWidthFallback] 等兜底值，
-    // 下一帧实测接管，与 topBarH / dockStripH 那套"两轮收敛"手法同一条。
-    val zoneRects = remember(configuration.orientation) { mutableStateMapOf<HudZone, IntRect>() }
-    val bottomOuterPadDp = BottomBarOuterPadV.value.roundToInt()
-    val dockCardH = zoneRects[HudZone.BOTTOM].dpHeightToDp(hudDensity)
-    // S2-2 C：底栏那一排占的带高 = 卡片实测高 + 卡片外上下边距各一份（原来的 76dp 是"真机量过两次"的
-    // 经验值，AGENTS.md 禁止这类机型性常量）；首帧量不到时退回底栏自己的布局算式 BottomBarSpaceFallback
-    val dockStripH = if (dockCardH > 0) dockCardH + 2 * bottomOuterPadDp
-    else BottomBarSpaceFallback.value.roundToInt()
-    // ---- 可见条目集 = 设置里开着显示的那些。关掉的整颗不出现，但**仍留在位置表里**（见
-    // [HudLayoutTable.visibleOrderOf]：过滤只读表、不改表），所以"隐藏再打开显示"回到的是用户放好的位置。
-    // #54 的开关位 + 运行时「本机有无闪光灯/这颗镜头能不能对焦」+ 音量表只在录制中出现。
-    // 2026-10-26 口径反转：闪光/对焦这两颗**能力给不了时不再整颗摘除**——摘除会在它们的钉格上
-    // 留一格空洞（marble 反馈：点亮「对焦」后录制页那格空着），且用户对着洞无从知道为什么；
-    // 改为留在 visibleEntries 里，由 HudEntryItem 按 ctx 两枚布尔画半透明禁用态、点击给解释。
-    // 少认一条仍是假开关：四条判据的现居处 = HudEntryItem 的 alpha + hudCtx 的 onClick 分流。
+
     val visibleEntries: Set<HudEntry> = buildSet {
         CamPill.ALL.filter { it !in hiddenPills }.filter { p ->
             when (p) {
@@ -1426,196 +1389,7 @@ fun CameraScreen(
                 else -> true
             }
         }.forEach { add(HudEntry.of(it)) }
-        // 10-01 布局批：码率不再是 READOUT 网格的一员——改为 Dock 外固定读数（下面 BOTTOM 那枚
-        // HudZoneBox 之后单独渲染的 chip），不进网格/编辑页。不进 visibleEntries，网格、默认格推导
-        // 与 readoutCount 的取档规划一并见不到它（READOUT 只剩快门/帧率，planReadoutRow 的单行账
-        // 自然成立）；编辑页那条链的渲染一致由 HudReadoutZone 里的同一道过滤兜住。旧 hud_layout
-        // 表串不用迁移：decode 照旧，表里的 BITRATE 槽位记录自然不渲染。
         hudItems.forEach { if (it != HudItem.BITRATE) add(HudEntry.of(it)) }
-    }
-    // S3-5：读数块的取档判据必须是"调用点同一个表达式"算出的可用宽（旧写法直接传 screenWidthDp 会把
-    // "贴边"当"装得下"，传旧的 34dp 避让量则会在挖孔换边的那个姿态里双重让位）。
-    // #70 A 之后那条表达式收进了 planReadoutRow（HudLayout.kt，纯函数 + JVM 用例）：它一次算清
-    // 「底边停哪一档 + 一行几颗 + 可用内宽」，本文件与编辑页都只调它，不再各摆一份 hudRoomDp/hudPerRowFor。
-    val readoutCount = hudLayout.visibleOrderOf(HudZone.READOUT, visibleEntries).size
-    val baseArea = HudAreaDp(
-        width = safeW,
-        height = safeH,
-        topAvoidDp = topBarH,
-        bottomAvoidDp = dockStripH
-    )
-    // ---- #70 A：读数块与底栏**共用底部那一条横带**，不再被"底栏带高"抬到 Dock 上方。
-    // 一次决策同时给出三件事，谁都不许另写一份：① 底边停在哪一档、② 一行几颗、③ 可用内宽。
-    // 定版口径（用户 2026-09-29 12:20）：横屏**永远同行**、列数上限两颗；只有竖屏保留"退回整排之上"。
-    // 底边那一档不是直接把 BottomBarOuterPadV 交给容器：读数块自己还吃一枚 HudBlockPadDp 内边距，
-    // 计划里减掉它，对齐的才是**胶囊可见底边**与**底板可见底边**（第 6 条那笔 6dp 账）。
-    // 输入是实测底栏宽（首帧量不到按 BottomDockWidthFallback 兜底，与 dockStripH 同一套两轮收敛手法）、
-    // 安全区实测宽，以及读数块自己的实测宽（竖屏那道"估宽说谎时别压上底板"的安全网；横屏不读它，
-    // 否则列数↔块宽会形成每帧振荡的环，理由见 planReadoutRow）。
-    val dockCardW = zoneRects[HudZone.BOTTOM].dpWidthToDp(hudDensity)
-    val readoutCardRect = zoneRects[HudZone.READOUT]
-    val readoutCardW = readoutCardRect.dpWidthToDp(hudDensity)
-    val readoutPlan = remember(
-        readoutCount, hudDensity.fontScale, safeW, dockCardW, dockStripH, readoutCardW, isLandscape
-    ) {
-        planReadoutRow(
-            readoutCount = readoutCount,
-            fontScale = hudDensity.fontScale,
-            safeWidthDp = safeW,
-            dockWidthDp = if (dockCardW > 0) dockCardW else BottomDockWidthFallback.value.roundToInt(),
-            dockStripDp = dockStripH,
-            dockRowBaselineDp = bottomOuterPadDp,
-            endPadDp = HudEdgePad.value,
-            dockGapDp = WotaSpace.s.value,
-            landscape = isLandscape,
-            // 实测块宽做竖屏安全网：`hudPerRowFor` 的字宽是算术估计，副标签「感光度 / 曝光补偿」比它假设的
-            // 两汉字宽，估宽偏小时真值会压上底板。量不到那一帧传 0 = 先按估宽走，下一帧实测接管
-            readoutWidthDp = readoutCardW
-        )
-    }
-    // 读数块那枚容器的 area：底边由上面那次决策说了算（横屏恒与底栏同一行，那一档的让位已经在计划里
-    // 减掉块自己的内边距 ⇒ 对齐的是可见底边），带高与钳制都只读这一份
-    val readoutArea = baseArea.copy(bottomAvoidDp = readoutPlan.bottomAvoidDp)
-    // S3-6：读数块高度首帧按行数预测而不是 0——0 会让进页首帧的右 Dock 下界按未扣值算，最低那颗叠一帧。
-    // 旋转换档时它仍是上一轮那一档，与 topBarH 同一套"两轮收敛"手法，下一帧就正。
-    val hudStripH = readoutCardRect.dpHeightToDp(hudDensity).let {
-        if (it > 0) it else hudStripHeightDp(readoutCount, readoutPlan.perRow, hudDensity.fontScale).roundToInt()
-    }
-    // 六项第 4 条之后右竖 Dock 与读数块都在右缘：右 Dock 的下界还要多让开读数块那一截，否则会叠字。
-    // #70 A 之后这两枚在**同一条横带**上（各占一半），那截让位与底栏带高取大而不是求和
-    // （并联不求和那条旧账见 areaForRightDock 的 KDoc）。10-01 第 5 项起两枚竖 Dock 都改读
-    // dockBottomAvoidDp：只避**真横向重叠**的邻居——底栏居中，常规屏宽下与竖 Dock 不叠，那整条
-    // 72dp 不再白让（左 Dock 只留 HudEdgePad，右 Dock 另叠读数块那一截）。
-    val rightArea = baseArea.copy(
-        bottomAvoidDp = dockBottomAvoidDp(
-            safeWidthDp = safeW,
-            dockWidthDp = zoneRects[HudZone.RIGHT].dpWidthToDp(hudDensity),   // 实测宽；0 = 首帧还没量到
-            bottomDockWidthDp = dockCardW,                                    // 底板常态宽（实测，首帧 0）
-            bottomDockStripDp = dockStripH,
-            fromEnd = true,
-            readoutBottomDp = readoutPlan.bottomAvoidDp,
-            readoutHeightDp = hudStripH,   // 读数块条带高（原先喂 areaForRightDock 的就是它）
-        )
-    )
-    // 左 Dock 同一条账、fromEnd = false：它贴左缘、读数块在右缘 ⇒ 读数那两枚入参不参与左支
-    // （函数 KDoc 记着），这里显式传 0 只为满足 #69 那套"无默认值必传"。
-    val leftArea = baseArea.copy(
-        bottomAvoidDp = dockBottomAvoidDp(
-            safeWidthDp = safeW,
-            dockWidthDp = zoneRects[HudZone.LEFT].dpWidthToDp(hudDensity),
-            bottomDockWidthDp = dockCardW,
-            bottomDockStripDp = dockStripH,
-            fromEnd = false,
-            readoutBottomDp = 0,
-            readoutHeightDp = 0,
-        )
-    )
-    // 顶栏胶囊组的宽度上限：抽取前它待在 `fillMaxWidth` 的顶栏 Row 里，右边被设置入口顶死，
-    // 装不下时靠 Text 的 maxLines+Ellipsis 收；搬进独立可拖容器后没有那层约束了，120% 文本 + 窄窗
-    // 会直接从右缘画出去。参考区从「窗口宽」换成「安全区实测宽」，与顶栏那行 Row 当年同一个基准，
-    // 预留量读的是上面那枚**实际预留**（含分屏入口多占的一枚图标钮），与 topBarRoomDp 同源。
-    val topBarMaxWidthDp = (safeW - topBarChromeReserveDp).coerceAtLeast(0f).dp
-
-    fun areaOf(zone: HudZone): HudAreaDp = when (zone) {
-        HudZone.LEFT -> leftArea
-        HudZone.RIGHT -> rightArea
-        HudZone.READOUT -> readoutArea
-        else -> baseArea
-    }
-
-    // #74：网格解析要的两份运行时输入（可见集 + 读数块一行几颗）。编辑页造的是同一份，
-    // 两页都只经 [HudLayoutTable.gridItems] 这一条换算，不许出现第二份"格子 → 坐标"。
-    // #75 再添两份：**纵向格距**（由胶囊档 + 该容器行距推出，与住户无关）与**每颗条目的实测高**
-    //（写方只有 HudEntryGrid 一处，本页自己存一份，与编辑页各持一份同理——两页读的是同一个算式）。
-    // 这两条就是"高条目自己吃掉几档、不把别人的行距顶高"的全部证据；量不到那一帧跨度按一档算，
-    // 下一帧实测接管（与 topBarH / dockStripH 同一套"两轮收敛"，不是新写的首帧常量）。
-    val hudEntryHeights = remember { mutableStateMapOf<HudEntry, Int>() }
-    val gridPlan = HudGridPlan(
-        visible = visibleEntries,
-        readoutPerRow = readoutPlan.perRow,
-        rowPitchOf = { zone -> hudGridRowPitchPx(zone, hudDensity) },
-        cellHeightOf = { entry -> hudEntryHeights[entry] ?: 0 }
-    )
-
-    /**
-     * 表里的位置 → 这一帧真正用的位置。
-     * - 两轴都是哨兵（用户没把这枚容器拖离定稿位置）原样返回，由 [HudZoneBox] 走 B1–B3 的原生对齐分支；
-     * - 有绝对轴的先钳进安全区。容器尺寸量不到那一帧按 0 算 ⇒ 左上角坐标原样成立、不跳回默认位置，
-     *   下一帧实测接管"装不装得下"。**底栏**钳完的 x 恒为哨兵（[clampZonePos] 那一支），所以它只可能
-     *   带绝对 y，[HudZoneBox] 因此仍按 fillMaxWidth + 居中画它。
-     */
-    fun placementOf(zone: HudZone): ZonePlacement {
-        val raw = hudLayout.posOf(zone)
-        if (raw.isDefault) return raw
-        val rect = zoneRects[zone]
-        val w = rect.dpWidthToDp(hudDensity)
-        val h = rect.dpHeightToDp(hudDensity)
-        // topZoneMinYDp 恒 0：录制页的顶栏本就该贴顶（编辑页那条操作栏在这页不存在）。
-        // 它的 baseArea.topAvoidDp 是**实测顶栏高**（≠0），若拿它去当顶栏绝对定位的下限，
-        // 同一份位置表会在两页渲染出不同位置——编辑页画的就是假的。录制页逐字不变靠的正是这个 0。
-        return clampZonePos(zone, raw.xDp, raw.yDp, w, h, areaOf(zone), topZoneMinYDp = 0)
-    }
-
-    // 「镜头」那颗归属哪枚容器由表说了算：不在底栏时底栏那个右槽留等宽空区，那颗在别的容器里
-    // 由那枚容器泛化渲染（同一颗出现两遍 = 两个锚点写入方抢写同一个 PillKey，弹窗就会抖）
-    val lensEntry = HudEntry.of(CamPill.LENS)
-    val lensInBottomDock = lensEntry in visibleEntries &&
-        hudLayout.sourceZoneOf(lensEntry) == HudZone.BOTTOM
-    // 「降噪」那颗同理（2026-10-26）：归属归表说了算，在底栏时走 [BottomBandChips] 的伴随条目渲染，
-    // 被搬到别的容器时由那枚容器泛化渲染——同一颗只有一条渲染路，锚点也就只有一个写入方
-    val denoiseEntry = HudEntry.of(CamPill.DENOISE)
-    /** 残影（R2）：底栏伴随条目（与降噪同带，排它左侧 = 左起第一颗） */
-    val echoEntry = HudEntry.of(CamPill.ECHO)
-
-    // ---- 第 8 条：长按底栏 Dock 换栏（只作用 y，结果写进 hud_layout 的底栏容器那一份坐标）
-    var dockDragging by remember { mutableStateOf(false) }
-    // 跟手位移只进 graphicsLayer（红线：不动布局参数），松手才换算成 dp 写表
-    var dockShiftPx by remember { mutableFloatStateOf(0f) }
-    val dockDrag = HudDockDrag(
-        dragging = dockDragging,
-        // gate 在这一条：PREPARE / START / STOPPING 一律不许进入拖拽——正在录的时候不能让人把底栏
-        // （连着"停止录制"那一指）搬走。返回 false 时 HudBottomZone 里改播锁提示
-        onAllowStart = {
-            if (dockDragBlocked(recStatus)) {
-                false
-            } else {
-                dockDragging = true
-                dockShiftPx = 0f
-                true
-            }
-        },
-        onDragY = { dy -> dockShiftPx += dy },
-        onDrop = {
-            val area = baseArea
-            val hDp = if (dockCardH > 0) dockCardH else BottomBarSpaceFallback.value.roundToInt() - 2 * bottomOuterPadDp
-            val y = dockSnapY(
-                area,
-                heightDp = hDp,
-                bottomPadDp = bottomOuterPadDp,
-                gapDp = WotaSpace.s.value.roundToInt(),
-                deltaYDp = pxToDp(dockShiftPx, hudDensity.density)
-            )
-            // **只写 y，x 留哨兵**：底栏横向永远由 fillMaxWidth + 居中决定，90↔270 翻转与横竖换档都会
-            // 重新居中快门。旧写法在这里把"当前实测左缘"换算成绝对 x 一起写进表，纯长按不动也会落一个
-            // 绝对值，此后那枚 Dock 就再也不跟可视中心走了（B4 审查 S1 那条设计缺陷）。
-            // 哨兵值取 ZonePlacement.DEFAULT.xDp，与表里"没拖过"的那一轴同一个数。
-            // commit() 返回 false = 没落成盘（重启就回原栏），不许静默，给一句提示
-            val ok = WotaSettings.setHudLayout(
-                settingsPrefs,
-                hudLayout.withZonePos(HudZone.BOTTOM, ZonePlacement.DEFAULT.xDp, y)
-            )
-            if (!ok) showTip(app.getString(R.string.hud_edit_save_failed))
-            dockDragging = false
-            dockShiftPx = 0f
-        },
-        onBlocked = lockTip
-    )
-    // 拖到一半开始录制（快门那颗仍可用）：立刻退出拖拽，吸收/分裂由录制态那一条接手，进度从当前值续
-    LaunchedEffect(recStatus) {
-        if (dockDragBlocked(recStatus)) {
-            dockDragging = false
-            dockShiftPx = 0f
-        }
     }
 
     // 承载预览的那枚 aspectRatio 盒子的坐标：HUD 各注册点用它把卡片矩形换算到**承载视图局部坐标**，
@@ -1826,23 +1600,9 @@ fun CameraScreen(
                 HudItem.BITRATE -> "${bitrate / 1_000_000}M"
             }
         },
-        // 录制页不做格子吸附（拖拽只在编辑页），这一路给空链：一个节点都不加，零成本。
-        // 形参没有默认值是故意的（#69 铁律），漏挂的那一页会静默失去格子吸附能力而编译照过
-        gridOf = { Modifier },
-        // #75：实测高仍要回报——录制页不做吸附，但**跨度**（高条目吃掉几档）在两页都得算，
-        // 而它唯一的数据源就是这份实测高（不回报就永远按一档 ⇒ 又变回"行距取最高那颗"那个老模型）
-        entryHeights = hudEntryHeights,
         anchorOf = { entry ->
             val key = entry.pillKey()
-            when {
-                key == null -> Modifier
-                // 变焦的锚点平时让给竖 Dock 那颗常驻胶囊：读数上的「变焦」只是读数，两处都抢写同一个
-                // key 会让弹窗在两个位置之间抖。但 #54 之后那颗可以被关掉或被挪出可见集——这时读数自己
-                // 顶上，否则长按读数弹出的面板会因为量不到锚点而弹到屏幕原点
-                key == PillKey.ZOOM && entry.kind == HudEntryKind.READOUT &&
-                    HudEntry.of(CamPill.ZOOM) in visibleEntries -> Modifier
-                else -> Modifier.pillAnchorReport(pillAnchors, key)
-            }
+            if (key == null) Modifier else Modifier.pillAnchorReport(pillAnchors, key)
         },
         onSizeClick = { pop = PillKey.SIZE },
         onFreeClick = { pop = PillKey.STORAGE },
@@ -1936,11 +1696,6 @@ fun CameraScreen(
     // 终点同样先过编译期常量：debug/release 整句消失，连这枚"起点恒 0"的判空都不留。
     if (BuildConfig.HUD_RECOMP_PROBE && hudCtxStartNs != 0L) {
         HudRecompProbe.onCtxAssembled(System.nanoTime() - hudCtxStartNs)
-    }
-
-    /** 卡片本体的窗口矩形进实测表：值真变了才写。布局期写状态会重组，空转一次就是白掉一帧 */
-    fun putCardRect(zone: HudZone, rect: IntRect) {
-        if (zoneRects[zone] != rect) zoneRects[zone] = rect
     }
 
     Box(
@@ -2268,11 +2023,6 @@ fun CameraScreen(
                             }
                         }
                     }
-                    // #73 取证钩子生效时的标识：顶栏正中一枚胶囊，写明钉住的进度与时长倍率。
-                    // 钩子关着（release / debug / 没带 adb extra）时它**根本不组合**，所以截图里看见它
-                    // 就等于这张是钩子态，不会把钉住的中间帧当成正常渲染写进验收结论。
-                    // 位置只吃 safeDrawingPadding()（贴边避让交系统），不写任何方向常量。
-                    MergeDebugBadge(Modifier.align(Alignment.TopCenter).padding(top = WotaSpace.xs))
                     // #84 霜探针：debugHook 变体 + adb extra 才组合（见 FrostProbe 的类注释）。
                     // 挂 TopStart：默认横屏下左上角不与顶栏（居中）或左 Dock（中段）相压；只画不收指
                     FrostProbeOverlay(glEngine, Modifier.align(Alignment.TopStart))
@@ -2292,170 +2042,13 @@ fun CameraScreen(
                     // 凭证，跟着四周一起收掉就等于把录制指示藏了，所以这里与 [HudTopChrome] 同进同出。
                     // 宽度上限补回抽取前那条 fillMaxWidth Row 给的硬约束（见 topBarMaxWidthDp）：胶囊组一旦
                     // 脱离那行 Row 就没有布局兜底了，字宽估算是纯算术，估算偏了只会从右缘溢出去。
-                    HudZoneBox(
-                        zone = HudZone.TOP,
-                        placement = placementOf(HudZone.TOP),
-                        area = baseArea,
-                        modifier = Modifier.widthIn(max = topBarMaxWidthDp),
-                        // 录制页顶栏本来就贴顶（原生对齐只让一枚 TopTopPad）⇒ 0 = 与改前逐字同值；
-                        // 这条下限只有编辑页那条操作栏需要（#79，见 chromeBandBottomDp）
-                        nativeTopMinDp = 0,
-                        onCardRect = { putCardRect(HudZone.TOP, it) }
-                    ) {
-                        HudTopZone(hudLayout.visibleOrderOf(HudZone.TOP, visibleEntries), hudCtx)
-                    }
-                    // ---- 左右竖 Dock：有浮层打开时向各自外侧滑出、关闭滑回（不再随面板硬卸载）----
-                    // 常驻组合是刻意的：zoneRects 的实测宽持续回报，dockBottomAvoidDp 那套避让账
-                    // 不因滑出归零，回滑时布局不抖。位移走 HudZoneBox 的 graphicsLayer 通道
-                    // （shiftXPx 只在 layer 块里读，动画不触发整页重组）；滑出到位后内容整体在屏外，
-                    // 触摸自然不可达，无需再挂禁用开关。
-                    //
-                    // 触发判据**只认浮层本身开着**，不记控件在哪枚容器里：就近胶囊（[pop]）与整块面板
-                    // （[sheet]）都是"有弹窗的控件"开出来的——竖 Dock 内的条目、底栏左右侧那两颗
-                    // （镜头 / 码率）、顶栏胶囊组全走这两条路。理由：本项目有「编辑控件位置」，
-                    // 同颗控件可被挪到任意栏位，按栏位写死触发条件（"只有左 Dock 的才滑"）会在控件
-                    // 被挪动后静默失配；按浮层态触发则与位置表无关，控件挪到哪都自动正确。
-                    // 弹窗锚点取的是**布局期**回报的窗口矩形（pillAnchorReport → boundsInWindow），
-                    // graphicsLayer 位移不触发 onGloballyPositioned 回调，所以滑出期间弹窗钉在原地
-                    // 不动、不会跟着 Dock 一起被拖出屏外（霜板那条链是反过来的需求，另见 HudDockZone）。
-                    val dockSlideMotion = LocalMotion.current
-                    val docksOut = sheet != Sheet.NONE || pop != null
-                    // 可被用户连续打断的场景（连点不同胶囊 = 滑出/收回互相打断）：必须用
-                    // Animatable.animateTo —— 它默认 `initialVelocity = velocity`，液态档的弹簧
-                    // 因此从**当前运动状态**接着走、继承打断瞬间的速度；换成 snapTo + 重新计时
-                    // 就会速度归零重启（"突然一顿再起步"，正是这次改版要消除的观感）。
-                    val dockSlide = remember { Animatable(0f) }
-                    LaunchedEffect(docksOut) {
-                        val target = if (docksOut) 1f else 0f
-                        if (dockSlide.value != target) dockSlide.animateTo(target, dockSlideMotion.float)
-                    }
-                    // 完全出屏的账：以**实测窗口缘**为锚——左 Dock 平移「卡片右缘 + 一枚设计留白」、
-                    // 右 Dock 平移「窗口宽 − 卡片左缘 + 同一枚」。不再用“槽起点 8dp + 卡宽”反推：
-                    // 霜板实际绘制宽含内边距账，反推量恒少一截，滑出后右缘永远留 ~20dp 残段压弹窗
-                    // （2026-10-04 真机取证：残影 3 秒落定后仍在，非动画未完）。
-                    val hudEdgePadPx = with(hudDensity) { HudEdgePad.toPx() }
-                    val hudRootView = LocalView.current.rootView
-                    HudZoneBox(
-                        zone = HudZone.LEFT,
-                        placement = placementOf(HudZone.LEFT),
-                        // 10-01 第 5 项：左 Dock 也读自己的 area（只避真横向重叠的邻居，见 leftArea）
-                        area = leftArea,
-                        shiftXPx = { -dockSlide.value * ((zoneRects[HudZone.LEFT] ?: IntRect.Zero).right.coerceAtLeast(0) + hudEdgePadPx) },
-                        nativeTopMinDp = 0,   // 只有 TOP 的原生对齐读它（#69：无默认值必传）
-                        onCardRect = { putCardRect(HudZone.LEFT, it) }
-                    ) {
-                        HudDockZone(
-                            HudZone.LEFT,
-                            hudLayout.gridItems(HudZone.LEFT, gridPlan),
-                            hudCtx,
-                            zoneBandHeight(HudZone.LEFT, leftArea),
-                            // #80：默认表格子 = 格长与预留档数的唯一来源（不看谁摆到哪一格），所以拖一颗不动别颗
-                            hudLayout.defaultGridOf(HudZone.LEFT, gridPlan),
-                            frostVisible = !docksOut
-                        )
-                    }
-                    // 右缘只留 HudEdgePad 那枚 8dp 设计留白（与左竖 Dock 的起始边同一枚令牌），贴边避让全在
-                    // 外层那层 safeDrawingPadding()：挖孔落到哪条边它就避哪条，本层不再按方向补让位量
-                    // （任务 #68 删掉的就是那笔写死的 34dp，出处见 docs/plan/13 §九·补）。
-                    // 上下夹在顶栏与底栏之间：整栏占满全高时，录制中出现音量表会把姿态仪顶到设置钮上。
-                    HudZoneBox(
-                        zone = HudZone.RIGHT,
-                        placement = placementOf(HudZone.RIGHT),
-                        area = rightArea,
-                        shiftXPx = { dockSlide.value * ((hudRootView.width - (zoneRects[HudZone.RIGHT] ?: IntRect.Zero).left.coerceAtLeast(0)) + hudEdgePadPx) },
-                        nativeTopMinDp = 0,   // 同上：非顶栏容器不读这条下限
-                        // 站位线浮层的右侧保留区：槽的**左缘**（含卡片内边距，比卡片左缘更保守）。
-                        // 用实测而不是手算——右 Dock 的宽度随 HUD 条目变化，写死就会在换设备后又压上去。
-                        modifier = Modifier.onGloballyPositioned {
-                            val r = it.boundsInWindow()
-                            if (rightDockSlotRect != r) rightDockSlotRect = r
-                        },
-                        onCardRect = { putCardRect(HudZone.RIGHT, it) }
-                    ) {
-                        HudDockZone(
-                            HudZone.RIGHT,
-                            hudLayout.gridItems(HudZone.RIGHT, gridPlan),
-                            hudCtx,
-                            zoneBandHeight(HudZone.RIGHT, rightArea),
-                            hudLayout.defaultGridOf(HudZone.RIGHT, gridPlan),   // #80 锚定与预留的唯一来源
-                            frostVisible = !docksOut
-                        )
-                    }
-                    // READOUT/底栏/码率 chip 维持与面板互斥的硬卸载：读数与快门在录制语义里本就不该
-                    // 和面板同屏，这轮只有两枚竖 Dock 换装成滑出动画
-                    if (sheet == Sheet.NONE) {
-                        // 六项第 4 条：快门速度 / 帧率这几颗常驻读数搬到**录制键右侧**（横屏右手拇指可达）；
-                        // 码率已挪 Dock 外同带（10-01 布局批，见下面 BOTTOM 那枚 HudZoneBox 之后的 chip）。
-                        // 它不进底栏那枚 Dock：Dock 内左右两槽必须等宽快门才居中，读数进去就把整枚 Dock 撑到
-                        // 500dp 以上，横屏 800dp 宽都嫌挤、竖屏直接溢出。
-                        // #70 A：这块的底边与带高读的是 readoutArea（planReadoutRow 那次决策），不再读 baseArea——
-                        // 后者带的是"底栏那一排的带高"，把它当 padding(bottom=) 用就是把读数手算抬到 Dock 上方，
-                        // 那是 §14.2 里被点名第二次的写法。绝对落位那一支（placementOf）也走同一个 areaOf 出口，
-                        // 所以钳制带与原生对齐带不会分叉。
-                        HudZoneBox(
-                            zone = HudZone.READOUT,
-                            placement = placementOf(HudZone.READOUT),
-                            area = readoutArea,
-                            nativeTopMinDp = 0,   // 同上：非顶栏容器不读这条下限
-                            onCardRect = { putCardRect(HudZone.READOUT, it) }
-                        ) {
-                            HudReadoutZone(
-                                hudLayout.gridItems(HudZone.READOUT, gridPlan),
-                                hudCtx,
-                                zoneBandHeight(HudZone.READOUT, readoutArea),
-                                // #80：读数块只预留**列数**（透明底板 ⇒ 不花观感钱），纵向那一轴是有意留的缺口，
-                                // 理由与两条出路都写在 GridAnchor 的文件头
-                                hudLayout.defaultGridOf(HudZone.READOUT, gridPlan)
-                            )
-                        }
-                        // 这枚 Dock 的居中父区域 = 套了 safeDrawingPadding() 之后的**整宽安全区** ⇒ 快门中心就是
-                        // 可视窗口水平中心，挖孔落到左短边还是右短边都跟着中心走。旧写法在这里又扣一笔写死的 34dp
-                        // （外层已经避过让位了，等于双重让位），于是两个横屏姿态都往**左**偏 34px：带在左时中心落在
-                        // 800px（应为 834px）、带在右时 732px（应为 766px）。任务 #68 已删那笔扣减。
-                        // S2-2 C：整排实测高回报给三处下边界。第 8 条：长按这枚底板 → 吸收两颗 → 上下拖（只进
-                        // graphicsLayer）→ 松手落上栏/下栏，**只有 y 进表**（x 恒哨兵，见 onDrop 那段）。
-                        // 镜头那颗被挪去别的容器时这枚 Dock 只留等宽空槽（右槽实测宽归 0，槽宽回到 34dp 那一档）
-                        HudZoneBox(
-                            zone = HudZone.BOTTOM,
-                            placement = placementOf(HudZone.BOTTOM),
-                            area = baseArea,
-                            shiftYPx = { if (dockDragging) dockShiftPx else 0f },
-                            nativeTopMinDp = 0,   // 同上：非顶栏容器不读这条下限
-                            onCardRect = { putCardRect(HudZone.BOTTOM, it) },
-                            // ---- 底栏 Dock 左侧、同一带的两枚 chip（10-01 布局批的码率读数 + 2026-10-26
-                            // 的降噪胶囊）。落位账全在 [BottomBandChips] 里：贴 Dock 左缘、装不下退屏幕
-                            // 左缘、再装不下上移一条带——两枚 chip 一起进退（一条 Row），不会互相压上。
-                            // 走 b 案（伴随条目挂在**容器槽里**）不选 a 案（Row 包 BOTTOM 的 HudZoneBox）：
-                            // BOTTOM 槽位是 `align(BottomCenter) + fillMaxWidth`，Row 里先摆 chip 再摆 Dock
-                            // 会把 Dock 的居中基准从"整宽安全区"改成"扣掉 chip 的剩余宽"，录制键中心≠可视
-                            // 水平中心，不变量②当场崩。伴随条目与 Dock 是同一枚槽 Box 的**两个兄弟**，
-                            // Dock 的居中一个字都不受影响。
-                            bandExtra = { dockLeftPx ->
-                                BottomBandChips(
-                                    dockLeftPx = dockLeftPx,
-                                    dockStripH = dockStripH,
-                                    echoEntry = echoEntry.takeIf {
-                                        it in visibleEntries && hudLayout.sourceZoneOf(it) == HudZone.BOTTOM
-                                    },
-                                    denoiseEntry = denoiseEntry.takeIf {
-                                        it in visibleEntries && hudLayout.sourceZoneOf(it) == HudZone.BOTTOM
-                                    },
-                                    hudCtx = hudCtx,
-                                    bitrateLabel = if (HudItem.BITRATE in hudItems) {
-                                        hudCtx.readoutValue(HudItem.BITRATE)
-                                    } else null,
-                                    pillAnchors = pillAnchors,
-                                    onBitrateClick = { hudCtx.onReadoutOpen(HudItem.BITRATE) }
-                                )
-                            }
-                        ) {
-                            HudBottomZone(
-                                showLens = lensInBottomDock,
-                                ctx = hudCtx,
-                                drag = dockDrag
-                            )
-                        }
-                    }
+                    val effectiveLandscape = if (safeW > 0 && safeH > 0) safeW > safeH else isLandscape
+                    MinimalistHudOverlay(
+                        ctx = hudCtx,
+                        isLandscape = effectiveLandscape,
+                        topBarH = topBarH,
+                        visibleEntries = visibleEntries
+                    )
                 }
             }
 
@@ -2500,11 +2093,12 @@ fun CameraScreen(
         // 右侧分屏面板：挂在**压图层之外**（根 Box 的另一个孩子），所以它自己不跟着压缩。
         // 两态由 [compareOn] 决定：模式列表（另镜头录制 / 实时对比播放 / 退出分屏）或对比播放器。
         // 「另镜头录制」的可用态来自 [buddies]（双摄并发探测）；可用也仍是占位，点击只给「下一批实现」提示。
+        val effectiveLandscapeRoot = if (safeW > 0 && safeH > 0) safeW > safeH else isLandscape
         AnimatedVisibility(
             visible = splitOn,
             enter = fadeIn(splitMotion.float) + slideInHorizontally(splitMotion.offset) { it },
             exit = fadeOut(splitMotion.float) + slideOutHorizontally(splitMotion.offset) { it },
-            modifier = Modifier.align(Alignment.CenterEnd)
+            modifier = Modifier.align(if (!effectiveLandscapeRoot) Alignment.TopCenter else Alignment.CenterEnd)
         ) {
             SplitPanel(
                 onExit = { splitOn = false },
@@ -2512,7 +2106,8 @@ fun CameraScreen(
                 onToggleCompare = { compareOn = it },
                 lensSupported = buddies.value.isNotEmpty(),
                 onLensClick = { showTip(app.getString(R.string.cam_split_lens_soon)) },
-                autoAttachId = practiceLeftId
+                autoAttachId = practiceLeftId,
+                stackedPortrait = !effectiveLandscapeRoot
             )
         }
 
@@ -2548,30 +2143,18 @@ fun CameraScreen(
         if (popped != null && sheet == Sheet.NONE) {
             val liveAnchor = pillAnchors[popped]
             var anchorSnap by remember(popped) {
-                mutableStateOf<Pair<IntRect, Boolean>?>(null)
+                mutableStateOf<IntRect?>(null)
             }
             SideEffect {
                 val live = pillAnchors[popped]
                 if (anchorSnap == null && live != null && live != IntRect.Zero) {
-                    // 右 Dock 判定与矩形同帧冻结：锚点中心落在右 Dock 卡片的**实测布局矩形**内
-                    // （zoneRects 布局期回报，不随滑出位移变化——见上面 dockSlide 的注释）。
-                    // 控件被挪到别的容器时自动失配，判定永远跟着实际摆位走
-                    val right = zoneRects[HudZone.RIGHT]
-                    anchorSnap = live to (right != null && right.contains(live.center))
+                    anchorSnap = live
                 }
             }
-            val snap = anchorSnap
-            val anchor = (snap?.first ?: liveAnchor) ?: IntRect.Zero
-            // 贴右换算要**窗口像素宽**：与锚点同一坐标系（pillAnchorReport 是 boundsInWindow）。
-            // 弹窗挂在压图层之外（见上），这里自取 rootView，别拿布局层的什么宽度来折算
-            val windowWidthPx = LocalView.current.rootView.width
+            val anchor = (anchorSnap ?: liveAnchor) ?: IntRect.Zero
             PillHost(
                 key = popped,
-                anchor = if (snap?.second == true) {
-                    rightEdgeAnchorOf(anchor, windowWidthPx)
-                } else {
-                    anchor
-                },
+                anchor = anchor,
                 params = params,
                 slot = slot,
                 recording = recording,
@@ -2684,12 +2267,12 @@ private fun SplitPanel(
     lensSupported: Boolean,
     onLensClick: () -> Unit,
     /** 「对着左片练」带进来的参考片：非空时对比播放器直接挂它循环播（不再让用户去相册选） */
-    autoAttachId: Long?
+    autoAttachId: Long?,
+    stackedPortrait: Boolean = false
 ) {
     Column(
         Modifier
-            .fillMaxHeight()
-            .fillMaxWidth(0.5f)
+            .then(if (stackedPortrait) Modifier.fillMaxWidth().fillMaxHeight(0.5f) else Modifier.fillMaxHeight().fillMaxWidth(0.5f))
             .padding(WotaSpace.s)
             .wotaCard()
             .padding(WotaSpace.l),
@@ -4537,91 +4120,6 @@ private fun launchCaptureConsent(
         Log.w(TAG_UI, "拉起内录授权框失败：${e.message}")
         capture.onConsentResult(Activity.RESULT_CANCELED, null)
         showTip(app.getString(R.string.audio_capture_cancelled))
-    }
-}
-
-/**
- * 底栏 Dock **左侧、同一带**的那几枚伴随 chip（2026-10-26 从"码率读数 chip"那块扩成通用的一枚）：
- * 左侧起依次是「降噪」（可编辑条目，用户可在编辑页把它搬走）与「码率」（固定读数，Dock 外特权）。
- *
- * ## 为什么收成一条 Row 而不是各算各的 x
- * 两枚 chip 都在 Dock 左缘外，各自反推 x 会互相压上（谁也不知道另一枚多宽）。收成一条 Row 后，
- * "贴 Dock 左缘"这条账只算一次：`x = dockLeftPx − 间隙 − 整条 Row 的实测宽`。
- *
- * ## 退让是三档，与旧码率 chip 逐字同源（不是新规矩）
- * ① 贴 Dock 左缘（装得下）；② 装不下 → 退贴安全区左缘；③ 那样右缘仍越过 Dock 左缘（竖屏窄带）→
- * 再整条上移一档（`dockStripH + 一枚间隙`）退出这条带——分两步退，第一步保持同带、第二步才是离带。
- * 横向用 `offset` 反推而**不用** `padding(end=)`：padding 会把剩余宽压成 chip 的测量上限
- * （竖屏 360dp 那档只剩 ≈64dp，chip 自然宽 ≈90dp 被迫裁字，§58/§73 那族坑）；offset 只平移
- * 不改测量约束，chip 永远按自然宽量。Row 宽实测两轮收敛（与 topBarH / dockStripH 同一套手法）：
- * 首帧按退避位画、第二帧贴上 Dock 左缘。
- *
- * ## 纵向
- * `align(BottomStart)` 落在这枚槽 Box 的**内容底**上，而槽的内容底就是卡片（Dock）底 ⇒ 与底板
- * 可见底边齐平（旧写法在根盒里补的那枚 `padding(bottom = BottomBarOuterPadV)` 正是同一档，
- * 两者等价）。降噪那枚自己不写 frost：它经 [HudBottomBandEntry] 走 [HudEntryItem]，由那条路
- * 统一决定"有没有父板"，不在这里再注册一块。
- */
-@Composable
-private fun BoxScope.BottomBandChips(
-    dockLeftPx: Int,
-    dockStripH: Int,
-    echoEntry: HudEntry?,
-    denoiseEntry: HudEntry?,
-    hudCtx: HudCtx,
-    bitrateLabel: String?,
-    pillAnchors: MutableMap<PillKey, IntRect>,
-    onBitrateClick: () -> Unit
-) {
-    if (echoEntry == null && denoiseEntry == null && bitrateLabel == null) return
-    val density = LocalDensity.current
-    var rowWpx by remember { mutableIntStateOf(0) }
-    val gapPx = with(density) { WotaSpace.s.toPx() }
-    val edgePx = with(density) { HudEdgePad.toPx() }
-    val hugX = dockLeftPx - gapPx - rowWpx
-    val fits = rowWpx > 0 && hugX >= edgePx
-    val x = if (fits) hugX else edgePx
-    val yOffPx = if (!fits && edgePx + rowWpx > dockLeftPx) {
-        with(density) { (dockStripH.dp + WotaSpace.s).toPx() }.roundToInt()
-    } else 0
-    Row(
-        modifier = Modifier
-            .align(Alignment.BottomStart)
-            .offset { IntOffset(x.roundToInt(), -yOffPx) }
-            .onSizeChanged { if (it.width != rowWpx) rowWpx = it.width },
-        horizontalArrangement = Arrangement.spacedBy(WotaSpace.s)
-    ) {
-        // 残影（R2，2026-11-05）：与降噪同一条伴随条目路，Row 里排最左（= 贴 Dock 左缘第一颗）
-        if (echoEntry != null) {
-            HudBottomBandEntry(
-                entry = echoEntry,
-                ctx = hudCtx,
-                clicksAccepted = true
-            )
-        }
-        if (denoiseEntry != null) {
-            HudBottomBandEntry(
-                entry = denoiseEntry,
-                ctx = hudCtx,
-                // 这颗不参与底栏那套"吸收进录制键"（它不在 Dock 的三格里）⇒ 闸门恒开。
-                // 点按动作从 ctx.onDenoiseClick 走（与 Dock 内那颗同一条 ctx，调用方一处接线）
-                clicksAccepted = true
-            )
-        }
-        if (bitrateLabel != null) {
-            WotaChip(
-                label = bitrateLabel,
-                selected = false,
-                modifier = Modifier
-                    // BITRATE 就近浮层的锚点写入方从 HudEntryItem 换到这颗：不挂的话
-                    // 长按弹层按 IntRect.Zero 钉回屏幕左上角（§69 缺陷族）
-                    .pillAnchorReport(pillAnchors, PillKey.BITRATE),
-                secondary = stringResource(HudItem.BITRATE.labelRes),
-                onClick = onBitrateClick,
-                onLongClick = onBitrateClick,
-                frost = hudFrostPillPlate
-            )
-        }
     }
 }
 

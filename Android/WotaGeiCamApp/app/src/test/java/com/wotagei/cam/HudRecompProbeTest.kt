@@ -231,19 +231,8 @@ class HudRecompProbeTest {
     }
 
     @Test
-    fun `HudZoneBox 有子层入组计数`() {
-        assertTrue(
-            "HudZoneBox 必须记一次入组（B12：对照父层组合率判子层是否整棵重入）",
-            code("ui/HudLayer.kt").contains(
-                "if (BuildConfig.HUD_RECOMP_PROBE && HudRecompProbe.enabled) HudRecompProbe.onZoneBox()"
-            )
-        )
-    }
-
-    @Test
     fun `关闭态热路径先过编译期常量再读探针开关`() {
         val screen = flat("ui/CameraScreen.kt")
-        val hud = flat("ui/HudLayer.kt")
         // 正常 debug/release：HUD_RECOMP_PROBE=false 是 javac 常量，Kotlin 折叠后整句消失，
         // 连 @Volatile 读都不剩；只有 debugHook/probe 才会继续读开关。
         assertTrue(
@@ -253,10 +242,6 @@ class HudRecompProbeTest {
         assertTrue(
             "HudCtx 起点必须先过编译期常量",
             screen.contains("val hudCtxStartNs = if (BuildConfig.HUD_RECOMP_PROBE && HudRecompProbe.enabled)")
-        )
-        assertTrue(
-            "子层入组计数必须先过编译期常量",
-            hud.contains("if (BuildConfig.HUD_RECOMP_PROBE && HudRecompProbe.enabled) HudRecompProbe.onZoneBox()")
         )
         assertTrue(
             "叠层挂载点必须整段包在编译期常量里",
@@ -278,10 +263,6 @@ class HudRecompProbeTest {
         assertFalse(
             "终点不许只剩运行期开关读",
             screen.contains("if (hudCtxStartNs != 0L)") || screen.contains("if (hudProbeStartNs != 0L)")
-        )
-        assertFalse(
-            "子层不许只剩运行期开关读",
-            hud.contains("if (HudRecompProbe.enabled) HudRecompProbe.onZoneBox()")
         )
     }
 

@@ -118,8 +118,8 @@ class SettingsTwoColumnGuardTest {
     @Test
     fun `尺子自己能红_区块漏进根列必报红`() {
         val mutant = realMasked.replace(
-            "SettingsBody(plan, prefs, onOpenHudEditor)",
-            "SettingGroup(\"x\")\n            SettingsBody(plan, prefs, onOpenHudEditor)",
+            "SettingsBody(plan, prefs)",
+            "SettingGroup(\"x\")\n            SettingsBody(plan, prefs)",
         )
         assertTrue(
             "根列里塞回一个裸 SettingGroup 后尺子必须红",

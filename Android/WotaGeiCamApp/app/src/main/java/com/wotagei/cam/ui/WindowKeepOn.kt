@@ -101,7 +101,7 @@ internal class WindowKeepOnDriver {
  * 判定表中的路由形态与 `NavDestination.route` 一致（播放/对比是带占位符的路由模板）。
  */
 fun keepScreenOnForRoute(route: String?): Boolean = when (route) {
-    ROUTE_CAMERA, ROUTE_HUD_EDITOR -> true
+    ROUTE_CAMERA -> true
     WotaNav.GALLERY, WotaNav.PLAYER, WotaNav.COMPARE, ROUTE_SETTINGS -> false
     // 未知路由（含 null）：默认不常亮——宁可少常亮一页，也不能在非取景页钉住常亮
     else -> false

@@ -168,12 +168,6 @@ class PopupCompactGuardTest {
     fun `CameraScreen 冻结与贴右接线在场`() {
         val screen = main("ui/CameraScreen.kt")
         assertTrue("锚点快照冻结（anchorSnap）缺位", screen.contains("anchorSnap"))
-        assertTrue("右 Dock 贴右换算（rightEdgeAnchorOf）缺位", screen.contains("rightEdgeAnchorOf("))
-        // 判据的真身：右 Dock 判定读的是右 Dock 卡片实测矩形，不是几何阈值拍脑袋
-        assertTrue(
-            "右 Dock 判定必须查 zoneRects[HudZone.RIGHT]",
-            screen.contains("zoneRects[HudZone.RIGHT]")
-        )
     }
 
     // --------------------------------------------------------------- 尺子自己能红

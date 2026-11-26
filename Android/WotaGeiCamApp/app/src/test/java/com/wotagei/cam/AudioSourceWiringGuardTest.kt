@@ -144,12 +144,11 @@ class AudioSourceWiringGuardTest {
             "内录开关的选中态必须派生自 controller 状态（状态真源是 controller）",
             tab.contains("captureState is CaptureState.Active")
         )
-        // chip 双态并列 + 读屏语义（P3-2）：HudLayer 的 BT 位渲染 AudioChip 且把 captureActive 传进去
-        val hud = maskedMain("ui/HudLayer.kt")
-        val btBranch = bodyOf(hud, "HudEntryItem")
+        // chip 双态并列 + 读屏语义（P3-2）：MinimalistHudOverlay 的 BT 位渲染 AudioChip 且把 captureActive 传进去
+        val overlay = maskedMain("ui/MinimalistHudOverlay.kt")
         assertTrue(
             "CamPill.BT 位必须渲染 AudioChip 并接入内录激活态",
-            btBranch.contains("AudioChip(") && btBranch.contains("captureActive = ctx.captureActive")
+            overlay.contains("AudioChip(") && overlay.contains("captureActive = ctx.captureActive")
         )
         // P3-2：chip 读屏描述必须按态拼接（内录态 + 蓝牙态进 contentDescription）
         val chip = bodyOf(maskedMain("ui/widget/AudioChip.kt"), "AudioChip")

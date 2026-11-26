@@ -2,7 +2,6 @@ package com.wotagei.cam
 
 import com.wotagei.cam.media.WotaNav
 import com.wotagei.cam.ui.ROUTE_CAMERA
-import com.wotagei.cam.ui.ROUTE_HUD_EDITOR
 import com.wotagei.cam.ui.ROUTE_SETTINGS
 import com.wotagei.cam.ui.keepScreenOnForRoute
 import org.junit.Assert.assertFalse
@@ -20,7 +19,6 @@ class KeepOnRouteTableTest {
     @Test
     fun `取景相关页面常亮`() {
         assertTrue("录制页必须常亮", keepScreenOnForRoute("camera"))
-        assertTrue("「编辑控件」页也在编辑取景页的控件，必须常亮", keepScreenOnForRoute("hudEditor"))
     }
 
     @Test
@@ -45,7 +43,6 @@ class KeepOnRouteTableTest {
     @Test
     fun `判定表与本仓路由常量一致`() {
         assertTrue(keepScreenOnForRoute(ROUTE_CAMERA))
-        assertTrue(keepScreenOnForRoute(ROUTE_HUD_EDITOR))
         assertFalse(keepScreenOnForRoute(WotaNav.GALLERY))
         assertFalse(keepScreenOnForRoute(WotaNav.PLAYER))
         assertFalse(keepScreenOnForRoute(WotaNav.COMPARE))

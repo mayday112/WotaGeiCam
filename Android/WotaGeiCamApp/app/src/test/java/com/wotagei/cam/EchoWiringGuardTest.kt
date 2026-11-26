@@ -234,16 +234,14 @@ class EchoWiringGuardTest {
         val pills = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/CameraPills.kt"))
         val screen = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/CameraScreen.kt"))
         val hud = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayer.kt"))
-        val layout = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayout.kt"))
+        val overlay = KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/MinimalistHudOverlay.kt"))
         assertTrue("PillKey 必须有 ECHO", pills.contains("enum class PillKey") && Regex("enum class PillKey[^}]*\\bECHO\\b").containsMatchIn(pills))
         assertTrue("残影进录制中可调白名单（scene layer，同 Glow/TONE 先例）", Regex("RECORDING_EDITABLE_PILLS[^)]*\\bPillKey.ECHO\\b").containsMatchIn(pills))
         assertTrue("锚点登记表必须有 ECHO 行", pills.contains("PillKey.ECHO to"))
         assertTrue("PillHost 必须分派 EchoPill", pills.contains("PillKey.ECHO -> EchoPill("))
         assertTrue("录制页点按开就近面板", screen.contains("pop = PillKey.ECHO"))
-        assertTrue("HudEntryItem 必须有 ECHO 分支", Regex("CamPill.ECHO -> TierChip\\(").containsMatchIn(hud))
+        assertTrue("MinimalistHudOverlay 必须挂载 ECHO", overlay.contains("CamPill.ECHO") && overlay.contains("ctx.onEchoClick"))
         assertTrue("HudEntry.pillKey 必须有 ECHO 映射", Regex("CamPill.ECHO -> PillKey.ECHO").containsMatchIn(hud))
-        assertTrue("默认落底栏（homeZone）", Regex("CamPill.ECHO -> HudZone.BOTTOM").containsMatchIn(layout))
-        assertTrue("默认顺序表里 ECHO 排降噪左侧", Regex("HudZone.BOTTOM -> listOf\\(\\s*HudEntry.of\\(CamPill.ECHO\\), HudEntry.of\\(CamPill.DENOISE\\)").containsMatchIn(layout))
         assertTrue("参数下发必须走 EchoProvider（独立 effect，DIRECT 也收）", screen.contains("as? com.wotagei.cam.camera.EchoProvider)?.setEchoParams(echoParams)"))
     }
 

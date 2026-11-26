@@ -68,8 +68,6 @@ import com.wotagei.cam.player.PracticeReturn
 import com.wotagei.cam.player.TrackRule
 import com.wotagei.cam.player.practiceReturnPlan
 import com.wotagei.cam.record.StalePendingSweep
-import com.wotagei.cam.ui.anim.EXTRA_MERGE_HOOK
-import com.wotagei.cam.ui.anim.MergeDebugHook
 import com.wotagei.cam.ui.anim.MotionMode
 import com.wotagei.cam.ui.anim.WotaMotionProvider
 import com.wotagei.cam.ui.theme.TextScaleLayer
@@ -78,8 +76,6 @@ import com.wotagei.cam.ui.theme.WotaTheme
 /** 本层新增的两条路由（其余路由用 media 包 [WotaNav] 常量，避免两处定义） */
 const val ROUTE_CAMERA = "camera"
 const val ROUTE_SETTINGS = "settings"
-/** 「编辑控件」页（13 号计划第 5 条）：沉浸（隐藏系统栏）跟着录制页；方向自 2026-10-02 起所有页统一按设置锁 */
-const val ROUTE_HUD_EDITOR = "hudEditor"
 
 /**
  * 单 Activity + NavHost（06 文档 §1）。
@@ -328,7 +324,6 @@ class MainActivity : ComponentActivity() {
         )
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        applyMergeHook(intent)
         applyFrostProbe(intent)
         applyCompareProbe(intent)
         applyHudRecompProbe(intent)
@@ -393,25 +388,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        applyMergeHook(intent)
         applyFrostProbe(intent)
         applyCompareProbe(intent)
         applyHudRecompProbe(intent)
     }
 
-    /**
-     * #73 取证钩子**唯一**的写入入口：adb 的 intent extra（[EXTRA_MERGE_HOOK]）。
-     *
-     * 没有第二个写入方——设置页没有这一行、没有可误触的手势、不写 prefs。
-     * extra 缺失（从桌面图标或最近任务重进）就是关闭态，所以"进程重启即失效"之外还多一条
-     * "重新进一次就失效"，取证跑完不需要手动清。正式的 release/debug 变体里 [MergeDebugHook.applySpec]
-     * 只能得到关闭态（闸门在 `mergeHookArgsOf`），这条调用点也就是零成本。
-     */
-    private fun applyMergeHook(intent: Intent?) {
-        MergeDebugHook.applySpec(intent?.getStringExtra(EXTRA_MERGE_HOOK))
-    }
-
-    /** #84 霜探针的唯一写入入口：与 [applyMergeHook] 同一套纪律（见 [FrostProbe] 的类注释） */
+    /** #84 霜探针的唯一写入入口 */
     private fun applyFrostProbe(intent: Intent?) {
         FrostProbe.apply(intent?.getBooleanExtra(EXTRA_FROST_PROBE, false) == true)
     }
@@ -659,17 +641,8 @@ private fun WotaRoot() {
             DestinationPresence(windowOwner, ROUTE_SETTINGS) {
                 TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS)) {
                     SettingsScreen(
-                        onBack = { navigateBack() },
-                        onOpenHudEditor = { nav.navigate(ROUTE_HUD_EDITOR) }
+                        onBack = { navigateBack() }
                     )
-                }
-            }
-        }
-        composable(ROUTE_HUD_EDITOR) {
-            DestinationPresence(windowOwner, ROUTE_HUD_EDITOR) {
-                // 编辑的是录制页的控件，文本高度也走录制页那一档，两边量出来的宽度才同一个数
-                TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
-                    HudLayoutEditorScreen(onBack = { navigateBack() })
                 }
             }
         }
@@ -697,7 +670,7 @@ private fun applyPageMode(activity: Activity?, route: String?) {
     val act = activity ?: return
     // 沉浸仍只属于取景器那一圈控件的页面：录制页与「编辑控件」页（13 号计划第 5 条）共用一套系统栏显隐，
     // 两页的 (x, y) 必须落在同一个安全区里才谈得上"位置"
-    val hudPage = route == ROUTE_CAMERA || route == ROUTE_HUD_EDITOR
+    val hudPage = route == ROUTE_CAMERA
     // 方向对所有页生效（用户 2026-10-02 指令；旧口径「HUD 页按档锁、其余页恒 FULL_USER 跟随系统旋转」已作废）：
     // 任何页都按设置页「默认方向」锁（默认横屏使用，且不依赖系统自动旋转开关），
     // 连带效果是设置/媒体库/播放器/对比页在 app 内不再随系统自动旋转。映射本体是

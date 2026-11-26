@@ -26,7 +26,6 @@ class FrostPlateCoverageGuardTest {
     private val table by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("camera/FrostBlur.kt")) }
     private val hud by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/HudLayer.kt")) }
     private val widgets by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/design/Widgets.kt")) }
-    private val liquid by lazy { KotlinSourceScan.codeOnly(KotlinSourceScan.mainSourceText("ui/anim/LiquidMerge.kt")) }
 
     private fun body(src: String, name: String): String =
         KotlinSourceScan.flatten(KotlinSourceScan.bodyOf(src, name))
@@ -152,20 +151,6 @@ class FrostPlateCoverageGuardTest {
             "rememberFrostSlot 必须同时被判据与注册链使用",
             KotlinSourceScan.occurrences(body(widgets, "Modifier.wotaHudCard"), "slot").size >= 4
         )
-    }
-
-    @Test
-    fun `底栏两条自绘路径也逐槽判让位`() {
-        val dock = body(hud, "HudDockZone")
-        assertTrue("竖 Dock 必须领同一枚槽并逐槽判", dock.contains("val frostSlot = rememberFrostSlot(HudFrost.intent)"))
-        assertTrue(dock.contains("val frostCovered = HudFrost.isCovered(frostSlot)"))
-        assertTrue("fill 让位判据必须用 frostCovered", dock.contains("if (frostCovered && frostVisible && !overlaysOn)"))
-        assertTrue("注册链必须消费同一枚槽", dock.contains("hudFrostDockRegistrar(plateRadiusPx, frostVisible, frostSlot)"))
-
-        val shell = body(liquid, "Modifier.wotaDockShell")
-        assertTrue("底栏壳必须逐槽判", shell.contains("val frostCovered = HudFrost.isCovered(frostSlot)"))
-        assertTrue("fill 条件必须用 frostCovered", shell.contains("if (!frostCovered || overlaysOn) {"))
-        assertFalse("底栏壳不许再读整页 live 判 fill", shell.contains("!live || overlaysOn"))
     }
 
     @Test
