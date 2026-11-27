@@ -14,8 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -38,6 +42,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -103,6 +108,13 @@ object PillAnchor {
     fun place(anchor: IntRect, popup: IntSize, area: IntSize, gap: Int, margin: Int): IntOffset {
         val right = max(margin, area.width - margin - popup.width)
         val bottom = max(margin, area.height - margin - popup.height)
+        // Landscape: anchor di sisi kanan (Right Vertical Readout Bar / Right Rail) → buka di sebelah kiri anchor
+        if (area.width > area.height && (anchor.left + anchor.right) / 2 > area.width * 2 / 3) {
+            val leftOfAnchor = anchor.left - gap - popup.width
+            val x = if (leftOfAnchor >= margin) leftOfAnchor else right
+            val y = ((anchor.top + anchor.bottom) / 2 - popup.height / 2).coerceIn(margin, bottom)
+            return IntOffset(x, y)
+        }
         val above = anchor.top - gap - popup.height
         val below = anchor.bottom + gap
         val y = when {
@@ -304,6 +316,16 @@ private fun PillGroupLabel(text: String) {
  * 录制页的全部滑杆调用点都补传了 flush——拖着滑杆没关弹窗就被 `am force-stop` 也不丢值。
  */
 @Composable
+fun PillDivider(modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .widthIn(min = 180.dp, max = PILL_SLIDER_MAX_WIDTH)
+            .height(1.dp)
+            .background(WotaColor.outline)
+    )
+}
+
+@Composable
 fun PillSlider(
     value: Float,
     lo: Float,
@@ -316,39 +338,69 @@ fun PillSlider(
     format: (Float) -> String = { it.toString() },
     enabled: Boolean = true,
     label: String? = null,
+    tickLabels: List<String> = emptyList(),
     onValueChangeFinished: (() -> Unit)? = null
 ) {
     val usable = hi > lo
     val shown = if (usable) value.coerceIn(lo, hi) else value
-    // 设置页「滑杆吸附」开关（2026-10-21）：关掉吸附 → 梯为 null → 连续滑杆。
-    // 弹窗每次打开重新组成，开关改动下一次开窗即生效。
-    val continuous = snapKey != null && rememberSliderContinuous(snapKey)
+    val context = LocalContext.current
+    val prefs = remember(context) { WotaSettings.of(context) }
+    val initialContinuous = snapKey != null && rememberSliderContinuous(snapKey)
+    var continuous by remember(snapKey) { mutableStateOf(initialContinuous) }
     val ladderInUse = effectiveLadder(ladder, continuous)
-    // 传了梯就是"只许在刻度上取值"：梯不足 2 点时**不许静默退回连续滑杆**（否则拖动可写出非刻度值，
-    // 违反"拖动必落刻度"的验收口径）——禁用比假连续诚实（审查 P3）
     val ladderOnly = ladderInUse != null
     val ticks = ladderInUse?.takeIf { it.size >= 2 }
-    // B11：这一帧到底能不能拖，只由这一枚布尔说了算——Slider 的 enabled 与数值颜色都读它。
-    // 原先数值颜色只读外层 enabled：梯不足两点（空梯）时滑杆已经禁拖，读数却还是亮色，
-    // 看着像"能调却没反应"。判据抽成纯函数（JVM 用例见 PillSliderDisabledGuardTest）。
     val interactive = pillSliderInteractive(enabled, usable, ticks?.size, ladderOnly)
     val tickRange = if (ticks != null) 0f..(ticks.size - 1).toFloat() else if (usable) lo..hi else 0f..1f
-    // 当前值不在梯上（旧版本持久化恢复）时滑杆停在最近刻度，读数仍显示真实值；首次拖动后落梯
     val sliderValue = if (ticks != null) nearestLadderIndex(shown, ticks).toFloat() else shown
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        if (label != null) {
-            Text(
-                text = label,
-                style = WotaType.label,
-                color = WotaColor.textLo,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        if (label != null || snapKey != null) {
+            Row(
+                Modifier.widthIn(max = PILL_SLIDER_MAX_WIDTH),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (label != null) {
+                    Text(
+                        text = label,
+                        style = WotaType.label,
+                        color = WotaColor.textLo,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (snapKey != null) {
+                    Box(
+                        Modifier
+                            .clip(WotaShape.pill)
+                            .background(if (continuous) WotaColor.accentSurface.copy(alpha = 0.2f) else WotaColor.layer)
+                            .border(WotaStroke.hairline, WotaColor.outline, WotaShape.pill)
+                            .clickable(enabled = enabled) {
+                                val next = !continuous
+                                continuous = next
+                                val cur = WotaSettings.continuousSliders(prefs)
+                                WotaSettings.setContinuousSliders(
+                                    prefs,
+                                    if (next) cur + snapKey else cur - snapKey
+                                )
+                            }
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (continuous) "Slider ⇄" else "Step ⇄",
+                            fontSize = 9.sp,
+                            lineHeight = 11.sp,
+                            color = if (continuous) WotaColor.accent else WotaColor.textMid,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
         }
         // 滑杆行封顶见 [PILL_SLIDER_MAX_WIDTH]：不封顶时 weight(fill=true) 的滑杆会把弹窗撑到最大宽
         Row(
             Modifier
-                .height(40.dp)
+                .height(38.dp)
                 .widthIn(max = PILL_SLIDER_MAX_WIDTH),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -357,8 +409,6 @@ fun PillSlider(
                 onValueChange = { raw ->
                     if (ticks != null) {
                         val i = raw.roundToInt().coerceIn(0, ticks.lastIndex)
-                        // 梯值也必须落在参数域内：梯构造一般已按 range 过滤，这里是最后一道闸
-                        // （少数镜头的最小屈光度不为 0 这类情形，不能让滑杆造出域外刻度）
                         onValueChange(if (usable) ticks[i].coerceIn(lo, hi) else ticks[i])
                     } else if (usable) {
                         val v = raw.coerceIn(lo, hi)
@@ -384,6 +434,22 @@ fun PillSlider(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(min = 54.dp).padding(start = 6.dp)
             )
+        }
+        if (tickLabels.isNotEmpty()) {
+            Row(
+                Modifier.widthIn(min = 170.dp, max = PILL_SLIDER_MAX_WIDTH).padding(end = 54.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                tickLabels.forEach { tickText ->
+                    Text(
+                        text = tickText,
+                        fontSize = 9.sp,
+                        lineHeight = 11.sp,
+                        color = WotaColor.textLo,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }
@@ -499,36 +565,53 @@ fun WotaPillPopup(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (title != null) {
-                Text(
-                    text = title,
-                    style = WotaType.label,
-                    color = WotaColor.textLo,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = WotaType.label.copy(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
+                        color = WotaColor.textHi,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Box(
+                        Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .clickable(onClick = onDismiss),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(R.string.pill_dismiss),
+                            tint = WotaColor.textLo,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.pill_dismiss),
+                        tint = WotaColor.textLo,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
             Column(
                 Modifier.heightIn(max = maxContentH).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 content()
-            }
-            // 取景页上"点外面"很容易被误当成点按对焦，所以再给一个明确的收起命中区。
-            // 不 fillMaxWidth（2026-10-05 紧凑化）：fill 会把这行顶到弹窗最大宽，
-            // 反过来把整枚弹窗钉死在 400dp——改内容定宽 + 左右 10dp 命中加宽
-            Box(
-                Modifier
-                    .height(26.dp)
-                    .clip(WotaShape.pill)
-                    .clickable(onClick = onDismiss)
-                    .padding(horizontal = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.pill_dismiss),
-                    style = WotaType.label,
-                    color = WotaColor.textLo
-                )
             }
         }
     }

@@ -2047,7 +2047,8 @@ fun CameraScreen(
                         ctx = hudCtx,
                         isLandscape = effectiveLandscape,
                         topBarH = topBarH,
-                        visibleEntries = visibleEntries
+                        visibleEntries = visibleEntries,
+                        activePop = pop
                     )
                 }
             }
@@ -2160,6 +2161,7 @@ fun CameraScreen(
                 recording = recording,
                 gpuMode = renderMode == RenderMode.GPU,
                 onClose = closePill,
+                onSwitchFxTab = { pop = it },
                 // R4：滑杆「松手即落盘」通道——拖着滑杆没关弹窗就被 force-stop 也不丢值
                 onPersist = { persist.flush() },
                 onUnsupported = { showTip(unsupportedText) },

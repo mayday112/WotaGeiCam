@@ -345,7 +345,7 @@ class PillInteractionGuardTest {
         // 突变 4：任一根滑杆的梯被拆 -> 必红（防止删一处 ladder 退回连续滑杆而全绿）
         assertTrue(
             "滑杆梯被拆必须红",
-            ladderIssues(pills.replace("ladder = isoLadder(lo, hi)", "ladderX = isoLadder(lo, hi)"))
+            ladderIssues(pills.replace("ladder = kelvinLadder(kelvinLo, kelvinHi)", "ladderX = kelvinLadder(kelvinLo, kelvinHi)"))
                 .isNotEmpty()
         )
         // 突变 5：BT 页签不再吃 editable -> 必红

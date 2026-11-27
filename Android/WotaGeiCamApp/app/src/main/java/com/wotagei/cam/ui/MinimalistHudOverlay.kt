@@ -76,9 +76,16 @@ fun BoxScope.MinimalistHudOverlay(
     isLandscape: Boolean,
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
+    activePop: PillKey? = null,
     modifier: Modifier = Modifier
 ) {
-    var fxExpanded by remember { mutableStateOf(false) }
+    val onOpenFx: () -> Unit = {
+        when {
+            ctx.echoActive -> ctx.onEchoClick()
+            ctx.toneActive -> ctx.onToneClick()
+            else -> ctx.onGlowClick()
+        }
+    }
 
     Box(modifier.matchParentSize()) {
         if (isLandscape) {
@@ -105,16 +112,16 @@ fun BoxScope.MinimalistHudOverlay(
                 ctx = ctx,
                 topBarH = topBarH,
                 visibleEntries = visibleEntries,
-                fxExpanded = fxExpanded,
-                onToggleFx = { fxExpanded = !fxExpanded }
+                activePop = activePop,
+                onOpenFx = onOpenFx
             )
         } else {
             PortraitMinimalistChrome(
                 ctx = ctx,
                 topBarH = topBarH,
                 visibleEntries = visibleEntries,
-                fxExpanded = fxExpanded,
-                onToggleFx = { fxExpanded = !fxExpanded }
+                activePop = activePop,
+                onOpenFx = onOpenFx
             )
         }
     }
@@ -125,8 +132,8 @@ private fun BoxScope.LandscapeMinimalistChrome(
     ctx: HudCtx,
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
-    fxExpanded: Boolean,
-    onToggleFx: () -> Unit
+    activePop: PillKey?,
+    onOpenFx: () -> Unit
 ) {
     // Left Pillarbox Rail (Creative & Monitoring)
     Column(
@@ -166,39 +173,16 @@ private fun BoxScope.LandscapeMinimalistChrome(
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
             )
         }
+        val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
         MiniPillButton(
-            label = "FX ▾",
-            selected = fxExpanded || ctx.glowActive || ctx.echoActive || ctx.toneActive,
-            onClick = onToggleFx
+            label = "FX",
+            selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
+            enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
+            onClick = onOpenFx,
+            modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
+                .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
+                .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
         )
-        AnimatedVisibility(visible = fxExpanded) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                MiniPillButton(
-                    label = ctx.glowLabel,
-                    selected = ctx.glowActive,
-                    enabled = ctx.glowUsable,
-                    onClick = ctx.onGlowClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
-                )
-                MiniPillButton(
-                    label = ctx.echoLabel,
-                    selected = ctx.echoActive,
-                    enabled = ctx.echoUsable,
-                    onClick = ctx.onEchoClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.ECHO))
-                )
-                MiniPillButton(
-                    label = ctx.toneLabel,
-                    selected = ctx.toneActive,
-                    enabled = ctx.toneUsable,
-                    onClick = ctx.onToneClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.TONE))
-                )
-            }
-        }
         if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
             MiniPillButton(
                 label = ctx.denoiseLabel,
@@ -254,6 +238,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
                     label = stringResource(item.labelRes),
                     value = value,
                     locked = locked,
+                    active = activePop == item.pillKey(),
                     accent = item == HudItem.EV || item == HudItem.WB,
                     warn = aeLockedItem,
                     onClick = { ctx.onReadoutOpen(item) },
@@ -290,7 +275,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
         if (HudEntry.of(CamPill.FOCUS) in visibleEntries) {
             MiniPillButton(
                 label = ctx.focusLabel,
-                selected = ctx.focusActive,
+                selected = ctx.focusActive || activePop == PillKey.FOCUS,
                 enabled = ctx.focusUsable,
                 onClick = ctx.onFocusClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.FOCUS))
@@ -299,7 +284,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
         if (HudEntry.of(CamPill.STAB) in visibleEntries) {
             MiniPillButton(
                 label = ctx.stabLabel,
-                selected = ctx.stabActive,
+                selected = ctx.stabActive || activePop == PillKey.STAB,
                 onClick = ctx.onStabClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.STAB))
             )
@@ -312,8 +297,8 @@ private fun BoxScope.PortraitMinimalistChrome(
     ctx: HudCtx,
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
-    fxExpanded: Boolean,
-    onToggleFx: () -> Unit
+    activePop: PillKey?,
+    onOpenFx: () -> Unit
 ) {
     // Portrait Row 1 (TopStart): compact AudioChip only — leaves full space for the 4 TopEnd circular buttons
     if (HudEntry.of(CamPill.BT) in visibleEntries) {
@@ -356,40 +341,6 @@ private fun BoxScope.PortraitMinimalistChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        AnimatedVisibility(visible = fxExpanded) {
-            Row(
-                Modifier
-                    .wotaHudCard(
-                        shape = RoundedCornerShape(16.dp),
-                        frost = hudFrostPlate(radiusPx = 16f, ink = HudInkLevel.SECONDARY)
-                    )
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                MiniPillButton(
-                    label = ctx.glowLabel,
-                    selected = ctx.glowActive,
-                    enabled = ctx.glowUsable,
-                    onClick = ctx.onGlowClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
-                )
-                MiniPillButton(
-                    label = ctx.echoLabel,
-                    selected = ctx.echoActive,
-                    enabled = ctx.echoUsable,
-                    onClick = ctx.onEchoClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.ECHO))
-                )
-                MiniPillButton(
-                    label = ctx.toneLabel,
-                    selected = ctx.toneActive,
-                    enabled = ctx.toneUsable,
-                    onClick = ctx.onToneClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.TONE))
-                )
-            }
-        }
-
         // Row 1: Creative Rail
         Row(
             Modifier
@@ -405,7 +356,7 @@ private fun BoxScope.PortraitMinimalistChrome(
             if (HudEntry.of(CamPill.REFLINE) in visibleEntries) {
                 MiniPillButton(
                     label = stringResource(R.string.cam_refline_grid),
-                    selected = ctx.refLineOn,
+                    selected = ctx.refLineOn || activePop == PillKey.REFLINE,
                     onClick = ctx.onRefLineClick,
                     modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
                 )
@@ -413,7 +364,7 @@ private fun BoxScope.PortraitMinimalistChrome(
             if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
                 MiniPillButton(
                     label = ctx.monitorLabel,
-                    selected = ctx.monitorActive,
+                    selected = ctx.monitorActive || activePop == PillKey.MONITOR,
                     onClick = ctx.onMonitorClick,
                     modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
                 )
@@ -426,15 +377,20 @@ private fun BoxScope.PortraitMinimalistChrome(
                     modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
                 )
             }
+            val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
             MiniPillButton(
-                label = "FX ▾",
-                selected = fxExpanded || ctx.glowActive || ctx.echoActive || ctx.toneActive,
-                onClick = onToggleFx
+                label = "FX",
+                selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
+                enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
+                onClick = onOpenFx,
+                modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
+                    .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
+                    .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
             )
             if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
                 MiniPillButton(
                     label = ctx.denoiseLabel,
-                    selected = ctx.denoiseActive,
+                    selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
                     onClick = ctx.onDenoiseClick,
                     modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
                 )
@@ -465,6 +421,7 @@ private fun BoxScope.PortraitMinimalistChrome(
                         label = stringResource(item.labelRes),
                         value = value,
                         locked = locked,
+                        active = activePop == item.pillKey(),
                         warn = aeLockedItem,
                         onClick = { ctx.onReadoutOpen(item) },
                         modifier = ctx.anchorOf(HudEntry.of(item))
@@ -559,6 +516,7 @@ private fun VerticalReadoutSlot(
     label: String,
     value: String,
     locked: Boolean,
+    active: Boolean = false,
     accent: Boolean,
     warn: Boolean = false,
     onClick: () -> Unit,
@@ -568,6 +526,7 @@ private fun VerticalReadoutSlot(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
+            .then(if (active) Modifier.background(WotaColor.accentSurface) else Modifier)
             .clickable(onClick = onClick)
             .padding(vertical = 3.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -588,7 +547,7 @@ private fun VerticalReadoutSlot(
                 text = label.uppercase(),
                 fontSize = 8.sp,
                 lineHeight = 10.sp,
-                color = WotaColor.textLo,
+                color = if (active) WotaColor.onAccent else WotaColor.textLo,
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )
@@ -597,6 +556,7 @@ private fun VerticalReadoutSlot(
             text = value,
             style = WotaType.mono.copy(fontSize = 10.sp, lineHeight = 13.sp, fontWeight = FontWeight.SemiBold),
             color = when {
+                active -> WotaColor.onAccent
                 locked -> WotaColor.textLo
                 warn -> WotaColor.warn
                 accent -> WotaColor.accent
@@ -613,6 +573,7 @@ private fun HorizontalReadoutChip(
     label: String,
     value: String,
     locked: Boolean,
+    active: Boolean = false,
     warn: Boolean = false,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -620,15 +581,23 @@ private fun HorizontalReadoutChip(
     Column(
         modifier
             .clip(RoundedCornerShape(8.dp))
+            .then(if (active) Modifier.background(WotaColor.accentSurface) else Modifier)
             .clickable(onClick = onClick)
             .padding(horizontal = 4.dp, vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = label, fontSize = 8.sp, lineHeight = 10.sp, color = WotaColor.textLo, maxLines = 1)
+        Text(
+            text = label,
+            fontSize = 8.sp,
+            lineHeight = 10.sp,
+            color = if (active) WotaColor.onAccent else WotaColor.textLo,
+            maxLines = 1
+        )
         Text(
             text = if (locked) "🔒$value" else value,
             style = WotaType.mono.copy(fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.SemiBold),
             color = when {
+                active -> WotaColor.onAccent
                 locked -> WotaColor.textLo
                 warn -> WotaColor.warn
                 else -> WotaColor.textHi

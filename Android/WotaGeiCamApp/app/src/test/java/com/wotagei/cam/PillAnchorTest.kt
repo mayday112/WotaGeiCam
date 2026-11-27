@@ -75,4 +75,13 @@ class PillAnchorTest {
             top += 57
         }
     }
+
+    @Test
+    fun `横屏右侧锚点时弹窗摆在锚点左侧不遮挡右侧控制栏`() {
+        val wide = IntSize(1600, 720)
+        val rightAnchor = IntRect(1380, 260, 1490, 320)
+        val at = PillAnchor.place(rightAnchor, popup, wide, gap, margin)
+        assertEquals(rightAnchor.left - gap - popup.width, at.x)
+        assertTrue(at.y in margin..(wide.height - margin - popup.height))
+    }
 }

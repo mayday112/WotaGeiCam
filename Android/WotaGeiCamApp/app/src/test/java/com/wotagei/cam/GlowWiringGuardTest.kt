@@ -376,7 +376,7 @@ class GlowWiringGuardTest {
             bad.add("glowStatusProvider 必须现读 sink 的 glowStatus（DIRECT 也实现 GlowProvider）")
         }
         if (!flatPills.contains(
-                "PillKey.GLOW -> GlowPill( anchor, params, editable, gpuMode, glowStatusProvider, onClose, onPersist )"
+                "PillKey.GLOW -> GlowPill( anchor, params, editable, gpuMode, glowStatusProvider, onClose, onPersist, onSwitchFxTab )"
             )
         ) {
             bad.add("PillHost 的 GlowPill 实参缺 glowStatusProvider（状态行永远空白）")

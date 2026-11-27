@@ -274,7 +274,8 @@ fun PillHost(
      * 漏挂 = 停用/DIRECT 的状态行静默消失。DIRECT 下同样要传（`DirectSink` 也实现
      * [com.wotagei.cam.camera.EchoProvider]，回答 available=false）。
      */
-    echoStatusProvider: () -> com.wotagei.cam.core.EchoStatus?
+    echoStatusProvider: () -> com.wotagei.cam.core.EchoStatus?,
+    onSwitchFxTab: (PillKey) -> Unit = {}
 ) {
     val ability = slot?.ability
     // A4 录制中矩阵：所有弹窗都能开，只有白名单内的可调；其余控件禁用 + 顶部只读提示。
@@ -315,11 +316,11 @@ fun PillHost(
             onClose, onPersist
         )
         PillKey.GLOW -> GlowPill(
-            anchor, params, editable, gpuMode, glowStatusProvider, onClose, onPersist
+            anchor, params, editable, gpuMode, glowStatusProvider, onClose, onPersist, onSwitchFxTab
         )
-        PillKey.TONE -> TonePill(anchor, params, editable, gpuMode, onClose, onPersist)
+        PillKey.TONE -> TonePill(anchor, params, editable, gpuMode, onClose, onPersist, onSwitchFxTab)
         PillKey.ECHO -> EchoPill(
-            anchor, params, editable, gpuMode, echoStatusProvider, onClose, onPersist
+            anchor, params, editable, gpuMode, echoStatusProvider, onClose, onPersist, onSwitchFxTab
         )
         PillKey.BT -> {
             // 音源双开定版（2026-10-07）：环境音开关的真源是 params.audioEnabled（会话内生效，
@@ -643,6 +644,9 @@ private fun ShutterPill(
                 // ns 值经 Float 往返会丢低位精度（41,666,666 → 41,666,664），写回/查标签都用
                 // 梯值反查原始档，避免强制档判据（isRequiredShutterNs）与 ※ 标签一起失效。
                 val byTierFloat = items.associateBy { it.value.toFloat() }
+                val shutterTicks = if (items.size >= 2) {
+                    listOf(items.first().label, items[items.size / 2].label, items.last().label)
+                } else emptyList()
                 PillSlider(
                     value = shutter.value.toFloat(),
                     lo = lo.toFloat(),
@@ -654,6 +658,7 @@ private fun ShutterPill(
                     },
                     format = { tick -> byTierFloat[tick]?.label ?: shutterText(tick.toLong()) },
                     enabled = editable,
+                    tickLabels = shutterTicks,
                     onValueChangeFinished = onPersist,
                     snapKey = SliderKey.SHUTTER,
                     ladder = ladder
@@ -663,6 +668,7 @@ private fun ShutterPill(
             // 自动 = 预览态实测拉长量 Δ + 安全系数（默认开）；关 = 手动滑杆。微调只动发送侧
             // SENSOR_EXPOSURE_TIME：AE 档（上方 AeModeRow）与帧周期都不受影响。
             if (WotaTiers.isRequiredShutterNs(shutter.value)) {
+                com.wotagei.cam.ui.design.PillDivider()
                 val corrAuto by params.exposureCorrectionAuto.observed()
                 val corrManualNs by params.exposureCorrectionManualNs.observed()
                 Row(
@@ -735,6 +741,10 @@ private fun IsoPill(
     WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_p_iso)) {
         AeModeRow(params, ability, enabled = editable)
         if (hi > lo) {
+            val ladder = isoLadder(lo, hi)
+            val isoTicks = if (ladder.size >= 2) {
+                listOf("${ladder.first().roundToInt()}", "${ladder[ladder.size / 2].roundToInt()}", "${ladder.last().roundToInt()}")
+            } else emptyList()
             PillSlider(
                 value = iso.value.toFloat(),
                 lo = lo.toFloat(),
@@ -743,9 +753,10 @@ private fun IsoPill(
                 enabled = editable && aeMode == AeMode.MANUAL,
                 onValueChange = { params.iso.value = iso.copy(value = it.roundToInt()) },
                 format = { "${it.roundToInt()}" },
+                tickLabels = isoTicks,
                 onValueChangeFinished = onPersist,
                 snapKey = SliderKey.ISO,
-                ladder = isoLadder(lo, hi)
+                ladder = ladder
             )
         } else {
             Note(R.string.unsupported_by_device)
@@ -782,6 +793,7 @@ private fun EvPill(
                 enabled = editable && aeMode != AeMode.MANUAL,
                 onValueChange = { params.ev.value = ev.copy(value = it.roundToInt()) },
                 format = { evText(it.roundToInt(), evStep) },
+                tickLabels = listOf(evText(lo, evStep), "0", evText(hi, evStep)),
                 onValueChangeFinished = onPersist,
                 // EV 是整数域（每个整数一档），连续模式与梯等价，不提供开关
                 snapKey = null,
@@ -851,6 +863,7 @@ private fun WbPill(
                 label = stringResource(R.string.cam_p_kelvin),
                 onValueChange = { params.kelvin.value = kelvin.copy(value = it.roundToInt()) },
                 format = { "${it.roundToInt()}K" },
+                tickLabels = listOf("${kelvinLo}K", "${(kelvinLo + kelvinHi) / 2}K", "${kelvinHi}K"),
                 onValueChangeFinished = onPersist,
                 snapKey = SliderKey.KELVIN,
                 ladder = kelvinLadder(kelvinLo, kelvinHi)
@@ -866,6 +879,7 @@ private fun WbPill(
                 label = stringResource(R.string.cam_p_tint),
                 onValueChange = { params.tint.value = tint.copy(value = it.roundToInt()) },
                 format = { String.format(Locale.US, "%+d", it.roundToInt()) },
+                tickLabels = if (tintHi > tintLo) listOf("$tintLo", "0", "+$tintHi") else emptyList(),
                 onValueChangeFinished = onPersist,
                 snapKey = SliderKey.TINT,
                 ladder = tintLadder(tintLo, tintHi)
@@ -960,6 +974,7 @@ private fun FocusPill(
                     enabled = editable,
                     onValueChange = { params.manualFocusDiopter.value = mf.copy(value = it) },
                     format = { String.format(Locale.US, "%.2fD", it) },
+                    tickLabels = listOf("∞", "Mid", "Macro"),
                     onValueChangeFinished = onPersist,
                     snapKey = SliderKey.DIOPTER,
                     ladder = diopterLadder(lo, hi)
@@ -970,6 +985,7 @@ private fun FocusPill(
                 Note(R.string.cam_af_fixed_focus)
             }
         }
+        com.wotagei.cam.ui.design.PillDivider()
         // 底部行两枚（用户反馈第 2 条）：中心点按对焦（合同不变）+ 锁定对焦/解除锁定（副控制，
         // 以最近点按处/中心对焦一次并保持；selected 反映锁态）。
         // A4：录制中未锁时锁定条目禁用（已锁则可点解除），其余对焦控件照常可用。
@@ -1183,6 +1199,23 @@ private fun MonitorPill(
  * 于是写回总线的恒是两位小数的干净值。
  */
 @Composable
+private fun FxTabBar(active: PillKey, onPick: (PillKey) -> Unit) {
+    PillChoices(
+        options = listOf(
+            PillOption(PillKey.GLOW.ordinal, stringResource(R.string.cam_pill_glow)),
+            PillOption(PillKey.ECHO.ordinal, stringResource(R.string.cam_pill_echo)),
+            PillOption(PillKey.TONE.ordinal, stringResource(R.string.cam_pill_tone))
+        ),
+        selected = active.ordinal,
+        columns = 3,
+        onPick = { opt ->
+            val target = PillKey.values()[opt.value]
+            if (target != active) onPick(target)
+        }
+    )
+}
+
+@Composable
 @Suppress("LongParameterList")
 private fun GlowPill(
     anchor: IntRect,
@@ -1191,7 +1224,8 @@ private fun GlowPill(
     gpuMode: Boolean,
     glowStatusProvider: () -> GlowStatus?,
     onClose: () -> Unit,
-    onPersist: () -> Unit
+    onPersist: () -> Unit,
+    onSwitchFxTab: (PillKey) -> Unit
 ) {
     val glow by params.glowParams.observed()
     val status = glowStatusProvider()
@@ -1199,6 +1233,7 @@ private fun GlowPill(
         params.glowParams.value = next
     }
     WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_glow_title)) {
+        FxTabBar(active = PillKey.GLOW, onPick = onSwitchFxTab)
         if (!editable) Note(R.string.cam_recording_readonly)
         // 常驻口径：进成片（与监看面板的"只上屏"相反，两处各说各的，不许含糊）
         Note(R.string.cam_glow_note)
@@ -1458,7 +1493,8 @@ private fun EchoPill(
     gpuMode: Boolean,
     echoStatusProvider: () -> com.wotagei.cam.core.EchoStatus?,
     onClose: () -> Unit,
-    onPersist: () -> Unit
+    onPersist: () -> Unit,
+    onSwitchFxTab: (PillKey) -> Unit
 ) {
     val echo by params.echoParams.observed()
     val status = echoStatusProvider()
@@ -1467,6 +1503,7 @@ private fun EchoPill(
         params.echoParams.value = next.sanitize()
     }
     WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_echo_title)) {
+        FxTabBar(active = PillKey.ECHO, onPick = onSwitchFxTab)
         if (!editable) Note(R.string.cam_recording_readonly)
         // 常驻口径：进成片（与监看面板的"只上屏"相反；与 Glow/TONE 同一套说明纪律）
         Note(R.string.cam_echo_note)
@@ -1614,13 +1651,15 @@ private fun TonePill(
     editable: Boolean,
     gpuMode: Boolean,
     onClose: () -> Unit,
-    onPersist: () -> Unit
+    onPersist: () -> Unit,
+    onSwitchFxTab: (PillKey) -> Unit
 ) {
     val tone by params.tone.observed()
     fun write(next: com.wotagei.cam.core.ToneParams) {
         params.tone.value = next.sanitize()
     }
     WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_tone_title)) {
+        FxTabBar(active = PillKey.TONE, onPick = onSwitchFxTab)
         if (!editable) Note(R.string.cam_recording_readonly)
         // 常驻口径：进成片（与监看面板的"只上屏"相反；与 Glow 同一套说明纪律）
         Note(R.string.cam_tone_note)
