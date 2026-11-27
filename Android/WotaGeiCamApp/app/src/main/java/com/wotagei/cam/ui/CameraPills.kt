@@ -1056,6 +1056,7 @@ private fun FlashPill(
         PillChoices(
             options = Flash.values().mapIndexed { i, f -> PillOption(f.ordinal, names[i], available) },
             selected = flash.ordinal,
+            columns = 2,
             onPick = { opt ->
                 if (!opt.enabled) {
                     onUnsupported()
@@ -1074,7 +1075,11 @@ private fun FlashPill(
 private fun RefLinePill(anchor: IntRect, params: WotaParams, editable: Boolean, onClose: () -> Unit) {
     val mask by params.refLines.observed()
     val types = RefLineType.ALL
-    WotaPillPopup(anchor, onClose, title = stringResource(R.string.cam_refline_title)) {
+    WotaPillPopup(
+        anchor,
+        onClose,
+        title = "${stringResource(R.string.cam_refline_title)} · ${stringResource(R.string.cam_refline_count, RefLineType.typesOf(mask).size)}"
+    ) {
         if (!editable) Note(R.string.cam_recording_readonly)
         PillChoices(
             options = listOf(
@@ -1092,7 +1097,6 @@ private fun RefLinePill(anchor: IntRect, params: WotaParams, editable: Boolean, 
             options = types.mapIndexed { i, t -> PillOption(i, stringResource(t.labelRes)) },
             isOn = { RefLineType.isOn(mask, types[it.value]) },
             columns = 2,
-            label = stringResource(R.string.cam_refline_count, RefLineType.typesOf(mask).size),
             onToggle = { opt -> types.getOrNull(opt.value)?.let { params.refLines.value = RefLineType.toggle(mask, it) } },
             enabled = editable
         )
@@ -1130,7 +1134,7 @@ private fun MonitorPill(
         PillChoices(
             options = FrameEffect.values().mapIndexed { i, e -> PillOption(e.ordinal, effectNames[i]) },
             selected = effect.ordinal,
-            columns = 2,
+            columns = 3,
             onPick = { opt -> params.frameEffect.value = FrameEffect.values()[opt.value] },
             enabled = editable
         )
@@ -1890,6 +1894,7 @@ private fun DenoisePill(
             enabled = editable
         )
         NoteText(stringResource(R.string.denoise_audio_note))
+        com.wotagei.cam.ui.design.PillDivider()
 
         NoteText(stringResource(R.string.denoise_title_video))
         PillChoices(

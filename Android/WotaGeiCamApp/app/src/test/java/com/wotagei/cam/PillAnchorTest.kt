@@ -84,4 +84,13 @@ class PillAnchorTest {
         assertEquals(rightAnchor.left - gap - popup.width, at.x)
         assertTrue(at.y in margin..(wide.height - margin - popup.height))
     }
+
+    @Test
+    fun `横屏左侧锚点时弹窗摆在锚点右侧不遮挡左侧控制栏`() {
+        val wide = IntSize(1600, 720)
+        val leftAnchor = IntRect(16, 200, 88, 240)
+        val at = PillAnchor.place(leftAnchor, popup, wide, gap, margin)
+        assertEquals(leftAnchor.right + gap, at.x)
+        assertTrue(at.y in margin..(wide.height - margin - popup.height))
+    }
 }

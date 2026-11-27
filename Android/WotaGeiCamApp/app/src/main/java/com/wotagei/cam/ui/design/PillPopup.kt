@@ -115,6 +115,13 @@ object PillAnchor {
             val y = ((anchor.top + anchor.bottom) / 2 - popup.height / 2).coerceIn(margin, bottom)
             return IntOffset(x, y)
         }
+        // Landscape: anchor di sisi kiri (Left Pillarbox Rail) → buka di sebelah kanan anchor
+        if (area.width > area.height && (anchor.left + anchor.right) / 2 < area.width / 3) {
+            val rightOfAnchor = anchor.right + gap
+            val x = rightOfAnchor.coerceIn(margin, right)
+            val y = ((anchor.top + anchor.bottom) / 2 - popup.height / 2).coerceIn(margin, bottom)
+            return IntOffset(x, y)
+        }
         val above = anchor.top - gap - popup.height
         val below = anchor.bottom + gap
         val y = when {

@@ -152,7 +152,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
             WotaIconButton(
                 image = Icons.Filled.GridOn,
                 description = stringResource(R.string.cam_p_refline),
-                selected = ctx.refLineOn,
+                selected = ctx.refLineOn || activePop == PillKey.REFLINE,
                 onClick = ctx.onRefLineClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
             )
@@ -160,7 +160,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
         if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
             MiniPillButton(
                 label = ctx.monitorLabel,
-                selected = ctx.monitorActive,
+                selected = ctx.monitorActive || activePop == PillKey.MONITOR,
                 onClick = ctx.onMonitorClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
             )
@@ -186,7 +186,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
         if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
             MiniPillButton(
                 label = ctx.denoiseLabel,
-                selected = ctx.denoiseActive,
+                selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
                 onClick = ctx.onDenoiseClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
             )
@@ -195,7 +195,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
             WotaIconButton(
                 image = flashIcon(ctx.flash),
                 description = stringResource(R.string.cam_p_flash),
-                selected = ctx.flash != com.wotagei.cam.core.Flash.OFF,
+                selected = ctx.flash != com.wotagei.cam.core.Flash.OFF || activePop == PillKey.FLASH,
                 onClick = ctx.onFlashClick,
                 modifier = ctx.anchorOf(HudEntry.of(CamPill.FLASH))
                     .alpha(if (ctx.flashUsable) 1f else 0.45f)

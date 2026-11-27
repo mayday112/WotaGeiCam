@@ -207,8 +207,16 @@ fun CurvePopup(
                     }
             )
             // 贴边避让交给系统（safeDrawingPadding，不按方向写死），弹窗本体再贴一枚设计留白
-            Box(Modifier.matchParentSize().padding(HudEdgePad)) {
-                BoxWithConstraints(Modifier.align(Alignment.CenterStart).padding(start = PanelBreath.dp)) {
+            BoxWithConstraints(Modifier.matchParentSize().padding(HudEdgePad)) {
+                val portrait = maxHeight > maxWidth
+                BoxWithConstraints(
+                    if (portrait) {
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 188.dp)
+                    } else {
+                        // Landscape: tempatkan di sebelah kanan Left Pillarbox Rail agar tidak menimpa rail
+                        Modifier.align(Alignment.CenterStart).padding(start = 92.dp)
+                    }
+                ) {
                     // 曲线框设计档 200dp 为**默认最小值**（2026-10-25：右缘拖拽等比放大，方便
                     // 手指大的人调节；扇面重置钮同时把 panelScale 复位到 1f）。放大上限 =
                     // 弹窗可用区（宽向扣扇钮槽/内距/呼吸，高向扣内距/呼吸）。
