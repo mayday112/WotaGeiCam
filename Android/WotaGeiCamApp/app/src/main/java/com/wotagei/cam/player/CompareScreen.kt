@@ -20,6 +20,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +76,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -763,7 +766,52 @@ private fun CompareContent(
         // ① 视频层：铺满整屏（仿参考图的沉浸式）。单击显隐控制层、双击启停（TapArbiter 与
         //    单播放页同一套仲裁）；控制层没吃掉的空档，指头会落到这一层的 onTap 上。
         //    双指缩放挂各栏自己的 Box（#4 的 10-01 修订）：压哪栏缩哪栏，两窗倍率互不相干。
-        Row(
+        val leftPaneContent: @Composable BoxScope.() -> Unit = {
+            WotaPlayerSurface(engine = leftEngine, modifier = Modifier.fillMaxSize(), scale = zoomL.floatValue, pan = panL.value, mirror = mirror == 1 || mirror == 3)
+            Box(Modifier.fillMaxSize().alpha(if (domBlackL) 1f else 0f).background(Color.Black))
+            ZoomBadge(zoomL.floatValue, Modifier.align(Alignment.TopStart).padding(8.dp))
+            SideLabel(stringResource(R.string.compare_left, left.name), Modifier.align(Alignment.TopEnd))
+        }
+        val rightPaneContent: @Composable BoxScope.() -> Unit = {
+            if (r == null) {
+                Box(Modifier.fillMaxSize().background(WotaBg), contentAlignment = Alignment.Center) {
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(WotaColor.surface.copy(alpha = 0.88f))
+                            .border(WotaStroke.hairline, WotaColor.outline, RoundedCornerShape(14.dp))
+                            .clickable { launchPicker() }
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Add,
+                            contentDescription = null,
+                            tint = WotaColor.accent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            stringResource(R.string.compare_pick_right),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = WotaColor.textHi
+                        )
+                    }
+                }
+            } else {
+                WotaPlayerSurface(engine = rightEngine, modifier = Modifier.fillMaxSize(), scale = zoomR.floatValue, pan = panR.value, rotation = rotateR * 90, mirror = mirror == 2 || mirror == 3)
+                Box(Modifier.fillMaxSize().alpha(if (domBlackR) 1f else 0f).background(Color.Black))
+                ZoomBadge(zoomR.floatValue, Modifier.align(Alignment.TopStart).padding(8.dp))
+                SideLabel(stringResource(R.string.compare_right, r.name), Modifier.align(Alignment.TopEnd))
+                WotaIconButton(
+                    image = Icons.AutoMirrored.Outlined.RotateLeft,
+                    description = stringResource(R.string.player_rotate_ccw),
+                    onClick = { rotateR = nextCcwQuarter(rotateR) },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp)
+                )
+            }
+        }
+        BoxWithConstraints(
             Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
@@ -777,8 +825,6 @@ private fun CompareContent(
                                 delay(DOUBLE_TAP_WINDOW_MS)
                                 if (tapArbiter.onToggleDue(SystemClock.uptimeMillis())) {
                                     controlsVisible = !controlsVisible
-                                    // 控制层收起时把就近弹层一并收掉（审查 P3）：
-                                    // 否则 speedMenu/mirrorMenu 残留，再展开时弹层凭空复现
                                     if (!controlsVisible) {
                                         speedMenu = false
                                         mirrorMenu = false
@@ -789,49 +835,18 @@ private fun CompareContent(
                     })
                 }
         ) {
-            // clipToBounds：镜像/缩放是绘制期变换（graphicsLayer 默认不裁剪），不裁会越过
-            // 2dp 分隔线压到邻栏（审查 P2；单页全屏无感，分栏后任何一次捏合都可见）
-            Box(Modifier.weight(split).fillMaxHeight().clipToBounds().pinchZoom(zoomL, panL)) {
-                WotaPlayerSurface(engine = leftEngine, modifier = Modifier.fillMaxSize(), scale = zoomL.floatValue, pan = panL.value, mirror = mirror == 1 || mirror == 3)
-                // dormant 轨黑层：常驻节点 alpha 0/1 切换（增删节点会闪帧）。Box 无指针
-                // 处理器不构成命中目标，事件照旧落到画面层；角标在它之后组合、不被盖住。
-                // **alpha 必须在 background 之前**：modifier 链左为外、右为内，`alpha` 只会作用在
-                // 它右边的绘制上；写成 `.background(Black).alpha(x)` 时黑底在黑层之外恒不透明，
-                // 两窗就被常驻纯黑永久盖死（2026-10-06 双黑真因，与 domBlack 位无关）。
-                Box(Modifier.fillMaxSize().alpha(if (domBlackL) 1f else 0f).background(Color.Black))
-                ZoomBadge(zoomL.floatValue, Modifier.align(Alignment.TopStart).padding(8.dp))
-                SideLabel(stringResource(R.string.compare_left, left.name), Modifier.align(Alignment.TopEnd))
-            }
-            Box(Modifier.width(2.dp).fillMaxHeight().background(WotaDivider)) {}
-            Box(Modifier.weight(1f - split).fillMaxHeight().clipToBounds().pinchZoom(zoomR, panR)) {
-                if (r == null) {
-                    // 占位底色与另一栏的信箱同色：用 WotaSurface 会让两栏"看起来一高一低"，
-                    // 实际两栏 Box 都是 fillMaxHeight 等高的
-                    Box(Modifier.fillMaxSize().background(WotaBg), contentAlignment = Alignment.Center) {
-                        Text(
-                            stringResource(R.string.compare_pick_right),
-                            // 默认字阶即 bodyLarge（正文）：textLo 压 bg 只有 3.82 过不了 4.5，升 textMid；
-                            // 可点语义由整块 12dp 内边距的点击区承担
-                            color = WotaColor.textMid,
-                            modifier = Modifier.clickable { launchPicker() }.padding(12.dp)
-                        )
-                    }
-                } else {
-                    WotaPlayerSurface(engine = rightEngine, modifier = Modifier.fillMaxSize(), scale = zoomR.floatValue, pan = panR.value, rotation = rotateR * 90, mirror = mirror == 2 || mirror == 3)
-                    // alpha 在 background 之前（同上：反过来黑底恒不透明 → 右窗永久黑）
-                    Box(Modifier.fillMaxSize().alpha(if (domBlackR) 1f else 0f).background(Color.Black))
-                    ZoomBadge(zoomR.floatValue, Modifier.align(Alignment.TopStart).padding(8.dp))
-                    SideLabel(stringResource(R.string.compare_right, r.name), Modifier.align(Alignment.TopEnd))
-                    // 右窗旋转钮（观看辅助，逆时针 90°/按）：计划原定右上角与左上 ZoomBadge 对称，
-                    // 但右上角已被片名标签 SideLabel 占着（叠放互相遮），按「避开已有控件」条款
-                    // 落右缘竖直居中——离上方芯片行/片名标签、下方控制层都最远。钮在 surface 层
-                    // 之外，ZoomBadge/片名标签这些角标天然不随旋转移动
-                    WotaIconButton(
-                        image = Icons.AutoMirrored.Outlined.RotateLeft,
-                        description = stringResource(R.string.player_rotate_ccw),
-                        onClick = { rotateR = nextCcwQuarter(rotateR) },
-                        modifier = Modifier.align(Alignment.CenterEnd).padding(8.dp)
-                    )
+            val isPortraitSplit = maxHeight > maxWidth
+            if (isPortraitSplit) {
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(split).fillMaxWidth().clipToBounds().pinchZoom(zoomL, panL)) { leftPaneContent() }
+                    Box(Modifier.height(2.dp).fillMaxWidth().background(WotaDivider)) {}
+                    Box(Modifier.weight(1f - split).fillMaxWidth().clipToBounds().pinchZoom(zoomR, panR)) { rightPaneContent() }
+                }
+            } else {
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(split).fillMaxHeight().clipToBounds().pinchZoom(zoomL, panL)) { leftPaneContent() }
+                    Box(Modifier.width(2.dp).fillMaxHeight().background(WotaDivider)) {}
+                    Box(Modifier.weight(1f - split).fillMaxHeight().clipToBounds().pinchZoom(zoomR, panR)) { rightPaneContent() }
                 }
             }
         }
@@ -852,13 +867,13 @@ private fun CompareContent(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            // 竖屏 360dp 装不下整排芯片（审查 P1：溢出即尾部裁切、历史/＋不可达），
-                            // 允许横向滚动。⚠ 这里**不许用 weight Spacer 占位**：horizontalScroll 注入
-                            // 无限宽度约束后 weight 子项不报错、而是塌成 0 宽（foundation 1.5.4 的
-                            // RowColumnMeasurementHelper 走 minWidth 分支，剩余空间恒 0），「＋」会贴死
-                            // 历史胶囊。两端分布改用 SpaceBetween + 三段分组承担
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(WotaColor.surface.copy(alpha = 0.88f))
+                            .border(WotaStroke.hairline, WotaColor.outline, RoundedCornerShape(18.dp))
+                            .pointerInput(Unit) {}
                             .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -963,7 +978,16 @@ private fun CompareContent(
                 exit = fadeOut(motion.float) + scaleOut(motion.float, targetScale = 0.92f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(WotaColor.surface.copy(alpha = 0.90f))
+                        .border(WotaStroke.hairline, WotaColor.outline, RoundedCornerShape(20.dp))
+                        .padding(vertical = 6.dp)
+                        .pointerInput(Unit) {}
+                ) {
                     // 手动模式双进度条（offset 同刻取两路 live 位置的逻辑一行未动），
                     // 收进一枚半透卡：白底进度线压在亮画面上读不出，衬底是可读性的下限
                     if (manual) {
@@ -1135,21 +1159,31 @@ private fun CompareContent(
                             // 对着左片练（2026-10-04 方向 4）：左路参考视频 primeWith 记下后压栈
                             // 录制页——录制页自动切分屏、右半屏循环播放这条左片，录完自动弹回来
                             // 把新片填进右槽（桥见 ComparePractice）
-                            ComparePill(
-                                label = stringResource(R.string.compare_practice),
-                                selected = false,
-                                onClick = {
-                                    setPlaying(false)
-                                    // 记发起页身份（Y51）：回程弹栈前核对它是否仍在栈上，
-                                    // 过期回调不再落错栈顶。测试环境本地 LifecycleOwner 不是
-                                    // 导航条目，投射失败即 null（回程退回不校验发起者）。
-                                    ComparePractice.primeWith(
-                                        left.id,
-                                        (practiceOwner as? NavBackStackEntry)?.id
-                                    )
-                                    onPractice()
-                                }
-                            )
+                            Box(
+                                Modifier
+                                    .clip(WotaShape.pill)
+                                    .background(WotaColor.pullOut)
+                                    .clickable {
+                                        setPlaying(false)
+                                        // 记发起页身份（Y51）：回程弹栈前核对它是否仍在栈上，
+                                        // 过期回调不再落错栈顶。测试环境本地 LifecycleOwner 不是
+                                        // 导航条目，投射失败即 null（回程退回不校验发起者）。
+                                        ComparePractice.primeWith(
+                                            left.id,
+                                            (practiceOwner as? NavBackStackEntry)?.id
+                                        )
+                                        onPractice()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.compare_practice),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = WotaColor.bg,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }
@@ -1374,8 +1408,12 @@ private fun CompareHistorySheet(
                     Row(
                         Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(WotaColor.surface.copy(alpha = 0.72f))
+                            .border(WotaStroke.hairline, WotaColor.outline, RoundedCornerShape(12.dp))
                             .clickable { onPick(c) }
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(

@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -39,6 +40,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.automirrored.outlined.CompareArrows
@@ -83,6 +85,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import com.wotagei.cam.ui.design.WotaStroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
@@ -563,48 +567,67 @@ private fun GalleryTopBar(
     onColumns: (Int) -> Unit,
     onBack: () -> Unit
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(36.dp)
-            .padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        // M3 1.1.2 的 IconButton / TextButton 会把布局撑到 ≥48dp（不受父约束上限压缩），窄栏只能自绘命中区
-        ToolIcon(Icons.Outlined.Close, stringResource(R.string.gallery_desc_back), onBack)
-        Text(
-            stringResource(R.string.gallery_title),
-            style = MaterialTheme.typography.bodyMedium,
-            color = WotaText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        ToolChip(
-            stringResource(if (scope == MediaScope.WotaLibrary) R.string.gallery_scope_wota else R.string.gallery_scope_album)
-        ) { onScope(if (scope == MediaScope.WotaLibrary) MediaScope.AllVideos else MediaScope.WotaLibrary) }
-        if (mode == ListMode.Grid) {
-            ToolChip(stringResource(R.string.gallery_cols_fmt, gridColumns)) {
-                onColumns(nextColumnTier(gridColumns))
+    Column(Modifier.fillMaxWidth().background(WotaColor.surface)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .padding(horizontal = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            ToolIcon(Icons.Outlined.Close, stringResource(R.string.gallery_desc_back), onClick = onBack)
+            Text(
+                stringResource(R.string.gallery_title),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = WotaColor.textHi,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            ToolChip(
+                stringResource(if (scope == MediaScope.WotaLibrary) R.string.gallery_scope_wota else R.string.gallery_scope_album)
+            ) { onScope(if (scope == MediaScope.WotaLibrary) MediaScope.AllVideos else MediaScope.WotaLibrary) }
+            if (mode == ListMode.Grid) {
+                ToolChip(stringResource(R.string.gallery_cols_fmt, gridColumns)) {
+                    onColumns(nextColumnTier(gridColumns))
+                }
+            }
+            ToolIcon(Icons.Outlined.ViewDay, stringResource(R.string.gallery_mode_timeline), active = mode == ListMode.Timeline) {
+                onMode(ListMode.Timeline)
+            }
+            ToolIcon(Icons.Outlined.GridView, stringResource(R.string.gallery_mode_grid), active = mode == ListMode.Grid) {
+                onMode(ListMode.Grid)
+            }
+            ToolIcon(Icons.Outlined.Fullscreen, stringResource(R.string.gallery_mode_full), active = mode == ListMode.Fullscreen) {
+                onMode(ListMode.Fullscreen)
             }
         }
-        ToolIcon(Icons.Outlined.ViewDay, stringResource(R.string.gallery_mode_timeline)) { onMode(ListMode.Timeline) }
-        ToolIcon(Icons.Outlined.GridView, stringResource(R.string.gallery_mode_grid)) { onMode(ListMode.Grid) }
-        ToolIcon(Icons.Outlined.Fullscreen, stringResource(R.string.gallery_mode_full)) { onMode(ListMode.Fullscreen) }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(WotaColor.outline))
     }
 }
 
 @Composable
-private fun ToolIcon(image: ImageVector, description: String, onClick: () -> Unit) {
+private fun ToolIcon(
+    image: ImageVector,
+    description: String,
+    active: Boolean = false,
+    onClick: () -> Unit
+) {
     Box(
         Modifier
-            .size(30.dp)
-            .clip(RoundedCornerShape(6.dp))
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) WotaColor.accentSurface else Color.Transparent)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(image, contentDescription = description, tint = WotaText, modifier = Modifier.size(18.dp))
+        Icon(
+            image,
+            contentDescription = description,
+            tint = if (active) WotaColor.onAccent else WotaText,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
@@ -612,14 +635,15 @@ private fun ToolIcon(image: ImageVector, description: String, onClick: () -> Uni
 private fun ToolChip(label: String, onClick: () -> Unit) {
     Text(
         text = label,
-        style = MaterialTheme.typography.bodyMedium,
-        color = WotaText,
+        style = MaterialTheme.typography.labelMedium,
+        color = WotaColor.textHi,
         maxLines = 1,
         modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(WotaSurface)
+            .clip(WotaShape.pill)
+            .background(WotaColor.layer)
+            .border(WotaStroke.hairline, WotaColor.outline, WotaShape.pill)
             .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 3.dp)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     )
 }
 
@@ -706,28 +730,30 @@ private fun SelectionBar(
     onPurge: () -> Unit,
     onClear: () -> Unit
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(WotaSurface)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            stringResource(R.string.gallery_selected_count, count),
-            style = MaterialTheme.typography.labelMedium,
-            color = WotaTextDim,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.gallery_menu_share)) }
-        IconButton(onClick = onLike) { Icon(Icons.Outlined.Favorite, contentDescription = stringResource(R.string.gallery_menu_like)) }
-        if (trashedOnly) {
-            IconButton(onClick = onRestore) { Icon(Icons.Outlined.Restore, contentDescription = stringResource(R.string.gallery_menu_restore)) }
-        } else {
-            IconButton(onClick = onTrash) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.gallery_menu_trash)) }
+    Column(Modifier.fillMaxWidth().background(WotaColor.surface)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(WotaColor.outline))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(R.string.gallery_selected_count, count),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = WotaColor.accent,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onShare) { Icon(Icons.Outlined.Share, contentDescription = stringResource(R.string.gallery_menu_share)) }
+            IconButton(onClick = onLike) { Icon(Icons.Outlined.Favorite, contentDescription = stringResource(R.string.gallery_menu_like)) }
+            if (trashedOnly) {
+                IconButton(onClick = onRestore) { Icon(Icons.Outlined.Restore, contentDescription = stringResource(R.string.gallery_menu_restore)) }
+            } else {
+                IconButton(onClick = onTrash) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.gallery_menu_trash)) }
+            }
+            IconButton(onClick = onPurge) { Icon(Icons.Outlined.DeleteForever, contentDescription = stringResource(R.string.gallery_menu_purge), tint = WotaRec) }
+            TextButton(onClick = onClear) { Text(stringResource(R.string.gallery_select_clear)) }
         }
-        IconButton(onClick = onPurge) { Icon(Icons.Outlined.DeleteForever, contentDescription = stringResource(R.string.gallery_menu_purge), tint = WotaRec) }
-        TextButton(onClick = onClear) { Text(stringResource(R.string.gallery_select_clear)) }
     }
 }
 
@@ -789,41 +815,44 @@ private fun TimelineList(
                 val sid = entry?.seriesId
                 val count = entry?.seriesCount
                 val isSeries = count != null
-                // 提到局部 val：seriesCount 是带自定义 getter 的属性，Kotlin 不会对它 smart cast，
-                // 直接把 Int? 传给 stringResource 的 Any 形参编译不过。
                 val open = sid != null && sid in expandedSeries
-                Column {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(WotaColor.surface)
+                        .border(WotaStroke.hairline, WotaColor.outline, RoundedCornerShape(14.dp))
+                ) {
                     Row(
                         Modifier
                             .fillMaxWidth()
                             .clickable {
-                                // 系列行：第一次点开内联展开，再点收起；单片行照旧去播放
                                 if (sid != null) {
                                     expandedSeries =
                                         if (open) expandedSeries - sid else expandedSeries + sid
                                 } else onOpen(clip)
                             }
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         VideoThumbnail(
                             clip.uri,
                             Modifier
-                                .size(width = 78.dp, height = 58.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .size(width = 88.dp, height = 54.dp)
+                                .clip(RoundedCornerShape(8.dp))
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                // 组标题取代表段（首段）的名字，不发明新名
                                 entry?.title ?: clip.name,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                                color = WotaColor.textHi
                             )
                             Text(
                                 text = if (isSeries) {
-                                    // 角标：共 N 段 · 总时长
                                     stringResource(R.string.gallery_series_count, count!!) +
                                         " · " + formatDuration(entry.totalDurationMs)
                                 } else {
@@ -862,7 +891,6 @@ private fun TimelineList(
                             )
                         }
                     }
-                    // 展开：子段内联缩进列出（网格不能套网格，故只有时间线走内联展开）
                     if (open && entry != null) {
                         entry.parts.drop(1).forEach { part -> TimelinePartRow(part, onOpen) }
                     }
@@ -988,30 +1016,37 @@ private fun ClipCard(
     onMenu: () -> Unit,
     subtitle: String? = null
 ) {
-    // 描边层**常驻**（透明占位，保住"挂/卸 border 会改测量路径"那条原诉求），
-    // 颜色即时切换（#81 第 1 条：禁动画颜色）——只去掉渐变，层不动。
-    // 圆角走件位档 24dp（WotaShape.card = ohos_id_corner_radius_card，Top 8 #2 的本文件落点）
-    val borderColor = if (selected) WotaAccent else Color.Transparent
+    val borderColor = when {
+        selected -> WotaAccent
+        clip.isTrashed -> WotaRec.copy(alpha = 0.55f)
+        else -> WotaColor.outline
+    }
     Box(
         Modifier
-            .clip(RoundedCornerShape(WotaShape.card))
+            .clip(RoundedCornerShape(14.dp))
             .background(WotaSurface)
-            .border(2.dp, borderColor, RoundedCornerShape(WotaShape.card))
+            .border(if (selected) 2.dp else 1.dp, borderColor, RoundedCornerShape(14.dp))
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         Column {
-            // 16:9 比 4:3 矮一档，同屏能多看一行；缩略图仍是 Crop，不会因为比例变化露出黑边
             VideoThumbnail(clip.uri, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
             Column(Modifier.padding(8.dp)) {
                 Text(clip.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    // 组卡走「共N段 · 总时长」角标；单片卡仍是今天那行时长，两者共用这一个 Text
                     subtitle ?: formatDuration(clip.durationMs),
                     style = MonoStyle.copy(fontSize = MaterialTheme.typography.labelSmall.fontSize),
                     color = WotaTextDim
                 )
                 TagPills(clip.tags)
             }
+        }
+        if (selected) {
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = WotaAccent,
+                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).size(18.dp)
+            )
         }
         Row(
             Modifier.align(Alignment.TopEnd).padding(6.dp),
@@ -1130,7 +1165,7 @@ private fun SeriesPartRow(part: VideoClip, onOpen: () -> Unit, onMenu: () -> Uni
                 modifier = Modifier.size(16.dp)
             )
         }
-        ToolIcon(Icons.Outlined.Tune, stringResource(R.string.gallery_desc_menu), onMenu)
+        ToolIcon(Icons.Outlined.Tune, stringResource(R.string.gallery_desc_menu), onClick = onMenu)
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -717,6 +718,24 @@ fun PlayerScreen(
                             .pointerInput(Unit) {}
                     ) {
                     val timeStyle = MonoStyle.copy(fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                    val isPortrait = androidx.compose.ui.platform.LocalConfiguration.current.let {
+                        it.screenHeightDp > it.screenWidthDp
+                    }
+                    if (ab.aMs >= 0 || ab.bMs >= 0) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val aStr = if (ab.aMs >= 0) "A: ${formatDuration(ab.aMs)}" else "A: --"
+                            val bStr = if (ab.bMs >= 0) "B: ${formatDuration(ab.bMs)}" else "B: --"
+                            Text(
+                                text = "$aStr  ·  $bStr",
+                                style = timeStyle,
+                                color = WotaColor.accent
+                            )
+                        }
+                    }
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 10.dp)
@@ -765,6 +784,146 @@ fun PlayerScreen(
 
                     // 一行装下全部控件（用户 2026-09-28：三行太吃画面）。倍速钉在最右，
                     // 左边那组在窄屏上横向可滚，不会因为并排而被裁掉
+                    if (isPortrait) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    BarIconSlot(Icons.Outlined.SkipPrevious, stringResource(R.string.player_step_back)) {
+                                        engine.stepFrame(false)
+                                    }
+                                    BarIconSlot(
+                                        image = if (playing) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                                        description = stringResource(R.string.player_play_pause),
+                                        accent = true,
+                                        size = PlayIconSize,
+                                        glyph = PlayGlyphSize
+                                    ) { engine.softPause(playing) }
+                                    BarIconSlot(Icons.Outlined.SkipNext, stringResource(R.string.player_step_fwd)) {
+                                        engine.stepFrame(true)
+                                    }
+                                    Text(
+                                        stringResource(fpsStepLabelRes(fps), fps),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = WotaTextDim,
+                                        maxLines = 1,
+                                        modifier = Modifier.padding(start = 2.dp)
+                                    )
+                                }
+                                AbRow(
+                                    ab = ab,
+                                    onA = { engine.markA() },
+                                    onB = { if (!engine.markB()) banner = R.string.player_ab_invalid },
+                                    onLoop = { if (!engine.toggleAbLoop()) banner = R.string.player_ab_invalid },
+                                    onClear = { engine.clearAb() }
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState())
+                                ) {
+                                    WotaChip(
+                                        label = stringResource(R.string.player_loop_one),
+                                        selected = loop == LoopMode.ONE,
+                                        onClick = {
+                                            engine.loopMode = if (loop == LoopMode.ONE) LoopMode.OFF else LoopMode.ONE
+                                        }
+                                    )
+                                    BarIconSlot(
+                                        Icons.Outlined.Flip,
+                                        stringResource(R.string.player_mirror),
+                                        accent = mirrored
+                                    ) { mirrored = !mirrored }
+                                    Box(Modifier.pillAnchor { arcAnchor = it }) {
+                                        BarIconSlot(
+                                            Icons.Outlined.AutoFixHigh,
+                                            stringResource(R.string.player_arc_repair),
+                                            accent = arcRun != null
+                                        ) { arcMenu = !arcMenu }
+                                    }
+                                    Box(Modifier.pillAnchor { clipAnchor = it }) {
+                                        BarIconSlot(
+                                            Icons.Outlined.ContentCut,
+                                            stringResource(R.string.player_clip),
+                                            accent = clipExport?.request?.sourceUri == sourceUri
+                                        ) { exportMenu = ExportKind.CLIP.takeUnless { exportMenu == it } }
+                                    }
+                                    if (dualAudio) {
+                                        WotaChip(
+                                            label = stringResource(
+                                                if (selectedAudio == SelectedTrack.ENV) R.string.player_track_env else R.string.player_track_cap
+                                            ),
+                                            selected = selectedAudio == SelectedTrack.CAP,
+                                            modifier = Modifier.pillAnchor { trackPickAnchor = it },
+                                            onClick = { trackPickMenu = !trackPickMenu }
+                                        )
+                                        Box(Modifier.pillAnchor { trackSyncAnchor = it }) {
+                                            BarIconSlot(
+                                                Icons.Outlined.Sync,
+                                                stringResource(R.string.player_track_sync),
+                                                accent = syncRunning
+                                            ) {
+                                                val autoBusy = clip.uri.toString() in postStopRunning
+                                                if (autoBusy) {
+                                                    banner = R.string.player_track_sync_busy
+                                                } else if (!syncRunning) {
+                                                    syncRunning = true
+                                                    scope.launch {
+                                                        try {
+                                                            val r = TrackSync.run(app, clip.uri)
+                                                            when {
+                                                                r.ok && !r.lowConfidence -> {
+                                                                    syncedOffsetMs = r.offsetMs
+                                                                    syncedSource = TrackSync.Source.MANUAL
+                                                                    banner = R.string.player_sync_done
+                                                                }
+                                                                r.ok -> {
+                                                                    syncedOffsetMs = r.offsetMs
+                                                                    syncedSource = TrackSync.Source.MANUAL
+                                                                    banner = R.string.player_track_sync_low
+                                                                }
+                                                                !r.dualAudio -> banner = R.string.player_sync_no_audio
+                                                                else -> banner = r.reasonRes ?: R.string.player_track_sync_failed
+                                                            }
+                                                        } finally {
+                                                            syncRunning = false
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Box(Modifier.pillAnchor { trackExportAnchor = it }) {
+                                            BarIconSlot(
+                                                Icons.Outlined.FileDownload,
+                                                stringResource(R.string.player_track_export),
+                                                accent = trackExport?.request?.sourceUri == sourceUri
+                                            ) { exportMenu = ExportKind.TRACK.takeUnless { exportMenu == it } }
+                                        }
+                                    }
+                                }
+                                WotaChip(
+                                    label = stringResource(R.string.player_speed_current, stringResource(speedLabelRes(speed))),
+                                    selected = speed != PlayerSpeedTiers.DEFAULT,
+                                    modifier = Modifier.pillAnchor { rect -> speedAnchor = rect },
+                                    onClick = { speedMenu = !speedMenu }
+                                )
+                            }
+                        }
+                    } else {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
@@ -905,6 +1064,7 @@ fun PlayerScreen(
                             modifier = Modifier.pillAnchor { rect -> speedAnchor = rect },
                             onClick = { speedMenu = !speedMenu }
                         )
+                    }
                     }
                     }
                 }
@@ -2060,7 +2220,6 @@ private fun PlayerTopBar(
     modifier: Modifier = Modifier,
     clip: VideoClip,
     onBack: () -> Unit,
-    /** 收藏切换（2026-10-30）：传目标值而不是"取反"——红心动画要把状态与效果绑在同一次点击上 */
     onLike: (Boolean) -> Unit,
     onTag: () -> Unit,
     onShare: () -> Unit,
@@ -2069,63 +2228,103 @@ private fun PlayerTopBar(
     onCompare: () -> Unit,
     onCollapse: () -> Unit
 ) {
-    Row(
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .background(AcrylicScrim)
             .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.displayCutout))
-            // 29 §6.2-2：保留 statusBars ∪ displayCutout 内边距（状态栏隐藏后 inset 自然归 0，
-            // 顶栏贴到顶；下滑临时呼出时随之下移），纵向内边距 2dp → 1dp
-            .padding(horizontal = 2.dp, vertical = 1.dp)
-            // 控件条容器必须自己是命中目标：这一行原本只有 background（不构成命中），
-            // 文件名 Text 与四周内边距这些"裸区"的点按会穿透到底下的画面手势区，
-            // 被判成画面单击（误切控件显隐）甚至两下凑成双击（误启停）。空 pointerInput
-            // 让整条顶栏进入命中路径，底下画面收不到这些点；栏内按钮自带点击链，
-            // 事件在 Main pass 先于容器分发，不受影响。
-            // 防退化点：删掉这行不会有任何 JVM 测试变红——兄弟节点穿透属 Compose
-            // 命中测试路径，JVM 单测桩测不到，只能真机点按文件名空当实证（显隐不得切换）。
-            .pointerInput(Unit) {},
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 12.dp, vertical = 6.dp)
     ) {
-        // 顶栏 7 枚圆钮压到 30dp：M3 IconButton 强制 ≥48dp，七个就把文件名挤成「…」
-        BarIconSlot(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.gallery_desc_back), onClick = onBack)
-        Text(
-            clip.name,
-            style = MaterialTheme.typography.titleMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(horizontal = 2.dp)
-        )
-        BarIconSlot(Icons.AutoMirrored.Outlined.CompareArrows, stringResource(R.string.gallery_menu_compare), onClick = onCompare)
-        // 收藏红心（2026-10-30 用户需求）：Bencho "Like" 的红心动画（绽放环 + 七对彩点 +
-        // 红心弹出，无数字滚动）。图标已经分状态、标签也必须跟着分——原来恒报「已收藏」，
-        // 未收藏的成片读屏也说成已收藏。
-        LikeHeart(
-            liked = clip.liked,
-            onToggle = onLike,
-            contentDescription = stringResource(
-                if (clip.liked) R.string.gallery_desc_liked else R.string.gallery_desc_unliked
-            )
-        )
-        BarIconSlot(Icons.Outlined.Tune, stringResource(R.string.gallery_menu_tags), onClick = onTag)
-        BarIconSlot(Icons.Outlined.Share, stringResource(R.string.gallery_menu_share), onClick = onShare)
-        if (clip.isTrashed) {
-            BarIconSlot(Icons.Outlined.Restore, stringResource(R.string.gallery_menu_restore), onClick = onTrash)
+        val portrait = maxHeight > maxWidth || maxWidth < 520.dp
+        val cardModifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(AcrylicScrim)
+            .border(1.dp, WotaColor.outline, RoundedCornerShape(18.dp))
+            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .pointerInput(Unit) {}
+        if (portrait) {
+            Column(cardModifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    BarIconSlot(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.gallery_desc_back), onClick = onBack)
+                    Text(
+                        clip.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                    )
+                    BarIconSlot(
+                        Icons.Outlined.KeyboardArrowUp,
+                        stringResource(R.string.player_top_bar_collapse),
+                        onClick = onCollapse
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BarIconSlot(Icons.AutoMirrored.Outlined.CompareArrows, stringResource(R.string.gallery_menu_compare), onClick = onCompare)
+                    LikeHeart(
+                        liked = clip.liked,
+                        onToggle = onLike,
+                        contentDescription = stringResource(
+                            if (clip.liked) R.string.gallery_desc_liked else R.string.gallery_desc_unliked
+                        )
+                    )
+                    BarIconSlot(Icons.Outlined.Tune, stringResource(R.string.gallery_menu_tags), onClick = onTag)
+                    BarIconSlot(Icons.Outlined.Share, stringResource(R.string.gallery_menu_share), onClick = onShare)
+                    if (clip.isTrashed) {
+                        BarIconSlot(Icons.Outlined.Restore, stringResource(R.string.gallery_menu_restore), onClick = onTrash)
+                    } else {
+                        BarIconSlot(Icons.Outlined.Delete, stringResource(R.string.gallery_menu_trash), onClick = onTrash)
+                    }
+                    BarIconSlot(
+                        Icons.Outlined.DeleteForever,
+                        stringResource(R.string.gallery_menu_purge),
+                        tint = WotaRec,
+                        onClick = onPurge
+                    )
+                }
+            }
         } else {
-            BarIconSlot(Icons.Outlined.Delete, stringResource(R.string.gallery_menu_trash), onClick = onTrash)
+            Row(cardModifier, verticalAlignment = Alignment.CenterVertically) {
+                BarIconSlot(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.gallery_desc_back), onClick = onBack)
+                Text(
+                    clip.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                )
+                BarIconSlot(Icons.AutoMirrored.Outlined.CompareArrows, stringResource(R.string.gallery_menu_compare), onClick = onCompare)
+                LikeHeart(
+                    liked = clip.liked,
+                    onToggle = onLike,
+                    contentDescription = stringResource(
+                        if (clip.liked) R.string.gallery_desc_liked else R.string.gallery_desc_unliked
+                    )
+                )
+                BarIconSlot(Icons.Outlined.Tune, stringResource(R.string.gallery_menu_tags), onClick = onTag)
+                BarIconSlot(Icons.Outlined.Share, stringResource(R.string.gallery_menu_share), onClick = onShare)
+                if (clip.isTrashed) {
+                    BarIconSlot(Icons.Outlined.Restore, stringResource(R.string.gallery_menu_restore), onClick = onTrash)
+                } else {
+                    BarIconSlot(Icons.Outlined.Delete, stringResource(R.string.gallery_menu_trash), onClick = onTrash)
+                }
+                BarIconSlot(
+                    Icons.Outlined.DeleteForever,
+                    stringResource(R.string.gallery_menu_purge),
+                    tint = WotaRec,
+                    onClick = onPurge
+                )
+                BarIconSlot(
+                    Icons.Outlined.KeyboardArrowUp,
+                    stringResource(R.string.player_top_bar_collapse),
+                    onClick = onCollapse
+                )
+            }
         }
-        BarIconSlot(
-            Icons.Outlined.DeleteForever,
-            stringResource(R.string.gallery_menu_purge),
-            tint = WotaRec,
-            onClick = onPurge
-        )
-        // 第 8 枚（29 §6.3）：收起顶栏。放最右端不动 weight(1f) 的文件名布局，窄屏由 ellipsis 兜底
-        BarIconSlot(
-            Icons.Outlined.KeyboardArrowUp,
-            stringResource(R.string.player_top_bar_collapse),
-            onClick = onCollapse
-        )
     }
 }
 
