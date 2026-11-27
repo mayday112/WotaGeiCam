@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="set_title">Pengaturan</string>
     <string name="set_back">Kembali</string>
@@ -79,6 +79,7 @@
     <string name="set_perm_bluetooth">Koneksi Bluetooth</string>
     <string name="set_perm_bt_location">Lokasi (Hanya untuk memindai speaker sekitar)</string>
     <string name="set_perm_granted">Diberikan</string>
+    <string name="set_perm_partial">Sebagian</string>
     <string name="set_perm_denied">Belum Diberikan</string>
     <string name="set_perm_note">Tanpa mikrofon hanya merekam video. Tanpa akses video, hasil rekaman tidak akan muncul di galeri.</string>
     <string name="set_open_system_settings">Buka Pengaturan Sistem</string>
@@ -150,6 +151,12 @@
     <string name="set_pill_note">Sembunyikan dari halaman kamera jika dinonaktifkan; tombol shutter, thumbnail galeri, dan tombol pengaturan tidak dapat disembunyikan.</string>
 
     <!-- Editor Tata Letak HUD -->
+    <string name="set_hud_edit_layout">Edit Tata Letak HUD</string>
+    <string name="set_hud_editor_hint">Ketuk slot untuk tampil/sembunyikan atau ubah urutan; keluar tanpa simpan akan membatalkan perubahan</string>
+    <string name="set_hud_editor_show">Tampilkan</string>
+    <string name="set_hud_editor_hide">Sembunyikan</string>
+    <string name="set_hud_editor_move_up">Geser Maju</string>
+    <string name="set_hud_editor_move_down">Geser Mundur</string>
     <!-- Latar Belakang Kaca Buram HUD -->
     <string name="set_frost_blur">Latar Belakang Kaca Buram HUD</string>
     <string name="set_frost_blur_note">Latar belakang kontrol jendela bidik menampilkan gambar buram secara real-time. Hanya berlaku pada mode GPU; matikan untuk kembali ke tampilan standar.</string>

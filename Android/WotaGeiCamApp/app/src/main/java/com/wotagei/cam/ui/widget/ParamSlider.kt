@@ -273,7 +273,7 @@ private fun TierPill(
     // （与本轮 CompareScreen 双黑真因同族）。这里 alpha 紧跟 graphicsLayer(scale)，覆盖描边+底+文字。
     // 选中底走 accentSurface：选中胶囊上压的是 onAccent 白字小字，白字对 #007DFF(accent)
     // 只有 3.91:1 不过 AA 正文，对 #0A59F7 5.55:1 过（见 WotaColor.accentSurface 注）
-    val tierFill = if (selected) WotaColor.accentSurface else Color.Transparent
+    val tierFill = if (selected) WotaColor.accentSurface else WotaColor.layer
     val tierAlpha by androidx.compose.animation.core.animateFloatAsState(
         targetValue = if (supported && enabled) 1f else 0.35f,
         animationSpec = motion.float

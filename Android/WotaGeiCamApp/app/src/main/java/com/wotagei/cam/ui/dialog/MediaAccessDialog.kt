@@ -1,20 +1,35 @@
 package com.wotagei.cam.ui.dialog
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import com.wotagei.cam.R
 import com.wotagei.cam.core.MediaAccessState
 import com.wotagei.cam.core.WotaStorage
+import com.wotagei.cam.ui.design.WotaColor
+import com.wotagei.cam.ui.design.WotaShape
+import com.wotagei.cam.ui.design.WotaStroke
 import com.wotagei.cam.ui.openAppSettings
 
 /**
@@ -35,34 +50,72 @@ fun MediaAccessDialog(state: MediaAccessState, onDismiss: () -> Unit) {
     if (state != MediaAccessState.PARTIAL_READ && state != MediaAccessState.NONE) return
     val context = LocalContext.current
     val partial = state == MediaAccessState.PARTIAL_READ
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(stringResource(if (partial) R.string.perm_media_partial_title else R.string.perm_media_none_title))
-        },
-        text = {
-            Column {
-                Text(stringResource(if (partial) R.string.perm_media_partial_body else R.string.perm_media_none_body))
-                // 「所有文件访问」是等效的第二条路，但 API 29 没有这个系统页——只在支持的机型上追加
-                if (WotaStorage.supportsAllFilesAccess()) {
-                    Spacer(Modifier.height(8.dp))
+    val shape = RoundedCornerShape(WotaShape.dialog)
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .background(WotaColor.surface)
+                .border(WotaStroke.hairline, WotaColor.warn.copy(alpha = 0.53f), shape)
+                .padding(20.dp)
+        ) {
+            Text(
+                text = stringResource(if (partial) R.string.perm_media_partial_title else R.string.perm_media_none_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = WotaColor.warn
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = stringResource(if (partial) R.string.perm_media_partial_body else R.string.perm_media_none_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = WotaColor.textMid
+            )
+            // 「所有文件访问」是等效的第二条路，但 API 29 没有这个系统页——只在支持的机型上追加
+            if (WotaStorage.supportsAllFilesAccess()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.perm_media_all_files_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = WotaColor.textLo
+                )
+            }
+            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.cancel),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = WotaColor.textMid,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Box(
+                    Modifier
+                        .clip(WotaShape.pill)
+                        .background(WotaColor.accentSurface)
+                        .clickable {
+                            onDismiss()
+                            context.openAppSettings()
+                        }
+                        .padding(horizontal = 18.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        stringResource(R.string.perm_media_all_files_hint),
-                        style = MaterialTheme.typography.bodySmall
+                        text = stringResource(R.string.perm_open_settings),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WotaColor.onAccent
                     )
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                    context.openAppSettings()
-                }
-            ) { Text(stringResource(R.string.perm_open_settings)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
-    )
+    }
 }

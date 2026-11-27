@@ -20,6 +20,7 @@ import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
@@ -43,6 +44,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -97,6 +99,7 @@ import com.wotagei.cam.ui.design.PillSlider
 import com.wotagei.cam.ui.design.WotaColor
 import com.wotagei.cam.ui.design.WotaShape
 import com.wotagei.cam.ui.design.WotaSpace
+import com.wotagei.cam.ui.design.WotaStroke
 import com.wotagei.cam.ui.design.WotaSwitch
 import com.wotagei.cam.ui.design.WotaType
 import com.wotagei.cam.ui.design.wotaCard
@@ -245,6 +248,7 @@ object WotaSettings {
     const val KEY_HUD_ITEMS = "hud_items"
     /** 录制页控件胶囊的显隐（#54）：与读数分开一套位掩码，默认全开 */
     const val KEY_HUD_PILLS = "hud_pills"
+    const val KEY_HUD_MINIMAL_ORDER = "hud_minimal_order"
 
     /**
      * 显隐位清单的**版本号**（2026-10-26）：与 [KEY_HUD_PILLS] 一起读写。存在的意义见
@@ -440,6 +444,14 @@ object WotaSettings {
         val raw = prefs.getInt(KEY_HUD_PILLS, CamPill.DEFAULT_MASK)
         val schema = prefs.getInt(KEY_HUD_PILLS_SCHEMA, 0)
         return if (schema >= CamPill.MASK_SCHEMA) raw else CamPill.migrateMask(raw, schema)
+    }
+
+    fun hudMinimalOrder(prefs: SharedPreferences): MinimalistHudOrder =
+        MinimalistHudOrder.decode(prefs.getString(KEY_HUD_MINIMAL_ORDER, null))
+
+    @Suppress("ApplySharedPref")
+    fun setHudMinimalOrder(prefs: SharedPreferences, order: MinimalistHudOrder) {
+        prefs.edit().putString(KEY_HUD_MINIMAL_ORDER, order.encode()).commit()
     }
 
     /** 关掉刻度吸附（改用连续值）的滑杆集合：缺键 = 空集 = 全部吸附 */
@@ -653,6 +665,7 @@ object WotaSettings {
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenHudEditor: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -664,31 +677,46 @@ fun SettingsScreen(
         modifier
             .fillMaxSize()
             .background(WotaBg)
-            .statusBarsPadding()
     ) {
         val plan = layoutPlanOf(maxWidth.value.toInt())
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .background(WotaColor.surface)
+                    .statusBarsPadding()
             ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.set_back), tint = WotaText)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.set_back), tint = WotaText)
+                    }
+                    Text(
+                        text = stringResource(R.string.set_title),
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                        color = WotaText,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                Text(
-                    text = stringResource(R.string.set_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = WotaText,
-                    modifier = Modifier.weight(1f)
-                )
+                Line()
             }
-            Spacer(Modifier.height(6.dp))
-            Line()
-            SettingsBody(plan, prefs)
-            Spacer(Modifier.height(24.dp))
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                Spacer(Modifier.height(6.dp))
+                CompositionLocalProvider(LocalOpenHudEditor provides onOpenHudEditor) {
+                    SettingsBody(plan, prefs)
+                }
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }
+
+private val LocalOpenHudEditor = compositionLocalOf<() -> Unit> { {} }
 
 /**
  * 设置主体：按 [SettingsLayoutPlan] 决定单栏还是两栏。**顶栏不在这里**——它跨两栏、不参与分区。
@@ -1008,6 +1036,7 @@ private fun BlockBrightness(prefs: SharedPreferences) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BlockHud(prefs: SharedPreferences) {
+    val onOpenHudEditor = LocalOpenHudEditor.current
     var hudMask by remember { mutableIntStateOf(WotaSettings.hudItems(prefs)) }
     var pillMask by remember { mutableIntStateOf(WotaSettings.hudPills(prefs)) }
     // 毛玻璃背板（#84 步骤 2）：默认关，只有这一颗 Switch 会把它打开（没有别的写入方）
@@ -1015,6 +1044,23 @@ private fun BlockHud(prefs: SharedPreferences) {
 
     SettingGroup(stringResource(R.string.set_group_hud))
     Card {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .heightIn(min = 38.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(WotaColor.accentSurface)
+                .clickable(onClick = onOpenHudEditor),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "${stringResource(R.string.set_hud_edit_layout)}  ›",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = WotaColor.onAccent
+            )
+        }
+        Spacer(Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.set_hud_note),
             style = MaterialTheme.typography.bodyMedium,
@@ -1185,16 +1231,30 @@ private fun BlockStorage() {
             )
         } else {
             val granted = remember(resumeTick) { com.wotagei.cam.core.WotaStorage.hasAllFilesAccess() }
-            ChipCell(
-                text = stringResource(if (granted) R.string.set_storage_on else R.string.set_storage_open),
-                selected = granted,
-                onClick = {
-                    if (!com.wotagei.cam.core.WotaStorage.openSettings(storageCtx)) {
-                        android.widget.Toast.makeText(storageCtx, R.string.set_storage_open_failed,
-                            android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }
-            )
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 38.dp)
+                    .clip(WotaShape.pill)
+                    .background(if (granted) WotaColor.pullOut.copy(alpha = 0.16f) else WotaColor.accentSurface)
+                    .then(
+                        if (granted) Modifier.border(WotaStroke.hairline, WotaColor.pullOut.copy(alpha = 0.55f), WotaShape.pill)
+                        else Modifier
+                    )
+                    .clickable {
+                        if (!com.wotagei.cam.core.WotaStorage.openSettings(storageCtx)) {
+                            android.widget.Toast.makeText(storageCtx, R.string.set_storage_open_failed,
+                                android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = stringResource(if (granted) R.string.set_storage_on else R.string.set_storage_open),
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = if (granted) WotaColor.pullOut else WotaColor.onAccent
+                )
+            }
         }
     }
 }
@@ -1386,34 +1446,43 @@ private fun BlockPerm() {
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = stringResource(if (row.granted) R.string.set_perm_granted else R.string.set_perm_denied),
+                    text = when {
+                        row.partial -> "${stringResource(R.string.set_perm_partial)} ⚠"
+                        row.granted -> "${stringResource(R.string.set_perm_granted)} ✓"
+                        else -> stringResource(R.string.set_perm_denied)
+                    },
                     style = MonoStyle.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize),
-                    // 状态小字不用 accent（压 surface 4.48 < 4.5）：已授权降为 textMid 安静态，
-                    // 未授权保留 WotaRec 红作强调——需要突出的只有「未授权」（子行沿用同一对两色，不新建色）
-                    color = if (row.granted) WotaColor.textMid else WotaRec
+                    color = when {
+                        row.partial -> WotaColor.warn
+                        row.granted -> WotaColor.pullOut
+                        else -> WotaRec
+                    }
                 )
             }
             // 分隔线规则：下一行是子行时不插（子行紧跟父行，视觉上是一组），子行之后恢复一条——
             // 整卡节奏与加子行之前一致，「打开系统设置」行上方仍恰好一条
             if (perms.getOrNull(index + 1)?.indent != true) Line()
         }
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.set_perm_note),
-                style = MaterialTheme.typography.bodyMedium,
-                color = WotaColor.textMid,
-                modifier = Modifier.weight(1f)
-            )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.set_perm_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = WotaColor.textMid
+        )
+        Spacer(Modifier.height(10.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 38.dp)
+                .clip(WotaShape.pill)
+                .background(WotaColor.accentSurface)
+                .clickable { context.openAppSettings() },
+            contentAlignment = Alignment.Center
+        ) {
             Text(
                 text = stringResource(R.string.set_open_system_settings),
-                style = MaterialTheme.typography.labelMedium,
-                // 可点动作小字：accent 压 surface 4.48 过不了 AA，改 textHi + 下划线（链接惯例）表达可点
-                color = WotaText,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { context.openAppSettings() }
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = WotaColor.onAccent
             )
         }
     }
@@ -1473,19 +1542,21 @@ private fun LanguageSelectorRow(prefs: SharedPreferences) {
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = langLabel,
+            text = "$langLabel  ›",
             style = MaterialTheme.typography.bodyMedium,
             color = WotaColor.accent
         )
     }
 
     if (showDialog) {
+        val dialogShape = RoundedCornerShape(WotaShape.dialog)
         androidx.compose.ui.window.Dialog(onDismissRequest = { showDialog = false }) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(WotaShape.card))
+                    .clip(dialogShape)
                     .background(WotaColor.surface)
+                    .border(WotaStroke.hairline, WotaColor.acrylicBorder, dialogShape)
                     .padding(20.dp)
             ) {
                 Text(
@@ -1493,76 +1564,58 @@ private fun LanguageSelectorRow(prefs: SharedPreferences) {
                     style = MaterialTheme.typography.titleMedium,
                     color = WotaText,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
+                    modifier = Modifier.padding(bottom = 14.dp)
                 )
 
                 val options = listOf(
+                    WotaSettings.LANG_SYSTEM to stringResource(R.string.language_system),
                     WotaSettings.LANG_ENGLISH to stringResource(R.string.language_en),
                     WotaSettings.LANG_INDONESIAN to stringResource(R.string.language_id),
-                    WotaSettings.LANG_CHINESE to stringResource(R.string.language_zh),
-                    WotaSettings.LANG_SYSTEM to stringResource(R.string.language_system)
+                    WotaSettings.LANG_CHINESE to stringResource(R.string.language_zh)
                 )
 
-                options.forEach { (code, title) ->
-                    val selected = currentLang == code
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selected) WotaColor.accent.copy(alpha = 0.12f) else Color.Transparent)
-                            .clickable {
-                                if (currentLang != code) {
-                                    currentLang = code
-                                    WotaSettings.setLanguage(context, prefs, code)
-                                    showDialog = false
-                                    context.findActivity()?.recreate()
-                                } else {
-                                    showDialog = false
-                                }
-                            }
-                            .padding(vertical = 12.dp, horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    options.forEach { (code, title) ->
+                        val selected = currentLang == code
+                        Row(
                             modifier = Modifier
-                                .height(18.dp)
-                                .width(18.dp)
-                                .clip(RoundedCornerShape(9.dp))
-                                .background(if (selected) WotaColor.accent else Color.Transparent)
-                                .then(
-                                    if (!selected) {
-                                        Modifier.background(Color.Transparent)
+                                .fillMaxWidth()
+                                .heightIn(min = 42.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (selected) WotaColor.accentSurface else WotaColor.layer)
+                                .clickable {
+                                    if (currentLang != code) {
+                                        currentLang = code
+                                        WotaSettings.setLanguage(context, prefs, code)
+                                        showDialog = false
+                                        context.findActivity()?.recreate()
                                     } else {
-                                        Modifier
+                                        showDialog = false
                                     }
-                                ),
-                            contentAlignment = Alignment.Center
+                                }
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = when {
+                                    selected -> WotaColor.onAccent
+                                    code == WotaSettings.LANG_SYSTEM -> WotaColor.textMid
+                                    else -> WotaText
+                                },
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.weight(1f)
+                            )
                             if (selected) {
-                                Box(
-                                    modifier = Modifier
-                                        .height(8.dp)
-                                        .width(8.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(WotaColor.surface)
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .height(18.dp)
-                                        .width(18.dp)
-                                        .clip(RoundedCornerShape(9.dp))
-                                        .background(WotaColor.outline)
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = WotaColor.onAccent,
+                                    modifier = Modifier.height(16.dp).width(16.dp)
                                 )
                             }
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Text(
-                            text = title,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (selected) WotaColor.accent else WotaText,
-                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                        )
                     }
                 }
 
@@ -1900,14 +1953,15 @@ private fun SettingGroup(text: String) {
 /** 分组卡：设置页不压在画面上，用近实底 surface 而不是 25% 透明的 hudScrim */
 @Composable
 private fun Card(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    val cardShape = RoundedCornerShape(20.dp)
     Column(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = LocalSettingsCardPad.current)
-            // 接件位档：设置卡属「大卡」类（design-spec §4.2 card=24dp），不用旧的浮层级 radiusLarge
-            .clip(RoundedCornerShape(WotaShape.card))
+            .clip(cardShape)
             .background(WotaColor.surface)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .border(WotaStroke.hairline, WotaColor.outline, cardShape)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         content = content
     )
 }
@@ -1944,7 +1998,7 @@ private fun ChipCell(text: String, selected: Boolean, modifier: Modifier = Modif
     // 按压缩放保留（scale 在允许档）。两枚值同帧一起换，不存在"底还在渐变、字先跳"的分叉
     // 选中底走 accentSurface：这里是 bodyMedium 白字小字的承载面，白字对 #007DFF(accent)
     // 只有 3.91:1 不过 AA 正文，对 #0A59F7 5.55:1 过（见 WotaColor.accentSurface 注）
-    val fill = if (selected) WotaColor.accentSurface else Color.Transparent
+    val fill = if (selected) WotaColor.accentSurface else WotaColor.layer
     val labelColor = if (selected) WotaColor.onAccent else WotaColor.textHi
     val scale by animateFloatAsState(if (pressed) motion.pressScale else 1f, motion.press)
     Box(
@@ -2003,7 +2057,8 @@ private fun InfoRow(label: String, value: String) {
 private data class PermRow(
     @StringRes val labelRes: Int,
     val granted: Boolean,
-    val indent: Boolean = false
+    val indent: Boolean = false,
+    val partial: Boolean = false
 )
 
 /**
@@ -2032,10 +2087,12 @@ private fun permissionRows(context: Context): List<PermRow> = buildList {
     add(PermRow(R.string.set_perm_camera, granted(context, Manifest.permission.CAMERA)))
     add(PermRow(R.string.set_perm_audio, granted(context, Manifest.permission.RECORD_AUDIO)))
     // Android 14+ 的部分授权（READ_MEDIA_VISUAL_USER_SELECTED）也算已授予：用户明确选过「选择照片和视频」
-    val mediaGranted = granted(context, WotaSettings.mediaReadPermission()) ||
-        (android.os.Build.VERSION.SDK_INT >= 34 &&
-            granted(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED))
-    add(PermRow(R.string.set_perm_media, mediaGranted))
+    val fullMedia = granted(context, WotaSettings.mediaReadPermission())
+    val partialMedia = !fullMedia &&
+        android.os.Build.VERSION.SDK_INT >= 34 &&
+        granted(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+    val mediaGranted = fullMedia || partialMedia
+    add(PermRow(R.string.set_perm_media, mediaGranted, partial = partialMedia))
     add(PermRow(R.string.set_perm_bluetooth, hasBluetoothPermission(context)))
     // 版本闸（源码守卫的字面锚）：只有 API ≤ 30 才把位置子行放进列表
     if (btLocationRowVisible(android.os.Build.VERSION.SDK_INT)) {
@@ -2170,14 +2227,18 @@ private fun UpdateSection() {
         Text(
             text = stringResource(R.string.set_update),
             style = MaterialTheme.typography.bodyMedium,
-            color = WotaText,
+            color = if (rowState == UpdateRowState.Idle) WotaColor.accent else WotaText,
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = stringResource(statusRes),
+            text = stringResource(statusRes) + if (rowState == UpdateRowState.Idle) "  ›" else "",
             style = MonoStyle.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize),
             // 失败用 WotaRec 红强调（与权限「未授权」同语义）；其余小字灰安静态
-            color = if (rowState == UpdateRowState.Failed) WotaRec else WotaTextDim
+            color = when (rowState) {
+                UpdateRowState.Failed -> WotaRec
+                UpdateRowState.Idle -> WotaColor.accent
+                else -> WotaTextDim
+            }
         )
     }
 
@@ -2304,11 +2365,13 @@ private fun UpdatePromptDialog(
         BoxWithConstraints {
             // 说明区限高：最多占窗口高度 40%（上限 260dp）——横屏小窗 + 上百行说明也不把按钮顶出屏幕
             val notesMaxHeight = minOf(maxHeight * 0.4f, 260.dp)
+            val dialogShape = RoundedCornerShape(WotaShape.dialog)
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(WotaShape.dialog))
+                    .clip(dialogShape)
                     .background(WotaColor.surface)
+                    .border(WotaStroke.hairline, WotaColor.acrylicBorder, dialogShape)
                     .padding(20.dp)
             ) {
                 Text(
@@ -2320,7 +2383,7 @@ private fun UpdatePromptDialog(
                 Text(
                     text = stringResource(R.string.set_update_available_body, tag, sizeText),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = WotaColor.textMid
+                    color = WotaColor.accent
                 )
                 val notesText = remember(notes) { ReleaseNotes.forDisplay(notes) }
                 if (notesText != null) {
@@ -2365,11 +2428,13 @@ private fun UpdateDownloadDialog(
     // 修复轮 P3-1：下载中外部点击/返回键不再触发取消（误触会丢掉整个下载），
     // onDismissRequest 置空，取消只走显式「取消」钮；完成/失败态保留外部关闭
     Dialog(onDismissRequest = { if (state.done || state.failed || state.installFailure != null) onClose() }) {
+        val dialogShape = RoundedCornerShape(WotaShape.dialog)
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(WotaShape.dialog))
+                .clip(dialogShape)
                 .background(WotaColor.surface)
+                .border(WotaStroke.hairline, WotaColor.acrylicBorder, dialogShape)
                 .padding(20.dp)
         ) {
             // Y46：安装启动失败先于 done 判定——两态不再可能同时渲染成「下载完成」。
@@ -2452,7 +2517,12 @@ private fun UpdateDownloadDialog(
                     if (total > 0) {
                         LinearProgressIndicator(
                             progress = { (state.bytesRead.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = WotaColor.accent,
+                            trackColor = WotaColor.sliderRest
                         )
                     }
                     Spacer(Modifier.height(12.dp))
@@ -2514,17 +2584,35 @@ private fun UpdateDialogActions(actions: List<Pair<String, () -> Unit>>) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         actions.forEachIndexed { i, (label, action) ->
-            if (i > 0) Spacer(Modifier.width(16.dp))
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = if (i == actions.lastIndex) WotaText else WotaColor.textMid,
-                fontWeight = if (i == actions.lastIndex) FontWeight.Bold else null,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = action)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            )
+            if (i > 0) Spacer(Modifier.width(12.dp))
+            val isPrimary = i == actions.lastIndex
+            if (isPrimary) {
+                Box(
+                    Modifier
+                        .clip(WotaShape.pill)
+                        .background(WotaColor.accentSurface)
+                        .clickable(onClick = action)
+                        .padding(horizontal = 18.dp, vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WotaColor.onAccent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            } else {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = WotaColor.textMid,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = action)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }

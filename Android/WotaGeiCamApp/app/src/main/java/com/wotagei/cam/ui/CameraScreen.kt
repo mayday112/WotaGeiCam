@@ -444,9 +444,23 @@ fun CameraScreen(
         owner.lifecycle.addObserver(observer)
         onDispose { owner.lifecycle.removeObserver(observer) }
     }
-    val hudMask = WotaSettings.hudItems(settingsPrefs)
+    var hudMask by remember(settingsPrefs) { mutableIntStateOf(WotaSettings.hudItems(settingsPrefs)) }
     // #54：控件胶囊的显隐位掩码，默认全开；关掉的那几颗整颗不出现（不是变灰）
-    val hiddenPills = CamPill.hiddenOf(WotaSettings.hudPills(settingsPrefs))
+    var hiddenPills by remember(settingsPrefs) { mutableStateOf(CamPill.hiddenOf(WotaSettings.hudPills(settingsPrefs))) }
+    var hudOrder by remember(settingsPrefs) { mutableStateOf(WotaSettings.hudMinimalOrder(settingsPrefs)) }
+    DisposableEffect(settingsPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            when (key) {
+                null, WotaSettings.KEY_HUD_ITEMS -> hudMask = WotaSettings.hudItems(settingsPrefs)
+                WotaSettings.KEY_HUD_PILLS, WotaSettings.KEY_HUD_PILLS_SCHEMA ->
+                    hiddenPills = CamPill.hiddenOf(WotaSettings.hudPills(settingsPrefs))
+                WotaSettings.KEY_HUD_MINIMAL_ORDER ->
+                    hudOrder = WotaSettings.hudMinimalOrder(settingsPrefs)
+            }
+        }
+        settingsPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { settingsPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     val levelBuzz = WotaSettings.levelBuzzEnabled(settingsPrefs)
 
     /**
@@ -2048,7 +2062,8 @@ fun CameraScreen(
                         isLandscape = effectiveLandscape,
                         topBarH = topBarH,
                         visibleEntries = visibleEntries,
-                        activePop = pop
+                        activePop = pop,
+                        hudOrder = hudOrder
                     )
                 }
             }

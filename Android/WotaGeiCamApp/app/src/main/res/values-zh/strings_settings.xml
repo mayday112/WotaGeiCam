@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="set_title">设置</string>
     <string name="set_back">返回</string>
@@ -85,6 +85,7 @@
          此前本注释误写成「首启又弹位置框」） -->
     <string name="set_perm_bt_location">位置（仅用于搜索附近音箱）</string>
     <string name="set_perm_granted">已授予</string>
+    <string name="set_perm_partial">仅部分</string>
     <string name="set_perm_denied">未授予</string>
     <string name="set_perm_note">缺麦克风只录画面，缺视频读取时媒体库看不到成片</string>
     <string name="set_open_system_settings">打开系统设置</string>
@@ -155,7 +156,13 @@
     <string name="cam_pill_size">画幅</string>
     <string name="cam_pill_storage">剩余空间</string>
     <string name="set_pill_note">关掉即从录制页消失；快门、缩略图与设置入口不可隐藏</string>
-    <!-- 编辑控件位置（键 hud_layout）：入口放在「取景器常驻功能」分组里 -->
+    <!-- 编辑控件位置（键 hud_minimal_order）：入口放在「取景器常驻功能」分组里 -->
+    <string name="set_hud_edit_layout">编辑取景器 HUD 布局</string>
+    <string name="set_hud_editor_hint">点按槽位可显示/隐藏或调整顺序；未保存退出将放弃修改</string>
+    <string name="set_hud_editor_show">显示</string>
+    <string name="set_hud_editor_hide">隐藏</string>
+    <string name="set_hud_editor_move_up">前移</string>
+    <string name="set_hud_editor_move_down">后移</string>
     <!-- HUD 毛玻璃背板（键 hud_frost_blur） -->
     <string name="set_frost_blur">HUD 毛玻璃背板</string>
     <string name="set_frost_blur_note">取景控件底板透出被模糊的实时画面。仅 GPU 模式生效；关掉即回到现在的观感。</string>

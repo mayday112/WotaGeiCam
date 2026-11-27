@@ -27,10 +27,29 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.wotagei.cam.ui.design.WotaColor
+import com.wotagei.cam.ui.design.WotaShape
+import com.wotagei.cam.ui.design.WotaStroke
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -76,6 +95,7 @@ import com.wotagei.cam.ui.theme.WotaTheme
 /** 本层新增的两条路由（其余路由用 media 包 [WotaNav] 常量，避免两处定义） */
 const val ROUTE_CAMERA = "camera"
 const val ROUTE_SETTINGS = "settings"
+const val ROUTE_HUD_EDITOR = "hud_editor"
 
 /**
  * 单 Activity + NavHost（06 文档 §1）。
@@ -641,6 +661,17 @@ private fun WotaRoot() {
             DestinationPresence(windowOwner, ROUTE_SETTINGS) {
                 TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_SETTINGS)) {
                     SettingsScreen(
+                        onBack = { navigateBack() },
+                        onOpenHudEditor = { nav.navigate(ROUTE_HUD_EDITOR) }
+                    )
+                }
+            }
+        }
+        composable(ROUTE_HUD_EDITOR) {
+            DestinationPresence(windowOwner, ROUTE_HUD_EDITOR) {
+                TextScaleLayer(WotaSettings.textScale(prefs, WotaSettings.KEY_TEXT_SCALE_CAMERA)) {
+                    MinimalistHudEditorScreen(
+                        prefs = prefs,
                         onBack = { navigateBack() }
                     )
                 }
@@ -649,20 +680,65 @@ private fun WotaRoot() {
     }
 
     if (showPermissionPrompt) {
-        AlertDialog(
-            onDismissRequest = { showPermissionPrompt = false },
-            title = { Text(stringResource(R.string.cam_perm_title), style = MaterialTheme.typography.titleMedium) },
-            text = { Text(stringResource(R.string.perm_denied_settings), style = MaterialTheme.typography.bodyMedium) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showPermissionPrompt = false
-                    context.openAppSettings()
-                }) { Text(stringResource(R.string.perm_open_settings)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPermissionPrompt = false }) { Text(stringResource(R.string.cancel)) }
+        val dialogShape = RoundedCornerShape(WotaShape.dialog)
+        Dialog(onDismissRequest = { showPermissionPrompt = false }) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(dialogShape)
+                    .background(WotaColor.surface)
+                    .border(WotaStroke.hairline, WotaColor.acrylicBorder, dialogShape)
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.cam_perm_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = WotaColor.textHi
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = stringResource(R.string.perm_denied_settings),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = WotaColor.textMid
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.cancel),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = WotaColor.textMid,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { showPermissionPrompt = false }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Box(
+                        Modifier
+                            .clip(WotaShape.pill)
+                            .background(WotaColor.accentSurface)
+                            .clickable {
+                                showPermissionPrompt = false
+                                context.openAppSettings()
+                            }
+                            .padding(horizontal = 18.dp, vertical = 9.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.perm_open_settings),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = WotaColor.onAccent
+                        )
+                    }
+                }
             }
-        )
+        }
     }
 }
 
@@ -670,7 +746,7 @@ private fun applyPageMode(activity: Activity?, route: String?) {
     val act = activity ?: return
     // 沉浸仍只属于取景器那一圈控件的页面：录制页与「编辑控件」页（13 号计划第 5 条）共用一套系统栏显隐，
     // 两页的 (x, y) 必须落在同一个安全区里才谈得上"位置"
-    val hudPage = route == ROUTE_CAMERA
+    val hudPage = route == ROUTE_CAMERA || route == ROUTE_HUD_EDITOR
     // 方向对所有页生效（用户 2026-10-02 指令；旧口径「HUD 页按档锁、其余页恒 FULL_USER 跟随系统旋转」已作废）：
     // 任何页都按设置页「默认方向」锁（默认横屏使用，且不依赖系统自动旋转开关），
     // 连带效果是设置/媒体库/播放器/对比页在 app 内不再随系统自动旋转。映射本体是

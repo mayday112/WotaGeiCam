@@ -56,14 +56,14 @@ import com.wotagei.cam.ui.design.wotaHudCard
 import com.wotagei.cam.ui.widget.AttitudeCard
 import com.wotagei.cam.ui.widget.AudioChip
 
-private val ReadoutItems = listOf(
-    HudItem.SHUTTER,
-    HudItem.ISO,
-    HudItem.EV,
-    HudItem.WB,
-    HudItem.ZOOM,
-    HudItem.FPS
-)
+private fun MinimalistReadoutSlot.toHudItem(): HudItem = when (this) {
+    MinimalistReadoutSlot.SHUTTER -> HudItem.SHUTTER
+    MinimalistReadoutSlot.ISO -> HudItem.ISO
+    MinimalistReadoutSlot.EV -> HudItem.EV
+    MinimalistReadoutSlot.WB -> HudItem.WB
+    MinimalistReadoutSlot.ZOOM -> HudItem.ZOOM
+    MinimalistReadoutSlot.FPS -> HudItem.FPS
+}
 
 /**
  * Minimalist Camera HUD matching the Figcraft `Landscape` & `Portrait` designs.
@@ -77,6 +77,7 @@ fun BoxScope.MinimalistHudOverlay(
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
     activePop: PillKey? = null,
+    hudOrder: MinimalistHudOrder = MinimalistHudOrder.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val onOpenFx: () -> Unit = {
@@ -113,6 +114,7 @@ fun BoxScope.MinimalistHudOverlay(
                 topBarH = topBarH,
                 visibleEntries = visibleEntries,
                 activePop = activePop,
+                hudOrder = hudOrder,
                 onOpenFx = onOpenFx
             )
         } else {
@@ -121,6 +123,7 @@ fun BoxScope.MinimalistHudOverlay(
                 topBarH = topBarH,
                 visibleEntries = visibleEntries,
                 activePop = activePop,
+                hudOrder = hudOrder,
                 onOpenFx = onOpenFx
             )
         }
@@ -133,6 +136,7 @@ private fun BoxScope.LandscapeMinimalistChrome(
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
     activePop: PillKey?,
+    hudOrder: MinimalistHudOrder,
     onOpenFx: () -> Unit
 ) {
     // Left Pillarbox Rail (Creative & Monitoring)
@@ -148,58 +152,69 @@ private fun BoxScope.LandscapeMinimalistChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        if (HudEntry.of(CamPill.REFLINE) in visibleEntries) {
-            WotaIconButton(
-                image = Icons.Filled.GridOn,
-                description = stringResource(R.string.cam_p_refline),
-                selected = ctx.refLineOn || activePop == PillKey.REFLINE,
-                onClick = ctx.onRefLineClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
-            )
-        }
-        if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
-            MiniPillButton(
-                label = ctx.monitorLabel,
-                selected = ctx.monitorActive || activePop == PillKey.MONITOR,
-                onClick = ctx.onMonitorClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
-            )
-        }
-        if (HudEntry.of(CamPill.CURVE) in visibleEntries) {
-            MiniPillButton(
-                label = stringResource(R.string.cam_p_curve),
-                selected = ctx.curveOn,
-                onClick = ctx.onCurveClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
-            )
-        }
-        val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
-        MiniPillButton(
-            label = "FX",
-            selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
-            enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
-            onClick = onOpenFx,
-            modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
-                .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
-                .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
-        )
-        if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
-            MiniPillButton(
-                label = ctx.denoiseLabel,
-                selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
-                onClick = ctx.onDenoiseClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
-            )
-        }
-        if (HudEntry.of(CamPill.FLASH) in visibleEntries) {
-            WotaIconButton(
-                image = flashIcon(ctx.flash),
-                description = stringResource(R.string.cam_p_flash),
-                selected = ctx.flash != com.wotagei.cam.core.Flash.OFF || activePop == PillKey.FLASH,
-                onClick = ctx.onFlashClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.FLASH))
-                    .alpha(if (ctx.flashUsable) 1f else 0.45f)
-            )
+        hudOrder.creative.forEach { slot ->
+            when (slot) {
+                MinimalistCreativeSlot.REFLINE -> if (HudEntry.of(CamPill.REFLINE) in visibleEntries) {
+                    WotaIconButton(
+                        image = Icons.Filled.GridOn,
+                        description = stringResource(R.string.cam_p_refline),
+                        selected = ctx.refLineOn || activePop == PillKey.REFLINE,
+                        onClick = ctx.onRefLineClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
+                    )
+                }
+                MinimalistCreativeSlot.MONITOR -> if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
+                    MiniPillButton(
+                        label = ctx.monitorLabel,
+                        selected = ctx.monitorActive || activePop == PillKey.MONITOR,
+                        onClick = ctx.onMonitorClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
+                    )
+                }
+                MinimalistCreativeSlot.CURVE -> if (HudEntry.of(CamPill.CURVE) in visibleEntries) {
+                    MiniPillButton(
+                        label = stringResource(R.string.cam_p_curve),
+                        selected = ctx.curveOn,
+                        onClick = ctx.onCurveClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
+                    )
+                }
+                MinimalistCreativeSlot.FX -> {
+                    val fxVisible = HudEntry.of(CamPill.GLOW) in visibleEntries ||
+                        HudEntry.of(CamPill.ECHO) in visibleEntries ||
+                        HudEntry.of(CamPill.TONE) in visibleEntries
+                    if (fxVisible) {
+                        val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
+                        MiniPillButton(
+                            label = "FX",
+                            selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
+                            enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
+                            onClick = onOpenFx,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
+                                .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
+                                .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
+                        )
+                    }
+                }
+                MinimalistCreativeSlot.DENOISE -> if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
+                    MiniPillButton(
+                        label = ctx.denoiseLabel,
+                        selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
+                        onClick = ctx.onDenoiseClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
+                    )
+                }
+                MinimalistCreativeSlot.FLASH -> if (HudEntry.of(CamPill.FLASH) in visibleEntries) {
+                    WotaIconButton(
+                        image = flashIcon(ctx.flash),
+                        description = stringResource(R.string.cam_p_flash),
+                        selected = ctx.flash != com.wotagei.cam.core.Flash.OFF || activePop == PillKey.FLASH,
+                        onClick = ctx.onFlashClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.FLASH))
+                            .alpha(if (ctx.flashUsable) 1f else 0.45f)
+                    )
+                }
+            }
         }
     }
 
@@ -226,8 +241,8 @@ private fun BoxScope.LandscapeMinimalistChrome(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        ReadoutItems.forEach { item ->
-            val rawValue = ctx.readoutValue(item)
+        hudOrder.readout.map { it.toHudItem() }.forEach { item ->
+            val rawValue = if (HudEntry.of(item) in visibleEntries) ctx.readoutValue(item) else null
             if (rawValue != null) {
                 val aeLockedItem = ctx.aeLocked && (item == HudItem.SHUTTER || item == HudItem.ISO)
                 val value = if (aeLockedItem) "LOCK" else rawValue
@@ -259,36 +274,44 @@ private fun BoxScope.LandscapeMinimalistChrome(
         if (ctx.levelEnabled) {
             AttitudeCard(roll = ctx.roll, pitch = ctx.pitch, enabled = true, card = false)
         }
-        if (HudEntry.of(CamPill.LENS) in visibleEntries) {
-            MiniPillButton(
-                label = ctx.lensLabel,
-                selected = false,
-                onClick = ctx.onOpenLensPanel,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.LENS))
-            )
+        val firstControl = hudOrder.controls.firstOrNull()
+        val afterControls = hudOrder.controls.drop(1)
+        val renderControl: @Composable (MinimalistControlSlot) -> Unit = { slot ->
+            when (slot) {
+                MinimalistControlSlot.LENS -> if (HudEntry.of(CamPill.LENS) in visibleEntries) {
+                    MiniPillButton(
+                        label = ctx.lensLabel,
+                        selected = false,
+                        onClick = ctx.onOpenLensPanel,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.LENS))
+                    )
+                }
+                MinimalistControlSlot.FOCUS -> if (HudEntry.of(CamPill.FOCUS) in visibleEntries) {
+                    MiniPillButton(
+                        label = ctx.focusLabel,
+                        selected = ctx.focusActive || activePop == PillKey.FOCUS,
+                        enabled = ctx.focusUsable,
+                        onClick = ctx.onFocusClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.FOCUS))
+                    )
+                }
+                MinimalistControlSlot.STAB -> if (HudEntry.of(CamPill.STAB) in visibleEntries) {
+                    MiniPillButton(
+                        label = ctx.stabLabel,
+                        selected = ctx.stabActive || activePop == PillKey.STAB,
+                        onClick = ctx.onStabClick,
+                        modifier = ctx.anchorOf(HudEntry.of(CamPill.STAB))
+                    )
+                }
+            }
         }
+        if (firstControl != null) renderControl(firstControl)
         RecordButton(
             recording = ctx.recording,
             busy = ctx.busy,
             onClick = ctx.onRecordClick
         )
-        if (HudEntry.of(CamPill.FOCUS) in visibleEntries) {
-            MiniPillButton(
-                label = ctx.focusLabel,
-                selected = ctx.focusActive || activePop == PillKey.FOCUS,
-                enabled = ctx.focusUsable,
-                onClick = ctx.onFocusClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.FOCUS))
-            )
-        }
-        if (HudEntry.of(CamPill.STAB) in visibleEntries) {
-            MiniPillButton(
-                label = ctx.stabLabel,
-                selected = ctx.stabActive || activePop == PillKey.STAB,
-                onClick = ctx.onStabClick,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.STAB))
-            )
-        }
+        afterControls.forEach { renderControl(it) }
     }
 }
 
@@ -298,6 +321,7 @@ private fun BoxScope.PortraitMinimalistChrome(
     topBarH: Int,
     visibleEntries: Set<HudEntry>,
     activePop: PillKey?,
+    hudOrder: MinimalistHudOrder,
     onOpenFx: () -> Unit
 ) {
     // Portrait Row 1 (TopStart): compact AudioChip only — leaves full space for the 4 TopEnd circular buttons
@@ -353,47 +377,59 @@ private fun BoxScope.PortraitMinimalistChrome(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (HudEntry.of(CamPill.REFLINE) in visibleEntries) {
-                MiniPillButton(
-                    label = stringResource(R.string.cam_refline_grid),
-                    selected = ctx.refLineOn || activePop == PillKey.REFLINE,
-                    onClick = ctx.onRefLineClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
-                )
-            }
-            if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
-                MiniPillButton(
-                    label = ctx.monitorLabel,
-                    selected = ctx.monitorActive || activePop == PillKey.MONITOR,
-                    onClick = ctx.onMonitorClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
-                )
-            }
-            if (HudEntry.of(CamPill.CURVE) in visibleEntries) {
-                MiniPillButton(
-                    label = stringResource(R.string.cam_p_curve),
-                    selected = ctx.curveOn,
-                    onClick = ctx.onCurveClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
-                )
-            }
-            val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
-            MiniPillButton(
-                label = "FX",
-                selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
-                enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
-                onClick = onOpenFx,
-                modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
-                    .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
-                    .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
-            )
-            if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
-                MiniPillButton(
-                    label = ctx.denoiseLabel,
-                    selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
-                    onClick = ctx.onDenoiseClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
-                )
+            hudOrder.creative.forEach { slot ->
+                when (slot) {
+                    MinimalistCreativeSlot.REFLINE -> if (HudEntry.of(CamPill.REFLINE) in visibleEntries) {
+                        MiniPillButton(
+                            label = stringResource(R.string.cam_refline_grid),
+                            selected = ctx.refLineOn || activePop == PillKey.REFLINE,
+                            onClick = ctx.onRefLineClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.REFLINE))
+                        )
+                    }
+                    MinimalistCreativeSlot.MONITOR -> if (HudEntry.of(CamPill.MONITOR) in visibleEntries) {
+                        MiniPillButton(
+                            label = ctx.monitorLabel,
+                            selected = ctx.monitorActive || activePop == PillKey.MONITOR,
+                            onClick = ctx.onMonitorClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.MONITOR))
+                        )
+                    }
+                    MinimalistCreativeSlot.CURVE -> if (HudEntry.of(CamPill.CURVE) in visibleEntries) {
+                        MiniPillButton(
+                            label = stringResource(R.string.cam_p_curve),
+                            selected = ctx.curveOn,
+                            onClick = ctx.onCurveClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.CURVE))
+                        )
+                    }
+                    MinimalistCreativeSlot.FX -> {
+                        val fxVisible = HudEntry.of(CamPill.GLOW) in visibleEntries ||
+                            HudEntry.of(CamPill.ECHO) in visibleEntries ||
+                            HudEntry.of(CamPill.TONE) in visibleEntries
+                        if (fxVisible) {
+                            val fxOpen = activePop == PillKey.GLOW || activePop == PillKey.ECHO || activePop == PillKey.TONE
+                            MiniPillButton(
+                                label = "FX",
+                                selected = fxOpen || ctx.glowActive || ctx.echoActive || ctx.toneActive,
+                                enabled = ctx.glowUsable || ctx.echoUsable || ctx.toneUsable,
+                                onClick = onOpenFx,
+                                modifier = ctx.anchorOf(HudEntry.of(CamPill.GLOW))
+                                    .then(ctx.anchorOf(HudEntry.of(CamPill.ECHO)))
+                                    .then(ctx.anchorOf(HudEntry.of(CamPill.TONE)))
+                            )
+                        }
+                    }
+                    MinimalistCreativeSlot.DENOISE -> if (HudEntry.of(CamPill.DENOISE) in visibleEntries) {
+                        MiniPillButton(
+                            label = ctx.denoiseLabel,
+                            selected = ctx.denoiseActive || activePop == PillKey.DENOISE,
+                            onClick = ctx.onDenoiseClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.DENOISE))
+                        )
+                    }
+                    MinimalistCreativeSlot.FLASH -> Unit
+                }
             }
         }
 
@@ -409,8 +445,8 @@ private fun BoxScope.PortraitMinimalistChrome(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ReadoutItems.forEach { item ->
-                val rawValue = ctx.readoutValue(item)
+            hudOrder.readout.map { it.toHudItem() }.forEach { item ->
+                val rawValue = if (HudEntry.of(item) in visibleEntries) ctx.readoutValue(item) else null
                 if (rawValue != null) {
                     val aeLockedItem = ctx.aeLocked && (item == HudItem.SHUTTER || item == HudItem.ISO)
                     val value = if (aeLockedItem) "LOCK" else rawValue
@@ -437,32 +473,40 @@ private fun BoxScope.PortraitMinimalistChrome(
             verticalAlignment = Alignment.CenterVertically
         ) {
             MiniGalleryButton(lastUri = ctx.lastUri, onClick = ctx.onThumbClick)
-            if (HudEntry.of(CamPill.LENS) in visibleEntries) {
-                MiniPillButton(
-                    label = ctx.lensLabel,
-                    selected = false,
-                    onClick = ctx.onOpenLensPanel,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.LENS))
-                )
+            val firstControl = hudOrder.controls.firstOrNull()
+            val afterControls = hudOrder.controls.drop(1)
+            val renderControl: @Composable (MinimalistControlSlot) -> Unit = { slot ->
+                when (slot) {
+                    MinimalistControlSlot.LENS -> if (HudEntry.of(CamPill.LENS) in visibleEntries) {
+                        MiniPillButton(
+                            label = ctx.lensLabel,
+                            selected = false,
+                            onClick = ctx.onOpenLensPanel,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.LENS))
+                        )
+                    }
+                    MinimalistControlSlot.FOCUS -> if (HudEntry.of(CamPill.FOCUS) in visibleEntries) {
+                        MiniPillButton(
+                            label = ctx.focusLabel,
+                            selected = ctx.focusActive,
+                            enabled = ctx.focusUsable,
+                            onClick = ctx.onFocusClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.FOCUS))
+                        )
+                    }
+                    MinimalistControlSlot.STAB -> if (HudEntry.of(CamPill.STAB) in visibleEntries) {
+                        MiniPillButton(
+                            label = ctx.stabLabel,
+                            selected = ctx.stabActive,
+                            onClick = ctx.onStabClick,
+                            modifier = ctx.anchorOf(HudEntry.of(CamPill.STAB))
+                        )
+                    }
+                }
             }
+            if (firstControl != null) renderControl(firstControl)
             RecordButton(recording = ctx.recording, busy = ctx.busy, onClick = ctx.onRecordClick)
-            if (HudEntry.of(CamPill.FOCUS) in visibleEntries) {
-                MiniPillButton(
-                    label = ctx.focusLabel,
-                    selected = ctx.focusActive,
-                    enabled = ctx.focusUsable,
-                    onClick = ctx.onFocusClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.FOCUS))
-                )
-            }
-            if (HudEntry.of(CamPill.STAB) in visibleEntries) {
-                MiniPillButton(
-                    label = ctx.stabLabel,
-                    selected = ctx.stabActive,
-                    onClick = ctx.onStabClick,
-                    modifier = ctx.anchorOf(HudEntry.of(CamPill.STAB))
-                )
-            }
+            afterControls.forEach { renderControl(it) }
         }
     }
 }
